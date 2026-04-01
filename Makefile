@@ -1,4 +1,4 @@
-.PHONY: agency nanobot browser
+.PHONY: run nanobot browser
 
 nanobot:
 	uv sync --upgrade-package nanobot-ai
@@ -6,5 +6,5 @@ nanobot:
 browser:
 	bash scripts/start-browser.sh
 
-agency:
-	uv run nanobot gateway --config ./.nanobot/digital-agency/config.json
+run:
+	uv run nanobot gateway --config ./.nanobot/workspace/config.json
