@@ -1,0 +1,1 @@
+{"event": "llm_call", "ts": "2026-04-01T14:42:07.119+00:00", "session_id": "telegram:916491205", "model": "anthropic-oauth/claude-sonnet-4-6", "iteration": 0, "prompt_tokens": 5080, "completion_tokens": 64, "has_tool_calls": false, "stop_reason": "completed"}

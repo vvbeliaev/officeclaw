@@ -1,0 +1,7 @@
+.venv
+__pycache__
+.DS_Store
+config.json
+tenant_map.json
+
+digital-agency/
