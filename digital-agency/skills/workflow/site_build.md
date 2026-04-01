@@ -60,7 +60,7 @@ claude --print "{промпт}" --output-format text
 
 Шаги агента:
 
-1. Скопировать шаблон: `rsync -av --exclude='node_modules' --exclude='.git' --exclude='.astro' {AGENT_DIR}/skills/workflow_site_build/assets/website/ clients/{chat_id}/artifacts/site/`
+1. Скопировать шаблон: `rsync -av --exclude='node_modules' --exclude='.git' --exclude='.astro' {AGENT_DIR}/skills/site_development/assets/website/ clients/{chat_id}/artifacts/site/`
 2. `pnpm install`
 3. Настроить тему в `src/styles/global.css` (oklch цвета)
 4. Обновить layout (`<title>`, meta теги)

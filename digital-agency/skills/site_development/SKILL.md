@@ -47,6 +47,20 @@ read_when:
 - Контраст текст/фон: WCAG AA (4.5:1 для обычного текста)
 - `lang` атрибут на `<html>`
 
+## Шаблон проекта
+
+В `skills/site_development/assets/website/` находится готовый шаблон Astro 5 + React + TypeScript + shadcn/ui.
+
+При старте нового сайта **всегда копировать шаблон**:
+
+```bash
+rsync -av --exclude='node_modules' --exclude='.git' --exclude='.astro' \
+  {AGENT_DIR}/skills/site_development/assets/website/ \
+  clients/{chat_id}/artifacts/site/
+```
+
+Затем: `pnpm install` → настройка темы → разработка.
+
 ## Структура файлов
 
 ```
