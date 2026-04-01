@@ -5,3 +5,5 @@ config.json
 tenant_map.json
 
 browser-profile/
+.traces/
+sessions/
