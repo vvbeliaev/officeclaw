@@ -6,7 +6,8 @@ read_when:
   - Собираешь визуальные референсы (Pinterest, Behance, Dribbble)
   - Проверяешь задеплоенный сайт клиента
   - Нужно взаимодействовать с UI — кликать, заполнять формы
-metadata: {"clawdbot":{"emoji":"🌐","requires":{"bins":["node","npm"]}}}
+metadata:
+  { "clawdbot": { "emoji": "🌐", "requires": { "bins": ["node", "npm"] } } }
 allowed-tools: Bash(agent-browser:*)
 ---
 
@@ -31,6 +32,7 @@ agent-browser --cdp 19900 fill @e2 "text"   # Fill input by ref
 ```
 
 Если браузер не запущен — запусти скрипт:
+
 ```bash
 ./scripts/start-browser.sh
 ```

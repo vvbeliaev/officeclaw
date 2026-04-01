@@ -4,7 +4,7 @@ This file stores important information that should persist across sessions.
 
 ## User Information
 
-(Important facts about the user)
+- Communicates in Russian (greeted and conversed in Russian)
 
 ## Preferences
 
@@ -16,7 +16,7 @@ This file stores important information that should persist across sessions.
 
 ## Important Notes
 
-(Things to remember)
+- First interaction recorded on 2026-04-01; user explored basic assistant capabilities and tested context recall.
 
 ---
 
