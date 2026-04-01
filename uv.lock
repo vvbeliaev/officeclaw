@@ -926,7 +926,7 @@ wheels = [
 [[package]]
 name = "nanobot-ai"
 version = "0.1.4.post6"
-source = { git = "https://github.com/vvbeliaev/nanobot?rev=officeclaw#c9f1c8174f4fc90eb3b17a0dbc037f3d87a5570a" }
+source = { git = "https://github.com/vvbeliaev/nanobot?rev=officeclaw#dcc59f7c81fbef29334a1f8eb50514233018025c" }
 dependencies = [
     { name = "anthropic" },
     { name = "chardet" },

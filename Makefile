@@ -1,4 +1,4 @@
-.PHONY: run nanobot browser
+.PHONY: agency nanobot browser
 
 nanobot:
 	uv sync --upgrade-package nanobot-ai
