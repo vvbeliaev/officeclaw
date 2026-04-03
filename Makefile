@@ -1,6 +1,6 @@
 .PHONY: run nanobot browser
 
-nanobot:
+install:
 	uv sync --upgrade-package nanobot-ai
 
 browser:
