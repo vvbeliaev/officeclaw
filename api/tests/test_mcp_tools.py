@@ -70,3 +70,49 @@ async def test_mcp_delete_admin_agent_raises(mcp_conn_user):
     admin_id = UUID(next(a["id"] for a in agents if a["is_admin"]))
     with pytest.raises(ValueError, match="Cannot delete the Admin agent"):
         await mcp_delete_agent(conn, admin_id)
+
+
+async def test_mcp_create_and_list_skills(mcp_conn_user):
+    from src.mcp_server import mcp_create_skill, mcp_list_skills
+    conn, user_id = mcp_conn_user
+    result = await mcp_create_skill(conn, user_id, "research", "Web research")
+    assert result["name"] == "research"
+    skills = await mcp_list_skills(conn, user_id)
+    assert any(s["name"] == "research" for s in skills)
+
+
+async def test_mcp_attach_skill(mcp_conn_user):
+    from src.mcp_server import mcp_create_agent, mcp_create_skill, mcp_attach_skill
+    from src.repositories.links import LinkRepo
+    conn, user_id = mcp_conn_user
+    agent = await mcp_create_agent(conn, user_id, "SkillBot", "ghcr.io/hkuds/nanobot:latest")
+    skill = await mcp_create_skill(conn, user_id, "calc", "Calculator")
+    result = await mcp_attach_skill(conn, UUID(agent["id"]), UUID(skill["id"]))
+    assert result["attached"] is True
+    linked = await LinkRepo(conn).list_skills(UUID(agent["id"]))
+    assert any(str(r["id"]) == skill["id"] for r in linked)
+
+
+async def test_mcp_create_and_list_envs(mcp_conn_user):
+    from src.mcp_server import mcp_create_env, mcp_list_envs
+    import json
+    conn, user_id = mcp_conn_user
+    values_json = json.dumps({"OPENAI_API_KEY": "sk-test"})
+    result = await mcp_create_env(conn, user_id, "openai", values_json)
+    assert result["name"] == "openai"
+    envs = await mcp_list_envs(conn, user_id)
+    # includes the 'officeclaw' env created at registration + new 'openai'
+    assert any(e["name"] == "openai" for e in envs)
+
+
+async def test_mcp_list_channels(mcp_conn_user, client):
+    from src.mcp_server import mcp_list_channels
+    conn, user_id = mcp_conn_user
+    # Create a channel via REST to have something to list
+    await client.post("/channels", json={
+        "user_id": str(user_id),
+        "type": "telegram",
+        "config": {"token": "bot:abc", "allow_from": []}
+    })
+    channels = await mcp_list_channels(conn, user_id)
+    assert any(c["type"] == "telegram" for c in channels)
