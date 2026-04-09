@@ -2,9 +2,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 import asyncpg
 from src.shared.db.pool import get_pool
-from src.integrations.schema import EnvCreate, EnvOut, ChannelCreate, ChannelOut, McpCreate, McpOut
-from src.integrations.repository import EnvRepo, ChannelRepo, LinkRepo, AgentMcpRepo
-from src.library.schema import SkillOut
+from src.integrations.core.schema import EnvCreate, EnvOut, ChannelCreate, ChannelOut, McpCreate, McpOut
+from src.integrations.adapters.repository import EnvRepo, ChannelRepo, LinkRepo, AgentMcpRepo
+from src.library.core.schema import SkillOut
 
 envs_router = APIRouter()
 channels_router = APIRouter()

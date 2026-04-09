@@ -5,7 +5,7 @@ import json
 
 @pytest.fixture
 async def full_agent(client):
-    """Create user → agent → files → skill → env → channel → mcp."""
+    """Create user -> agent -> files -> skill -> env -> channel -> mcp."""
     user = await client.post("/users", json={"email": "payload@example.com"})
     uid = user.json()["id"]
 
@@ -38,7 +38,7 @@ async def full_agent(client):
 
 
 async def test_vm_payload_structure(client, full_agent, conn):
-    from src.adapters.sandbox.vm_payload import build_vm_payload
+    from src.fleet.adapters.vm_payload import build_vm_payload
     payload = await build_vm_payload(conn, full_agent)
 
     # Files

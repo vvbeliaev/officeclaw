@@ -3,8 +3,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 import asyncpg
 from src.shared.db.pool import get_pool
-from src.library.schema import SkillCreate, SkillOut, SkillFileIn, SkillFileOut
-from src.library.repository import SkillRepo, SkillFileRepo
+from src.library.core.schema import SkillCreate, SkillOut, SkillFileIn, SkillFileOut
+from src.library.adapters.repository import SkillRepo, SkillFileRepo
 
 router = APIRouter()
 

@@ -2,10 +2,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException
 import asyncpg
 from src.shared.db.pool import get_pool
-from src.fleet.schema import AgentCreate, AgentOut, AgentUpdate
-from src.fleet.repository import AgentRepo
-from src.fleet.schema import AgentFileIn, AgentFileOut
-from src.fleet.repository import AgentFileRepo
+from src.fleet.core.schema import AgentCreate, AgentOut, AgentUpdate
+from src.fleet.adapters.repository import AgentRepo
+from src.fleet.core.schema import AgentFileIn, AgentFileOut
+from src.fleet.adapters.repository import AgentFileRepo
 
 router = APIRouter()
 
@@ -69,7 +69,7 @@ async def start_agent(
         raise HTTPException(404, "Agent not found")
     if record["status"] == "running":
         raise HTTPException(409, "Agent is already running")
-    from src.fleet.service import start_agent_sandbox
+    from src.fleet.app.sandbox import start_agent_sandbox
 
     await start_agent_sandbox(conn, agent_id)
     updated = await AgentRepo(conn).find_by_id(agent_id)
@@ -86,7 +86,7 @@ async def stop_agent(
         raise HTTPException(404, "Agent not found")
     if record["status"] != "running":
         raise HTTPException(409, "Agent is not running")
-    from src.fleet.service import stop_agent_sandbox
+    from src.fleet.app.sandbox import stop_agent_sandbox
 
     await stop_agent_sandbox(conn, agent_id)
     updated = await AgentRepo(conn).find_by_id(agent_id)

@@ -1,6 +1,6 @@
 # api/src/identity/service.py
 """
-Admin agent bootstrap — runs at user registration.
+Admin agent bootstrap -- runs at user registration.
 
 Creates:
   1. OFFICECLAW_TOKEN stored in users.officeclaw_token
@@ -16,15 +16,15 @@ from uuid import UUID
 import asyncpg
 
 from src.shared.config import get_settings
-from src.fleet.repository import AgentRepo
-from src.fleet.repository import AgentFileRepo
-from src.integrations.repository import EnvRepo
-from src.integrations.repository import LinkRepo
-from src.integrations.repository import AgentMcpRepo
-from src.identity.repository import UserRepo
+from src.fleet.adapters.repository import AgentRepo
+from src.fleet.adapters.repository import AgentFileRepo
+from src.integrations.adapters.repository import EnvRepo
+from src.integrations.adapters.repository import LinkRepo
+from src.integrations.adapters.repository import AgentMcpRepo
+from src.identity.adapters.repository import UserRepo
 
 _SOUL_MD = """
-You are the Admin agent for OfficeClaw — a fleet manager AI that helps users
+You are the Admin agent for OfficeClaw -- a fleet manager AI that helps users
 create, configure, and manage their personal AI agents.
 
 You have access to the `officeclaw` MCP tool which allows you to perform all
@@ -73,7 +73,7 @@ async def create_admin_for_user(conn: asyncpg.Connection, user_id: UUID) -> str:
     Bootstrap the Admin agent for a newly registered user.
     Returns the plain-text OFFICECLAW_TOKEN (show once to the user).
 
-    Uses conn directly — compatible with both asyncpg.Pool and asyncpg.Connection
+    Uses conn directly -- compatible with both asyncpg.Pool and asyncpg.Connection
     (same pattern as all other repos in this codebase).
     """
     token = secrets.token_urlsafe(32)

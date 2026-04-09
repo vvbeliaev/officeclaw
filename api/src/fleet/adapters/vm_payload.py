@@ -13,9 +13,9 @@ import json
 import logging
 from uuid import UUID
 import asyncpg
-from src.fleet.repository import AgentFileRepo
-from src.integrations.repository import LinkRepo, EnvRepo, ChannelRepo, AgentMcpRepo
-from src.library.repository import SkillFileRepo
+from src.fleet.adapters.repository import AgentFileRepo
+from src.integrations.adapters.repository import LinkRepo, EnvRepo, ChannelRepo, AgentMcpRepo
+from src.library.adapters.repository import SkillFileRepo
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +39,12 @@ async def build_vm_payload(conn: asyncpg.Connection, agent_id: UUID) -> dict:
     for skill_rec in await link_repo.list_skills(agent_id):
         skill_name = skill_rec["name"]
         for sf in await skill_file_repo.list_by_skill(skill_rec["id"]):
-            files.append({
-                "path": f"skills/{skill_name}/{sf['path']}",
-                "content": sf["content"],
-            })
+            files.append(
+                {
+                    "path": f"skills/{skill_name}/{sf['path']}",
+                    "content": sf["content"],
+                }
+            )
 
     # 3. Merged env vars from all linked envs
     env_vars: dict = {}
@@ -52,12 +54,16 @@ async def build_vm_payload(conn: asyncpg.Connection, agent_id: UUID) -> dict:
         if collisions:
             logger.warning(
                 "Agent %s: env key collision from env %s — overwriting keys: %s",
-                agent_id, env_rec["id"], collisions,
+                agent_id,
+                env_rec["id"],
+                collisions,
             )
         env_vars = {**env_vars, **values}
 
     # 4. Build config.json
-    config, extra_env = await _build_config_json(agent_id, link_repo, env_vars, channel_repo, mcp_repo)
+    config, extra_env = await _build_config_json(
+        agent_id, link_repo, env_vars, channel_repo, mcp_repo
+    )
     merged_env = {**env_vars, **extra_env}
 
     return {

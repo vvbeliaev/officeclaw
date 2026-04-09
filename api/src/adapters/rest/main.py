@@ -6,10 +6,10 @@ from fastapi import FastAPI
 
 from src.shared.db.pool import create_pool, close_pool
 from src.adapters.mcp.server import mcp, set_pool
-from src.identity.router import router as users_router
-from src.library.router import router as skills_router
-from src.fleet.router import router as agents_router
-from src.integrations.router import envs_router, channels_router, links_router
+from src.identity.adapters.router import router as users_router
+from src.library.adapters.router import router as skills_router
+from src.fleet.adapters.router import router as agents_router
+from src.integrations.adapters.router import envs_router, channels_router, links_router
 
 
 @asynccontextmanager

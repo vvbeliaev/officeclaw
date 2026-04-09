@@ -50,14 +50,14 @@ async def test_mcp_start_stop_agent(mcp_conn_user):
     agent = await mcp_create_agent(conn, user_id, "StatusBot", "ghcr.io/hkuds/nanobot:latest")
     agent_id = UUID(agent["id"])
 
-    with patch("src.fleet.service.asyncio.create_subprocess_exec", return_value=_proc()), \
-         patch("src.fleet.service.Path.mkdir"), \
+    with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
+         patch("src.fleet.app.sandbox.Path.mkdir"), \
          patch("builtins.open", MagicMock()):
         started = await mcp_start_agent(conn, agent_id)
     assert started["status"] == "running"
 
-    with patch("src.fleet.service.asyncio.create_subprocess_exec", return_value=_proc()), \
-         patch("src.fleet.service.shutil.rmtree"):
+    with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
+         patch("src.fleet.app.sandbox.shutil.rmtree"):
         stopped = await mcp_stop_agent(conn, agent_id)
     assert stopped["status"] == "idle"
 
@@ -96,7 +96,7 @@ async def test_mcp_create_and_list_skills(mcp_conn_user):
 
 async def test_mcp_attach_skill(mcp_conn_user):
     from src.adapters.mcp.server import mcp_create_agent, mcp_create_skill, mcp_attach_skill
-    from src.integrations.repository import LinkRepo
+    from src.integrations.adapters.repository import LinkRepo
     conn, user_id = mcp_conn_user
     agent = await mcp_create_agent(conn, user_id, "SkillBot", "ghcr.io/hkuds/nanobot:latest")
     skill = await mcp_create_skill(conn, user_id, "calc", "Calculator")

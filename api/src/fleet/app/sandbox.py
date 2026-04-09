@@ -5,7 +5,7 @@ from uuid import UUID
 
 import asyncpg
 
-from src.fleet.repository import AgentRepo
+from src.fleet.adapters.repository import AgentRepo
 
 _SANDBOX_WORKDIR = Path("/tmp/officeclaw")
 _DEFAULT_IMAGE = "ghcr.io/hkuds/nanobot:latest"
@@ -18,9 +18,9 @@ async def start_agent_sandbox(conn: asyncpg.Connection, agent_id: UUID) -> str:
     Build VM payload, write workspace files to /tmp/officeclaw/<agent_id>/,
     launch sandbox via `msb run --detach`. Returns sandbox_id (msb sandbox name).
 
-    Uses asyncio.create_subprocess_exec (no shell=True — injection-safe).
+    Uses asyncio.create_subprocess_exec (no shell=True -- injection-safe).
     """
-    from src.adapters.sandbox.vm_payload import build_vm_payload
+    from src.fleet.adapters.vm_payload import build_vm_payload
 
     payload = await build_vm_payload(conn, agent_id)
 

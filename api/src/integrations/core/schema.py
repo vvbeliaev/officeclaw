@@ -33,7 +33,7 @@ class ChannelOut(BaseModel):
 
 class McpCreate(BaseModel):
     name: str
-    config: dict  # {command, args} or {url, headers} — never returned
+    config: dict  # {command, args} or {url, headers} -- never returned
 
 
 class McpOut(BaseModel):

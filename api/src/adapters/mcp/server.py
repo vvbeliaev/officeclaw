@@ -17,10 +17,10 @@ import asyncpg
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 
-from src.fleet.repository import AgentRepo, AgentFileRepo
-from src.integrations.repository import EnvRepo, ChannelRepo, LinkRepo
-from src.library.repository import SkillRepo
-from src.identity.repository import UserRepo
+from src.fleet.adapters.repository import AgentRepo, AgentFileRepo
+from src.integrations.adapters.repository import EnvRepo, ChannelRepo, LinkRepo
+from src.library.adapters.repository import SkillRepo
+from src.identity.adapters.repository import UserRepo
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +100,7 @@ async def mcp_update_agent_file(
 
 
 async def mcp_start_agent(conn: asyncpg.Connection, agent_id: UUID) -> dict:
-    from src.fleet.service import start_agent_sandbox
+    from src.fleet.app.sandbox import start_agent_sandbox
     record = await AgentRepo(conn).find_by_id(agent_id)
     if not record:
         raise ValueError(f"Agent {agent_id} not found")
@@ -110,7 +110,7 @@ async def mcp_start_agent(conn: asyncpg.Connection, agent_id: UUID) -> dict:
 
 
 async def mcp_stop_agent(conn: asyncpg.Connection, agent_id: UUID) -> dict:
-    from src.fleet.service import stop_agent_sandbox
+    from src.fleet.app.sandbox import stop_agent_sandbox
     record = await AgentRepo(conn).find_by_id(agent_id)
     if not record:
         raise ValueError(f"Agent {agent_id} not found")

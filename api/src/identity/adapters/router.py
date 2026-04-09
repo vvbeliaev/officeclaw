@@ -3,10 +3,10 @@ from uuid import UUID
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.identity.service import create_admin_for_user
+from src.identity.app.admin import create_admin_for_user
 from src.shared.db.pool import get_pool
-from src.identity.schema import UserCreate, UserOut, UserRegistered
-from src.identity.repository import UserRepo
+from src.identity.core.schema import UserCreate, UserOut, UserRegistered
+from src.identity.adapters.repository import UserRepo
 
 router = APIRouter()
 
