@@ -45,7 +45,8 @@ async def _require_user(context: Context) -> UUID:
     if not auth.lower().startswith("bearer "):
         raise ValueError("Missing or malformed Authorization header")
     token = auth[7:]
-    assert _pool is not None, "MCP pool not initialised"
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         record = await UserRepo(conn).find_by_token(token)
     if not record:
@@ -147,7 +148,12 @@ async def mcp_list_envs(conn: asyncpg.Connection, user_id: UUID) -> list[dict]:
 async def mcp_create_env(
     conn: asyncpg.Connection, user_id: UUID, name: str, values_json: str
 ) -> dict:
-    values = json.loads(values_json)
+    try:
+        values = json.loads(values_json)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"values_json is not valid JSON: {exc}") from exc
+    if not isinstance(values, dict):
+        raise ValueError("values_json must be a JSON object ({KEY: VALUE} pairs)")
     record = await EnvRepo(conn).create(user_id, name, values)
     return {"id": str(record["id"]), "name": record["name"]}
 
@@ -163,7 +169,8 @@ async def mcp_list_channels(conn: asyncpg.Connection, user_id: UUID) -> list[dic
 async def list_agents(context: Context) -> list[dict]:
     """List all agents for the authenticated user."""
     user_id = await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_list_agents(conn, user_id)
 
@@ -172,7 +179,8 @@ async def list_agents(context: Context) -> list[dict]:
 async def get_fleet_status(context: Context) -> dict:
     """Return all agents with a status summary (idle/running/error counts)."""
     user_id = await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_get_fleet_status(conn, user_id)
 
@@ -181,7 +189,8 @@ async def get_fleet_status(context: Context) -> dict:
 async def create_agent(context: Context, name: str, image: str = "ghcr.io/hkuds/nanobot:latest") -> dict:
     """Create a new agent. Returns {id, name, status}."""
     user_id = await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_create_agent(conn, user_id, name, image)
 
@@ -190,7 +199,8 @@ async def create_agent(context: Context, name: str, image: str = "ghcr.io/hkuds/
 async def update_agent_file(context: Context, agent_id: str, path: str, content: str) -> dict:
     """Upsert a workspace file for an agent."""
     await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_update_agent_file(conn, UUID(agent_id), path, content)
 
@@ -199,7 +209,8 @@ async def update_agent_file(context: Context, agent_id: str, path: str, content:
 async def start_agent(context: Context, agent_id: str) -> dict:
     """Start an agent (sets status=running). VM lifecycle wired in Plan 2."""
     await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_start_agent(conn, UUID(agent_id))
 
@@ -208,7 +219,8 @@ async def start_agent(context: Context, agent_id: str) -> dict:
 async def stop_agent(context: Context, agent_id: str) -> dict:
     """Stop an agent (sets status=idle). VM lifecycle wired in Plan 2."""
     await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_stop_agent(conn, UUID(agent_id))
 
@@ -217,7 +229,8 @@ async def stop_agent(context: Context, agent_id: str) -> dict:
 async def delete_agent(context: Context, agent_id: str) -> dict:
     """Delete an agent. Raises if agent is the Admin agent."""
     await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_delete_agent(conn, UUID(agent_id))
 
@@ -226,7 +239,8 @@ async def delete_agent(context: Context, agent_id: str) -> dict:
 async def list_skills(context: Context) -> list[dict]:
     """List all skills in the user's library."""
     user_id = await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_list_skills(conn, user_id)
 
@@ -235,7 +249,8 @@ async def list_skills(context: Context) -> list[dict]:
 async def create_skill(context: Context, name: str, description: str = "") -> dict:
     """Create a new skill in the user's library."""
     user_id = await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_create_skill(conn, user_id, name, description)
 
@@ -244,7 +259,8 @@ async def create_skill(context: Context, name: str, description: str = "") -> di
 async def attach_skill(context: Context, agent_id: str, skill_id: str) -> dict:
     """Attach a skill to an agent."""
     await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_attach_skill(conn, UUID(agent_id), UUID(skill_id))
 
@@ -253,7 +269,8 @@ async def attach_skill(context: Context, agent_id: str, skill_id: str) -> dict:
 async def list_envs(context: Context) -> list[dict]:
     """List all env configs for the authenticated user (values never returned)."""
     user_id = await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_list_envs(conn, user_id)
 
@@ -262,7 +279,8 @@ async def list_envs(context: Context) -> list[dict]:
 async def create_env(context: Context, name: str, values_json: str) -> dict:
     """Create a named env config. values_json: JSON string of {KEY: VALUE} pairs."""
     user_id = await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_create_env(conn, user_id, name, values_json)
 
@@ -271,6 +289,7 @@ async def create_env(context: Context, name: str, values_json: str) -> dict:
 async def list_channels(context: Context) -> list[dict]:
     """List all channel integrations (config never returned)."""
     user_id = await _require_user(context)
-    assert _pool is not None
+    if _pool is None:
+        raise RuntimeError("MCP pool not initialised")
     async with _pool.acquire() as conn:
         return await mcp_list_channels(conn, user_id)
