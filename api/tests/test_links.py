@@ -30,6 +30,18 @@ async def test_attach_detach_env(client, setup):
     await client.post(f"/agents/{agent_id}/envs/{env_id}")
     envs = await client.get(f"/agents/{agent_id}/envs")
     assert any(e["id"] == env_id for e in envs.json())
+    resp2 = await client.delete(f"/agents/{agent_id}/envs/{env_id}")
+    assert resp2.status_code == 204
+
+
+async def test_attach_detach_channel(client, setup):
+    agent_id, channel_id = setup["agent_id"], setup["channel_id"]
+    resp = await client.post(f"/agents/{agent_id}/channels/{channel_id}")
+    assert resp.status_code == 204
+    channels = await client.get(f"/agents/{agent_id}/channels")
+    assert any(c["id"] == channel_id for c in channels.json())
+    resp2 = await client.delete(f"/agents/{agent_id}/channels/{channel_id}")
+    assert resp2.status_code == 204
 
 
 async def test_add_mcp(client, setup):

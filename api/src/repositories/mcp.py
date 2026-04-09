@@ -27,5 +27,11 @@ class AgentMcpRepo:
             for r in records
         ]
 
+    async def get_decrypted_config(self, mcp_id: UUID) -> dict:
+        record = await self._conn.fetchrow(
+            "SELECT config_encrypted FROM agent_mcp WHERE id = $1", mcp_id
+        )
+        return decrypt_json(bytes(record["config_encrypted"]))
+
     async def delete(self, mcp_id: UUID) -> None:
         await self._conn.execute("DELETE FROM agent_mcp WHERE id = $1", mcp_id)
