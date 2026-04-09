@@ -19,6 +19,8 @@ from src.repositories.envs import EnvRepo
 from src.repositories.channels import ChannelRepo
 from src.repositories.mcp import AgentMcpRepo
 
+_DEFAULT_MODEL = "anthropic/claude-sonnet-4-6"
+
 
 async def build_vm_payload(conn: asyncpg.Connection, agent_id: UUID) -> dict:
     file_repo = AgentFileRepo(conn)
@@ -49,24 +51,23 @@ async def build_vm_payload(conn: asyncpg.Connection, agent_id: UUID) -> dict:
         env_vars.update(values)
 
     # 4. Build config.json
-    config = await _build_config_json(agent_id, conn, env_vars, channel_repo, mcp_repo)
+    config, extra_env = await _build_config_json(agent_id, link_repo, env_vars, channel_repo, mcp_repo)
+    merged_env = {**env_vars, **extra_env}
 
     return {
         "files": files,
-        "env": env_vars,
+        "env": merged_env,
         "config_json": json.dumps(config, indent=2),
     }
 
 
 async def _build_config_json(
     agent_id: UUID,
-    conn: asyncpg.Connection,
+    link_repo: LinkRepo,
     env_vars: dict,
     channel_repo: ChannelRepo,
     mcp_repo: AgentMcpRepo,
-) -> dict:
-    link_repo = LinkRepo(conn)
-
+) -> tuple[dict, dict]:
     # Providers: one entry per known key prefix found in env_vars
     providers: dict = {}
     if any(k.startswith("ANTHROPIC") for k in env_vars):
@@ -79,13 +80,14 @@ async def _build_config_json(
         providers["groq"] = {"apiKey": "${GROQ_API_KEY}"}
 
     # Channels
+    extra_env: dict = {}
     channels_config: dict = {"sendProgress": True}
     for ch_rec in await link_repo.list_channels(agent_id):
         cfg = await channel_repo.get_decrypted_config(ch_rec["id"])
         ch_type = ch_rec["type"]
         if ch_type == "telegram":
             token_key = "TELEGRAM_TOKEN"
-            env_vars.setdefault(token_key, cfg.get("token", ""))
+            extra_env.setdefault(token_key, cfg.get("token", ""))
             channels_config["telegram"] = {
                 "enabled": True,
                 "token": f"${{{token_key}}}",
@@ -93,7 +95,7 @@ async def _build_config_json(
             }
         elif ch_type == "discord":
             token_key = "DISCORD_TOKEN"
-            env_vars.setdefault(token_key, cfg.get("token", ""))
+            extra_env.setdefault(token_key, cfg.get("token", ""))
             channels_config["discord"] = {
                 "enabled": True,
                 "token": f"${{{token_key}}}",
@@ -105,11 +107,11 @@ async def _build_config_json(
     for mcp in await mcp_repo.get_all_decrypted(agent_id):
         mcp_servers[mcp["name"]] = mcp["config"]
 
-    return {
+    config_dict = {
         "agents": {
             "defaults": {
                 "workspace": "/workspace",
-                "model": "anthropic/claude-sonnet-4-6",
+                "model": _DEFAULT_MODEL,
             }
         },
         "providers": providers,
@@ -120,3 +122,4 @@ async def _build_config_json(
         },
         "gateway": {"host": "0.0.0.0", "port": 18790},
     }
+    return config_dict, extra_env
