@@ -14,7 +14,7 @@ from src.main import create_app
 
 TEST_DB_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql://officeclaw:officeclaw@localhost:5432/officeclaw_test",
+    "postgresql://postgres:postgres@localhost:5434/officeclaw_test",
 )
 
 MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations" / "versions"
@@ -29,9 +29,10 @@ async def raw_pool():
 
 @pytest.fixture(scope="session", autouse=True)
 async def run_migrations(raw_pool: asyncpg.Pool) -> AsyncGenerator[None, None]:
-    sql = (MIGRATIONS_DIR / "001_initial_schema.sql").read_text()
-    async with raw_pool.acquire() as conn:
-        await conn.execute(sql)
+    for sql_file in sorted(MIGRATIONS_DIR.glob("*.sql")):
+        sql = sql_file.read_text()
+        async with raw_pool.acquire() as conn:
+            await conn.execute(sql)
     yield
     async with raw_pool.acquire() as conn:
         await conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
