@@ -9,7 +9,6 @@ import src.fleet.di as fleet_di
 import src.identity.di as identity_di
 import src.library.di as library_di
 import src.integrations.di as integrations_di
-from src.entrypoints.mcp.server import mcp, setup as mcp_setup
 from src.fleet.adapters._in.router import router as agents_router
 from src.identity.adapters._in.router import router as users_router
 from src.integrations.adapters._in.router import (
@@ -18,6 +17,8 @@ from src.integrations.adapters._in.router import (
     links_router,
 )
 from src.library.adapters._in.router import router as skills_router
+
+from .mcp import mcp, setup as mcp_setup
 
 
 @asynccontextmanager

@@ -4,7 +4,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.identity.app import IdentityApp
-from src.identity.core.schema import UserCreate, UserOut, UserRegistered
+from src.identity.core.schema import BootstrapOut, UserCreate, UserOut, UserRegistered
 
 router = APIRouter()
 
@@ -28,6 +28,21 @@ async def create_user(
         created_at=record["created_at"],
         officeclaw_token=token,
     )
+
+
+@router.post("/{user_id}/bootstrap", response_model=BootstrapOut, status_code=201)
+async def bootstrap_user(
+    user_id: UUID,
+    identity: IdentityApp = Depends(get_identity),
+) -> BootstrapOut:
+    """Called by SvelteKit after better-auth creates a new user. Sets up Admin agent."""
+    record = await identity.find_by_id(user_id)
+    if not record:
+        raise HTTPException(404, "User not found")
+    if record["officeclaw_token"]:
+        raise HTTPException(409, "User already bootstrapped")
+    token = await identity.bootstrap(user_id)
+    return BootstrapOut(officeclaw_token=token)
 
 
 @router.get("/{user_id}", response_model=UserOut)

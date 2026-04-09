@@ -18,3 +18,7 @@ class UserRegistered(BaseModel):
     email: str
     created_at: datetime
     officeclaw_token: str  # shown once at registration, store it securely
+
+
+class BootstrapOut(BaseModel):
+    officeclaw_token: str

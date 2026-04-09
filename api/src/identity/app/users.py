@@ -91,6 +91,10 @@ class UserService:
         token = await self._bootstrap_admin(record["id"])
         return record, token
 
+    async def bootstrap(self, user_id: UUID) -> str:
+        """Bootstrap Admin agent for a user created by better-auth. Returns plain OFFICECLAW_TOKEN."""
+        return await self._bootstrap_admin(user_id)
+
     async def _bootstrap_admin(self, user_id: UUID) -> str:
         """Create Admin agent and related resources. Returns plain OFFICECLAW_TOKEN."""
         token = secrets.token_urlsafe(32)
