@@ -25,6 +25,7 @@ class AgentOut(BaseModel):
     name: str
     status: str
     sandbox_id: str | None
+    gateway_port: int | None
     image: str
     is_admin: bool
     created_at: datetime

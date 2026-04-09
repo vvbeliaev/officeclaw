@@ -1,6 +1,9 @@
+from collections.abc import AsyncGenerator
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 import asyncpg
+import httpx
 from src.shared.db.pool import get_pool
 from src.fleet.core.schema import AgentCreate, AgentOut, AgentUpdate
 from src.fleet.adapters.outbound.repository import AgentRepo
@@ -91,6 +94,36 @@ async def stop_agent(
     await stop_agent_sandbox(conn, agent_id)
     updated = await AgentRepo(conn).find_by_id(agent_id)
     return AgentOut(**dict(updated))
+
+
+@router.post("/{agent_id}/chat")
+async def chat_agent(
+    agent_id: UUID,
+    request: Request,
+    conn: asyncpg.Connection = Depends(get_pool),
+) -> StreamingResponse:
+    record = await AgentRepo(conn).find_by_id(agent_id)
+    if not record:
+        raise HTTPException(404, "Agent not found")
+    if record["status"] != "running":
+        raise HTTPException(409, "Agent is not running")
+    if not record["gateway_port"]:
+        raise HTTPException(503, "Agent gateway not available")
+
+    body = await request.body()
+    headers = {
+        k: v for k, v in request.headers.items()
+        if k.lower() in ("content-type", "accept")
+    }
+    gateway_url = f"http://localhost:{record['gateway_port']}/chat"
+
+    async def stream() -> AsyncGenerator[bytes, None]:
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream("POST", gateway_url, content=body, headers=headers) as resp:
+                async for chunk in resp.aiter_bytes():
+                    yield chunk
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
 
 
 def get_file_repo(pool: asyncpg.Connection = Depends(get_pool)) -> AgentFileRepo:

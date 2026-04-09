@@ -1,11 +1,19 @@
 import asyncio
 import shutil
+import socket
 from pathlib import Path
 from uuid import UUID
 
 import asyncpg
 
 from src.fleet.adapters.outbound.repository import AgentRepo
+
+
+def _find_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("", 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
 
 _SANDBOX_WORKDIR = Path("/tmp/officeclaw")
 _DEFAULT_IMAGE = "ghcr.io/hkuds/nanobot:latest"
@@ -37,6 +45,7 @@ async def start_agent_sandbox(conn: asyncpg.Connection, agent_id: UUID) -> str:
         fh.write(payload["config_json"])
 
     sandbox_name = f"agent-{agent_id}"
+    gateway_port = _find_free_port()
     cmd: list[str] = [
         "msb",
         "run",
@@ -50,6 +59,8 @@ async def start_agent_sandbox(conn: asyncpg.Connection, agent_id: UUID) -> str:
         _DEFAULT_CPUS,
         "--memory",
         _DEFAULT_MEMORY,
+        "-p",
+        f"{gateway_port}:18790",
     ]
     for key, val in payload["env"].items():
         cmd += ["-e", f"{key}={val}"]
@@ -63,7 +74,9 @@ async def start_agent_sandbox(conn: asyncpg.Connection, agent_id: UUID) -> str:
     if proc.returncode != 0:
         raise RuntimeError(f"msb run failed: {stderr.decode()}")
 
-    await AgentRepo(conn).update(agent_id, status="running", sandbox_id=sandbox_name)
+    await AgentRepo(conn).update(
+        agent_id, status="running", sandbox_id=sandbox_name, gateway_port=gateway_port
+    )
     return sandbox_name
 
 
@@ -93,4 +106,4 @@ async def stop_agent_sandbox(conn: asyncpg.Connection, agent_id: UUID) -> None:
     if workdir.exists():
         shutil.rmtree(workdir)
 
-    await AgentRepo(conn).update(agent_id, status="idle", sandbox_id=None)
+    await AgentRepo(conn).update(agent_id, status="idle", sandbox_id=None, gateway_port=None)

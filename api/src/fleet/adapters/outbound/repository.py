@@ -2,7 +2,7 @@ from uuid import UUID
 import asyncpg
 
 
-_ALLOWED_UPDATE_FIELDS = frozenset({"name", "status", "sandbox_id"})
+_ALLOWED_UPDATE_FIELDS = frozenset({"name", "status", "sandbox_id", "gateway_port"})
 
 
 class AgentRepo:
