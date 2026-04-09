@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from src.shared.db.pool import create_pool, close_pool
-from src.ports.mcp.server import mcp, set_pool
+from src.adapters.mcp.server import mcp, set_pool
 from src.identity.router import router as users_router
 from src.library.router import router as skills_router
 from src.fleet.router import router as agents_router
