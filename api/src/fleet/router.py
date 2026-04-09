@@ -59,6 +59,40 @@ async def delete_agent(agent_id: UUID, repo: AgentRepo = Depends(get_repo)) -> N
     await repo.delete(agent_id)
 
 
+@router.post("/{agent_id}/start", response_model=AgentOut)
+async def start_agent(
+    agent_id: UUID,
+    conn: asyncpg.Connection = Depends(get_pool),
+) -> AgentOut:
+    record = await AgentRepo(conn).find_by_id(agent_id)
+    if not record:
+        raise HTTPException(404, "Agent not found")
+    if record["status"] == "running":
+        raise HTTPException(409, "Agent is already running")
+    from src.fleet.service import start_agent_sandbox
+
+    await start_agent_sandbox(conn, agent_id)
+    updated = await AgentRepo(conn).find_by_id(agent_id)
+    return AgentOut(**dict(updated))
+
+
+@router.post("/{agent_id}/stop", response_model=AgentOut)
+async def stop_agent(
+    agent_id: UUID,
+    conn: asyncpg.Connection = Depends(get_pool),
+) -> AgentOut:
+    record = await AgentRepo(conn).find_by_id(agent_id)
+    if not record:
+        raise HTTPException(404, "Agent not found")
+    if record["status"] != "running":
+        raise HTTPException(409, "Agent is not running")
+    from src.fleet.service import stop_agent_sandbox
+
+    await stop_agent_sandbox(conn, agent_id)
+    updated = await AgentRepo(conn).find_by_id(agent_id)
+    return AgentOut(**dict(updated))
+
+
 def get_file_repo(pool: asyncpg.Connection = Depends(get_pool)) -> AgentFileRepo:
     return AgentFileRepo(pool)
 

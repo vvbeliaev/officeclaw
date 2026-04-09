@@ -100,17 +100,23 @@ async def mcp_update_agent_file(
 
 
 async def mcp_start_agent(conn: asyncpg.Connection, agent_id: UUID) -> dict:
-    record = await AgentRepo(conn).update(agent_id, status="running")
+    from src.fleet.service import start_agent_sandbox
+    record = await AgentRepo(conn).find_by_id(agent_id)
     if not record:
         raise ValueError(f"Agent {agent_id} not found")
-    return {"id": str(record["id"]), "status": record["status"]}
+    await start_agent_sandbox(conn, agent_id)
+    updated = await AgentRepo(conn).find_by_id(agent_id)
+    return {"id": str(updated["id"]), "status": updated["status"]}
 
 
 async def mcp_stop_agent(conn: asyncpg.Connection, agent_id: UUID) -> dict:
-    record = await AgentRepo(conn).update(agent_id, status="idle")
+    from src.fleet.service import stop_agent_sandbox
+    record = await AgentRepo(conn).find_by_id(agent_id)
     if not record:
         raise ValueError(f"Agent {agent_id} not found")
-    return {"id": str(record["id"]), "status": record["status"]}
+    await stop_agent_sandbox(conn, agent_id)
+    updated = await AgentRepo(conn).find_by_id(agent_id)
+    return {"id": str(updated["id"]), "status": updated["status"]}
 
 
 async def mcp_delete_agent(conn: asyncpg.Connection, agent_id: UUID) -> dict:

@@ -38,14 +38,27 @@ async def test_mcp_update_agent_file(mcp_conn_user):
 
 async def test_mcp_start_stop_agent(mcp_conn_user):
     from src.adapters.mcp.server import mcp_create_agent, mcp_start_agent, mcp_stop_agent
+    from unittest.mock import AsyncMock, MagicMock, patch
     conn, user_id = mcp_conn_user
+
+    def _proc():
+        p = AsyncMock()
+        p.returncode = 0
+        p.communicate = AsyncMock(return_value=(b"", b""))
+        return p
+
     agent = await mcp_create_agent(conn, user_id, "StatusBot", "ghcr.io/hkuds/nanobot:latest")
     agent_id = UUID(agent["id"])
 
-    started = await mcp_start_agent(conn, agent_id)
+    with patch("src.fleet.service.asyncio.create_subprocess_exec", return_value=_proc()), \
+         patch("src.fleet.service.Path.mkdir"), \
+         patch("builtins.open", MagicMock()):
+        started = await mcp_start_agent(conn, agent_id)
     assert started["status"] == "running"
 
-    stopped = await mcp_stop_agent(conn, agent_id)
+    with patch("src.fleet.service.asyncio.create_subprocess_exec", return_value=_proc()), \
+         patch("src.fleet.service.shutil.rmtree"):
+        stopped = await mcp_stop_agent(conn, agent_id)
     assert stopped["status"] == "idle"
 
 
