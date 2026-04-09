@@ -1,20 +1,23 @@
-import asyncio
+# api/tests/conftest.py
 import os
-import pytest
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 import asyncpg
-from httpx import AsyncClient, ASGITransport
+import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+
+from src.db.pool import get_pool
 from src.main import create_app
 
 TEST_DB_URL = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql://officeclaw:officeclaw@localhost:5432/officeclaw_test"
+    "TEST_DATABASE_URL",
+    "postgresql://officeclaw:officeclaw@localhost:5432/officeclaw_test",
 )
 
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+MIGRATIONS_DIR = Path(__file__).parent.parent / "migrations" / "versions"
 
 
 @pytest.fixture(scope="session")
@@ -25,29 +28,37 @@ async def raw_pool():
 
 
 @pytest.fixture(scope="session", autouse=True)
-async def run_migrations(raw_pool):
-    """Run all migrations against test DB before session."""
+async def run_migrations(raw_pool: asyncpg.Pool) -> AsyncGenerator[None, None]:
+    sql = (MIGRATIONS_DIR / "001_initial_schema.sql").read_text()
     async with raw_pool.acquire() as conn:
-        with open("migrations/versions/001_initial_schema.sql") as f:
-            await conn.execute(f.read())
+        await conn.execute(sql)
     yield
     async with raw_pool.acquire() as conn:
         await conn.execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
 
 
 @pytest.fixture()
-async def conn(raw_pool):
-    async with raw_pool.acquire() as connection:
-        tr = connection.transaction()
-        await tr.start()
+async def conn(raw_pool: asyncpg.Pool) -> AsyncGenerator[asyncpg.Connection, None]:
+    connection = await raw_pool.acquire()
+    tr = connection.transaction()
+    await tr.start()
+    try:
         yield connection
+    finally:
         await tr.rollback()
+        await raw_pool.release(connection)
 
 
 @pytest.fixture()
-async def client(conn):
+async def client(conn: asyncpg.Connection) -> AsyncGenerator[AsyncClient, None]:
     app = create_app()
-    # Override pool to use test connection
-    app.state.pool = conn
+
+    @asynccontextmanager
+    async def noop_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+        yield
+
+    app.router.lifespan_context = noop_lifespan
+    app.dependency_overrides[get_pool] = lambda: conn
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
