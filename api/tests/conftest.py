@@ -3,6 +3,7 @@ import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from uuid import UUID
 
 import asyncpg
 import pytest
@@ -63,3 +64,18 @@ async def client(conn: asyncpg.Connection) -> AsyncGenerator[AsyncClient, None]:
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
+
+
+@pytest.fixture
+async def mcp_user(client):
+    """Create a user and return (user_id, token)."""
+    resp = await client.post("/users", json={"email": "mcp-user@example.com"})
+    body = resp.json()
+    return body["id"], body["officeclaw_token"]
+
+
+@pytest.fixture
+async def mcp_conn_user(conn, mcp_user):
+    """Return (conn, user_id) — conn is the test transaction connection."""
+    user_id, _ = mcp_user
+    return conn, UUID(user_id)
