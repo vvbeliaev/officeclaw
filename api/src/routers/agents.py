@@ -5,6 +5,8 @@ import asyncpg
 from src.db.pool import get_pool
 from src.models.agent import AgentCreate, AgentOut, AgentUpdate
 from src.repositories.agents import AgentRepo
+from src.models.agent_file import AgentFileIn, AgentFileOut
+from src.repositories.agent_files import AgentFileRepo
 
 router = APIRouter()
 
@@ -52,3 +54,35 @@ async def delete_agent(agent_id: UUID, repo: AgentRepo = Depends(get_repo)) -> N
     if not record:
         raise HTTPException(404, "Agent not found")
     await repo.delete(agent_id)
+
+
+def get_file_repo(pool: asyncpg.Connection = Depends(get_pool)) -> AgentFileRepo:
+    return AgentFileRepo(pool)
+
+
+@router.put("/{agent_id}/files", response_model=AgentFileOut)
+async def upsert_file(
+    agent_id: UUID,
+    body: AgentFileIn,
+    repo: AgentFileRepo = Depends(get_file_repo),
+) -> AgentFileOut:
+    record = await repo.upsert(agent_id, body.path, body.content)
+    return AgentFileOut(**dict(record))
+
+
+@router.get("/{agent_id}/files", response_model=list[AgentFileOut])
+async def list_files(
+    agent_id: UUID, repo: AgentFileRepo = Depends(get_file_repo)
+) -> list[AgentFileOut]:
+    records = await repo.list_by_agent(agent_id)
+    return [AgentFileOut(**dict(r)) for r in records]
+
+
+@router.get("/{agent_id}/files/{path:path}", response_model=AgentFileOut)
+async def get_file(
+    agent_id: UUID, path: str, repo: AgentFileRepo = Depends(get_file_repo)
+) -> AgentFileOut:
+    record = await repo.find(agent_id, path)
+    if not record:
+        raise HTTPException(404, "File not found")
+    return AgentFileOut(**dict(record))
