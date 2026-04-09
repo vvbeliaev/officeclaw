@@ -31,6 +31,8 @@ class AgentMcpRepo:
         record = await self._conn.fetchrow(
             "SELECT config_encrypted FROM agent_mcp WHERE id = $1", mcp_id
         )
+        if not record:
+            raise ValueError(f"MCP {mcp_id} not found")
         return decrypt_json(bytes(record["config_encrypted"]))
 
     async def delete(self, mcp_id: UUID) -> None:

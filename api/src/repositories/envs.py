@@ -18,7 +18,9 @@ class EnvRepo:
         return await self._conn.fetchrow("SELECT * FROM user_envs WHERE id = $1", env_id)
 
     async def list_by_user(self, user_id: UUID) -> list[asyncpg.Record]:
-        return await self._conn.fetch("SELECT * FROM user_envs WHERE user_id = $1", user_id)
+        return await self._conn.fetch(
+            "SELECT id, user_id, name, created_at FROM user_envs WHERE user_id = $1", user_id
+        )
 
     async def get_decrypted_values(self, env_id: UUID) -> dict:
         record = await self.find_by_id(env_id)

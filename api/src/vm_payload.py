@@ -10,6 +10,7 @@ Output shape:
 }
 """
 import json
+import logging
 from uuid import UUID
 import asyncpg
 from src.repositories.agent_files import AgentFileRepo
@@ -18,6 +19,8 @@ from src.repositories.skills import SkillFileRepo
 from src.repositories.envs import EnvRepo
 from src.repositories.channels import ChannelRepo
 from src.repositories.mcp import AgentMcpRepo
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "anthropic/claude-sonnet-4-6"
 
@@ -48,7 +51,13 @@ async def build_vm_payload(conn: asyncpg.Connection, agent_id: UUID) -> dict:
     env_vars: dict = {}
     for env_rec in await link_repo.list_envs(agent_id):
         values = await env_repo.get_decrypted_values(env_rec["id"])
-        env_vars.update(values)
+        collisions = set(values) & set(env_vars)
+        if collisions:
+            logger.warning(
+                "Agent %s: env key collision from env %s — overwriting keys: %s",
+                agent_id, env_rec["id"], collisions,
+            )
+        env_vars = {**env_vars, **values}
 
     # 4. Build config.json
     config, extra_env = await _build_config_json(agent_id, link_repo, env_vars, channel_repo, mcp_repo)

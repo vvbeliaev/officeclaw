@@ -3,6 +3,9 @@ from uuid import UUID
 import asyncpg
 
 
+_ALLOWED_UPDATE_FIELDS = frozenset({"name", "status", "sandbox_id"})
+
+
 class AgentRepo:
     def __init__(self, conn: asyncpg.Connection) -> None:
         self._conn = conn
@@ -19,7 +22,10 @@ class AgentRepo:
     async def list_by_user(self, user_id: UUID) -> list[asyncpg.Record]:
         return await self._conn.fetch("SELECT * FROM agents WHERE user_id = $1", user_id)
 
-    async def update(self, agent_id: UUID, **fields: object) -> asyncpg.Record | None:
+    async def update(self, agent_id: UUID, **fields) -> asyncpg.Record | None:
+        unknown = set(fields) - _ALLOWED_UPDATE_FIELDS
+        if unknown:
+            raise ValueError(f"Unknown agent fields: {unknown}")
         set_clauses = ", ".join(f"{k} = ${i+2}" for i, k in enumerate(fields))
         values = list(fields.values())
         return await self._conn.fetchrow(

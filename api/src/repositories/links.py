@@ -36,7 +36,7 @@ class LinkRepo:
 
     async def list_envs(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._conn.fetch(
-            "SELECT e.* FROM user_envs e JOIN agent_envs a ON a.env_id = e.id WHERE a.agent_id = $1",
+            "SELECT e.id, e.user_id, e.name, e.created_at FROM user_envs e JOIN agent_envs a ON a.env_id = e.id WHERE a.agent_id = $1",
             agent_id,
         )
 
@@ -53,6 +53,6 @@ class LinkRepo:
 
     async def list_channels(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._conn.fetch(
-            "SELECT c.* FROM user_channels c JOIN agent_channels a ON a.channel_id = c.id WHERE a.agent_id = $1",
+            "SELECT c.id, c.user_id, c.type, c.created_at FROM user_channels c JOIN agent_channels a ON a.channel_id = c.id WHERE a.agent_id = $1",
             agent_id,
         )
