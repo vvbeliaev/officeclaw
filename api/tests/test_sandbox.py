@@ -9,6 +9,8 @@ import src.fleet.di as fleet_di
 import src.integrations.di as integrations_di
 import src.library.di as library_di
 
+_WAIT_GW = "src.fleet.app.sandbox._wait_for_gateway"
+
 
 @pytest.fixture
 async def plain_agent(conn) -> UUID:
@@ -39,6 +41,7 @@ def _proc(returncode: int = 0, stderr: bytes = b"") -> AsyncMock:
 async def test_start_sandbox_calls_msb(sandbox_svc, plain_agent):
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()) as mock_exec, \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         await sandbox_svc.start_sandbox(plain_agent)
     args = mock_exec.call_args[0]
@@ -52,6 +55,7 @@ async def test_start_sandbox_updates_db(conn, sandbox_svc, plain_agent):
     from src.fleet.adapters.out.repository import AgentRepo
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         await sandbox_svc.start_sandbox(plain_agent)
     rec = await AgentRepo(conn).find_by_id(plain_agent)
@@ -71,6 +75,7 @@ async def test_start_sandbox_raises_on_failure(sandbox_svc, plain_agent):
 async def test_stop_sandbox_calls_msb_stop_and_rm(sandbox_svc, plain_agent):
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         await sandbox_svc.start_sandbox(plain_agent)
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()) as mock_exec, \
@@ -85,6 +90,7 @@ async def test_stop_sandbox_updates_db(conn, sandbox_svc, plain_agent):
     from src.fleet.adapters.out.repository import AgentRepo
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         await sandbox_svc.start_sandbox(plain_agent)
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
@@ -99,6 +105,7 @@ async def test_stop_sandbox_syncs_mutable_files(conn, sandbox_svc, plain_agent):
     from src.fleet.adapters.out.repository import AgentFileRepo
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         await sandbox_svc.start_sandbox(plain_agent)
 

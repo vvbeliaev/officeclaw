@@ -4,7 +4,7 @@ import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.identity.app import IdentityApp
-from src.identity.core.schema import BootstrapOut, UserCreate, UserOut, UserRegistered
+from src.identity.core.schema import BootstrapOut, UserCreate, UserRegistered
 
 router = APIRouter()
 
@@ -43,14 +43,3 @@ async def bootstrap_user(
         raise HTTPException(409, "User already bootstrapped")
     token = await identity.bootstrap(user_id)
     return BootstrapOut(officeclaw_token=token)
-
-
-@router.get("/{user_id}", response_model=UserOut)
-async def get_user(
-    user_id: UUID,
-    identity: IdentityApp = Depends(get_identity),
-) -> UserOut:
-    record = await identity.find_by_id(user_id)
-    if not record:
-        raise HTTPException(404, "User not found")
-    return UserOut(**dict(record))

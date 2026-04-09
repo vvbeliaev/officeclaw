@@ -24,26 +24,6 @@ async def create_agent(
     return AgentOut(**dict(record))
 
 
-@router.get("", response_model=list[AgentOut])
-async def list_agents(
-    user_id: UUID,
-    fleet: FleetApp = Depends(get_fleet),
-) -> list[AgentOut]:
-    records = await fleet.list_agents(user_id)
-    return [AgentOut(**dict(r)) for r in records]
-
-
-@router.get("/{agent_id}", response_model=AgentOut)
-async def get_agent(
-    agent_id: UUID,
-    fleet: FleetApp = Depends(get_fleet),
-) -> AgentOut:
-    record = await fleet.find_agent(agent_id)
-    if not record:
-        raise HTTPException(404, "Agent not found")
-    return AgentOut(**dict(record))
-
-
 @router.patch("/{agent_id}", response_model=AgentOut)
 async def update_agent(
     agent_id: UUID,
@@ -137,25 +117,4 @@ async def upsert_file(
     fleet: FleetApp = Depends(get_fleet),
 ) -> AgentFileOut:
     record = await fleet.upsert_file(agent_id, body.path, body.content)
-    return AgentFileOut(**dict(record))
-
-
-@router.get("/{agent_id}/files", response_model=list[AgentFileOut])
-async def list_files(
-    agent_id: UUID,
-    fleet: FleetApp = Depends(get_fleet),
-) -> list[AgentFileOut]:
-    records = await fleet.list_files(agent_id)
-    return [AgentFileOut(**dict(r)) for r in records]
-
-
-@router.get("/{agent_id}/files/{path:path}", response_model=AgentFileOut)
-async def get_file(
-    agent_id: UUID,
-    path: str,
-    fleet: FleetApp = Depends(get_fleet),
-) -> AgentFileOut:
-    record = await fleet.find_file(agent_id, path)
-    if not record:
-        raise HTTPException(404, "File not found")
     return AgentFileOut(**dict(record))

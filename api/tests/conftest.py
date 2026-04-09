@@ -10,12 +10,12 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from src.entrypoints.rest.main import create_app
+from src.entrypoint.main import create_app
 import src.fleet.di as fleet_di
 import src.identity.di as identity_di
 import src.library.di as library_di
 import src.integrations.di as integrations_di
-from src.entrypoints.mcp.server import setup as mcp_setup
+from src.entrypoint.mcp import setup as mcp_setup
 
 TEST_DB_URL = os.environ.get(
     "TEST_DATABASE_URL",

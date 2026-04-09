@@ -5,7 +5,7 @@ from uuid import UUID
 
 import pytest
 
-from src.entrypoints.mcp.server import (
+from src.entrypoint.mcp import (
     mcp_attach_skill,
     mcp_create_agent,
     mcp_create_env,
@@ -65,6 +65,7 @@ async def test_mcp_start_stop_agent(mcp_conn_user, fleet_deps):
 
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch("src.fleet.app.sandbox._wait_for_gateway", new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         started = await mcp_start_agent(fleet_deps, agent_id)
     assert started["status"] == "running"

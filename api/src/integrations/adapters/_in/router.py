@@ -9,7 +9,6 @@ from src.integrations.core.schema import (
     EnvCreate, EnvOut,
     McpCreate, McpOut,
 )
-from src.library.core.schema import SkillOut
 
 envs_router = APIRouter()
 channels_router = APIRouter()
@@ -32,14 +31,6 @@ async def create_env(
     return EnvOut(**dict(record))
 
 
-@envs_router.get("", response_model=list[EnvOut])
-async def list_envs(
-    user_id: UUID,
-    deps: IntegrationsApp = Depends(get_integrations),
-) -> list[EnvOut]:
-    return [EnvOut(**dict(r)) for r in await deps.list_envs(user_id)]
-
-
 @envs_router.delete("/{env_id}", status_code=204)
 async def delete_env(
     env_id: UUID,
@@ -57,14 +48,6 @@ async def create_channel(
 ) -> ChannelOut:
     record = await deps.create_channel(body.user_id, body.type, body.config)
     return ChannelOut(**dict(record))
-
-
-@channels_router.get("", response_model=list[ChannelOut])
-async def list_channels(
-    user_id: UUID,
-    deps: IntegrationsApp = Depends(get_integrations),
-) -> list[ChannelOut]:
-    return [ChannelOut(**dict(r)) for r in await deps.list_channels(user_id)]
 
 
 @channels_router.delete("/{channel_id}", status_code=204)
@@ -93,14 +76,6 @@ async def detach_skill(
     await deps.detach_skill(agent_id, skill_id)
 
 
-@links_router.get("/skills", response_model=list[SkillOut])
-async def list_agent_skills(
-    agent_id: UUID,
-    deps: IntegrationsApp = Depends(get_integrations),
-) -> list[SkillOut]:
-    return [SkillOut(**dict(r)) for r in await deps.list_agent_skills(agent_id)]
-
-
 @links_router.post("/envs/{env_id}", status_code=204)
 async def attach_env(
     agent_id: UUID, env_id: UUID,
@@ -115,14 +90,6 @@ async def detach_env(
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> None:
     await deps.detach_env(agent_id, env_id)
-
-
-@links_router.get("/envs", response_model=list[EnvOut])
-async def list_agent_envs(
-    agent_id: UUID,
-    deps: IntegrationsApp = Depends(get_integrations),
-) -> list[EnvOut]:
-    return [EnvOut(**dict(r)) for r in await deps.list_agent_envs(agent_id)]
 
 
 @links_router.post("/channels/{channel_id}", status_code=204)
@@ -141,14 +108,6 @@ async def detach_channel(
     await deps.detach_channel(agent_id, channel_id)
 
 
-@links_router.get("/channels", response_model=list[ChannelOut])
-async def list_agent_channels(
-    agent_id: UUID,
-    deps: IntegrationsApp = Depends(get_integrations),
-) -> list[ChannelOut]:
-    return [ChannelOut(**dict(r)) for r in await deps.list_agent_channels(agent_id)]
-
-
 @links_router.post("/mcp", response_model=McpOut, status_code=201)
 async def add_mcp(
     agent_id: UUID,
@@ -156,11 +115,3 @@ async def add_mcp(
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> McpOut:
     return McpOut(**dict(await deps.create_mcp(agent_id, body.name, body.config)))
-
-
-@links_router.get("/mcp", response_model=list[McpOut])
-async def list_mcp(
-    agent_id: UUID,
-    deps: IntegrationsApp = Depends(get_integrations),
-) -> list[McpOut]:
-    return [McpOut(**dict(r)) for r in await deps.list_agent_mcp(agent_id)]

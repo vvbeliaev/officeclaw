@@ -1,3 +1,6 @@
+# api/tests/test_links.py
+from uuid import UUID
+
 import pytest
 
 
@@ -17,31 +20,28 @@ async def setup(client):
     }
 
 
-async def test_attach_detach_skill(client, setup):
-    agent_id, skill_id = setup["agent_id"], setup["skill_id"]
+async def test_attach_detach_skill(client, setup, integrations_deps):
+    agent_id, skill_id = UUID(setup["agent_id"]), UUID(setup["skill_id"])
     assert (await client.post(f"/agents/{agent_id}/skills/{skill_id}")).status_code == 204
-    links = await client.get(f"/agents/{agent_id}/skills")
-    assert any(s["id"] == skill_id for s in links.json())
+    links = await integrations_deps.list_agent_skills(agent_id)
+    assert any(str(s["id"]) == str(skill_id) for s in links)
     assert (await client.delete(f"/agents/{agent_id}/skills/{skill_id}")).status_code == 204
 
 
-async def test_attach_detach_env(client, setup):
-    agent_id, env_id = setup["agent_id"], setup["env_id"]
+async def test_attach_detach_env(client, setup, integrations_deps):
+    agent_id, env_id = UUID(setup["agent_id"]), UUID(setup["env_id"])
     await client.post(f"/agents/{agent_id}/envs/{env_id}")
-    envs = await client.get(f"/agents/{agent_id}/envs")
-    assert any(e["id"] == env_id for e in envs.json())
-    resp2 = await client.delete(f"/agents/{agent_id}/envs/{env_id}")
-    assert resp2.status_code == 204
+    envs = await integrations_deps.list_agent_envs(agent_id)
+    assert any(str(e["id"]) == str(env_id) for e in envs)
+    assert (await client.delete(f"/agents/{agent_id}/envs/{env_id}")).status_code == 204
 
 
-async def test_attach_detach_channel(client, setup):
-    agent_id, channel_id = setup["agent_id"], setup["channel_id"]
-    resp = await client.post(f"/agents/{agent_id}/channels/{channel_id}")
-    assert resp.status_code == 204
-    channels = await client.get(f"/agents/{agent_id}/channels")
-    assert any(c["id"] == channel_id for c in channels.json())
-    resp2 = await client.delete(f"/agents/{agent_id}/channels/{channel_id}")
-    assert resp2.status_code == 204
+async def test_attach_detach_channel(client, setup, integrations_deps):
+    agent_id, channel_id = UUID(setup["agent_id"]), UUID(setup["channel_id"])
+    assert (await client.post(f"/agents/{agent_id}/channels/{channel_id}")).status_code == 204
+    channels = await integrations_deps.list_agent_channels(agent_id)
+    assert any(str(c["id"]) == str(channel_id) for c in channels)
+    assert (await client.delete(f"/agents/{agent_id}/channels/{channel_id}")).status_code == 204
 
 
 async def test_add_mcp(client, setup):
