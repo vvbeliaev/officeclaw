@@ -6,20 +6,27 @@ _ALLOWED_UPDATE_FIELDS = frozenset({"name", "status", "sandbox_id", "gateway_por
 
 
 class AgentRepo:
-    def __init__(self, conn: asyncpg.Connection) -> None:
+    def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
 
-    async def create(self, user_id: UUID, name: str, image: str, is_admin: bool) -> asyncpg.Record:
+    async def create(
+        self, user_id: UUID, name: str, image: str, is_admin: bool
+    ) -> asyncpg.Record:
         return await self._conn.fetchrow(
             "INSERT INTO agents (user_id, name, image, is_admin) VALUES ($1, $2, $3, $4) RETURNING *",
-            user_id, name, image, is_admin,
+            user_id,
+            name,
+            image,
+            is_admin,
         )
 
     async def find_by_id(self, agent_id: UUID) -> asyncpg.Record | None:
         return await self._conn.fetchrow("SELECT * FROM agents WHERE id = $1", agent_id)
 
     async def list_by_user(self, user_id: UUID) -> list[asyncpg.Record]:
-        return await self._conn.fetch("SELECT * FROM agents WHERE user_id = $1", user_id)
+        return await self._conn.fetch(
+            "SELECT * FROM agents WHERE user_id = $1", user_id
+        )
 
     async def update(self, agent_id: UUID, **fields) -> asyncpg.Record | None:
         unknown = set(fields) - _ALLOWED_UPDATE_FIELDS
@@ -29,7 +36,8 @@ class AgentRepo:
         values = list(fields.values())
         return await self._conn.fetchrow(
             f"UPDATE agents SET {set_clauses}, updated_at = NOW() WHERE id = $1 RETURNING *",
-            agent_id, *values,
+            agent_id,
+            *values,
         )
 
     async def delete(self, agent_id: UUID) -> None:
@@ -37,7 +45,7 @@ class AgentRepo:
 
 
 class AgentFileRepo:
-    def __init__(self, conn: asyncpg.Connection) -> None:
+    def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
 
     async def upsert(self, agent_id: UUID, path: str, content: str) -> asyncpg.Record:
@@ -47,12 +55,16 @@ class AgentFileRepo:
                ON CONFLICT (agent_id, path)
                DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()
                RETURNING *""",
-            agent_id, path, content,
+            agent_id,
+            path,
+            content,
         )
 
     async def find(self, agent_id: UUID, path: str) -> asyncpg.Record | None:
         return await self._conn.fetchrow(
-            "SELECT * FROM agent_files WHERE agent_id = $1 AND path = $2", agent_id, path
+            "SELECT * FROM agent_files WHERE agent_id = $1 AND path = $2",
+            agent_id,
+            path,
         )
 
     async def list_by_agent(self, agent_id: UUID) -> list[asyncpg.Record]:

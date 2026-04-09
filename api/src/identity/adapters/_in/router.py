@@ -1,31 +1,27 @@
 from uuid import UUID
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 
-from src.identity.app.admin import create_admin_for_user
-from src.shared.db.pool import get_pool
+from src.identity.app import IdentityApp
 from src.identity.core.schema import UserCreate, UserOut, UserRegistered
-from src.identity.adapters.outbound.repository import UserRepo
 
 router = APIRouter()
 
 
-def get_repo(conn: asyncpg.Connection = Depends(get_pool)) -> UserRepo:
-    return UserRepo(conn)
+def get_identity(request: Request) -> IdentityApp:
+    return request.app.state.identity
 
 
 @router.post("", response_model=UserRegistered, status_code=201)
 async def create_user(
     body: UserCreate,
-    conn: asyncpg.Connection = Depends(get_pool),
+    identity: IdentityApp = Depends(get_identity),
 ) -> UserRegistered:
-    repo = UserRepo(conn)
     try:
-        record = await repo.create(body.email)
+        record, token = await identity.register(body.email)
     except asyncpg.UniqueViolationError:
         raise HTTPException(409, "Email already registered")
-    token = await create_admin_for_user(conn, record["id"])
     return UserRegistered(
         id=record["id"],
         email=record["email"],
@@ -35,8 +31,11 @@ async def create_user(
 
 
 @router.get("/{user_id}", response_model=UserOut)
-async def get_user(user_id: UUID, repo: UserRepo = Depends(get_repo)) -> UserOut:
-    record = await repo.find_by_id(user_id)
+async def get_user(
+    user_id: UUID,
+    identity: IdentityApp = Depends(get_identity),
+) -> UserOut:
+    record = await identity.find_by_id(user_id)
     if not record:
         raise HTTPException(404, "User not found")
     return UserOut(**dict(record))

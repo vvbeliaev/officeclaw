@@ -1,25 +1,52 @@
-# api/src/ports/rest/main.py
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
+import asyncpg
 from fastapi import FastAPI
 
-from src.shared.db.pool import create_pool, close_pool
-from src.adapters.mcp.server import mcp, set_pool
-from src.identity.adapters.router import router as users_router
-from src.library.adapters.router import router as skills_router
-from src.fleet.adapters.router import router as agents_router
-from src.integrations.adapters.router import envs_router, channels_router, links_router
+from src.shared.config import get_settings
+import src.fleet.di as fleet_di
+import src.identity.di as identity_di
+import src.library.di as library_di
+import src.integrations.di as integrations_di
+from src.entrypoints.mcp.server import mcp, setup as mcp_setup
+from src.fleet.adapters._in.router import router as agents_router
+from src.identity.adapters._in.router import router as users_router
+from src.integrations.adapters._in.router import (
+    envs_router,
+    channels_router,
+    links_router,
+)
+from src.library.adapters._in.router import router as skills_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    await create_pool(app)
-    set_pool(app.state.pool)
+    settings = get_settings()
+    pool = await asyncpg.create_pool(settings.database_url)
+
+    integrations = integrations_di.build(pool)
+    library = library_di.build(pool)
+    fleet = fleet_di.build(pool, integrations, library)
+    identity = identity_di.build(pool, fleet, integrations)
+
+    app.state.pool = pool
+    app.state.fleet = fleet
+    app.state.identity = identity
+    app.state.library = library
+    app.state.integrations = integrations
+
+    mcp_setup(
+        pool=pool,
+        fleet=fleet,
+        identity=identity,
+        library=library,
+        integrations=integrations,
+    )
 
     yield
 
-    await close_pool(app)
+    await pool.close()
 
 
 def create_app() -> FastAPI:

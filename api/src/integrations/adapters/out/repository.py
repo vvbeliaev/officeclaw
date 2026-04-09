@@ -4,7 +4,7 @@ from src.shared.crypto import encrypt_json, decrypt_json
 
 
 class EnvRepo:
-    def __init__(self, conn: asyncpg.Connection) -> None:
+    def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
 
     async def create(self, user_id: UUID, name: str, values: dict) -> asyncpg.Record:
@@ -33,7 +33,7 @@ class EnvRepo:
 
 
 class ChannelRepo:
-    def __init__(self, conn: asyncpg.Connection) -> None:
+    def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
 
     async def create(self, user_id: UUID, type_: str, config: dict) -> asyncpg.Record:
@@ -62,7 +62,7 @@ class ChannelRepo:
 
 
 class LinkRepo:
-    def __init__(self, conn: asyncpg.Connection) -> None:
+    def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
 
     async def attach_skill(self, agent_id: UUID, skill_id: UUID) -> None:
@@ -118,7 +118,7 @@ class LinkRepo:
 
 
 class AgentMcpRepo:
-    def __init__(self, conn: asyncpg.Connection) -> None:
+    def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
 
     async def create(self, agent_id: UUID, name: str, config: dict) -> asyncpg.Record:

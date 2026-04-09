@@ -3,7 +3,7 @@ import asyncpg
 
 
 class UserRepo:
-    def __init__(self, conn: asyncpg.Connection) -> None:
+    def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
 
     async def create(self, email: str) -> asyncpg.Record:

@@ -2,12 +2,7 @@
 from typing import Protocol
 from uuid import UUID
 
-import asyncpg
 
-
-class IStartSandbox(Protocol):
-    async def __call__(self, conn: asyncpg.Connection, agent_id: UUID) -> str: ...
-
-
-class IStopSandbox(Protocol):
-    async def __call__(self, conn: asyncpg.Connection, agent_id: UUID) -> None: ...
+class ISandboxService(Protocol):
+    async def start(self, agent_id: UUID) -> str: ...
+    async def stop(self, agent_id: UUID) -> None: ...

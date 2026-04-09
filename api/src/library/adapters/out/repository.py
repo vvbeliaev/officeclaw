@@ -4,7 +4,7 @@ import asyncpg
 
 
 class SkillRepo:
-    def __init__(self, conn: asyncpg.Connection) -> None:
+    def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
 
     async def create(self, user_id: UUID, name: str, description: str) -> asyncpg.Record:
@@ -24,7 +24,7 @@ class SkillRepo:
 
 
 class SkillFileRepo:
-    def __init__(self, conn: asyncpg.Connection) -> None:
+    def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
 
     async def upsert(self, skill_id: UUID, path: str, content: str) -> asyncpg.Record:

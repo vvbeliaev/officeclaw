@@ -4,9 +4,15 @@ import socket
 from pathlib import Path
 from uuid import UUID
 
-import asyncpg
+from src.fleet.app.agents import AgentService
+from src.fleet.app.vm_payload import build_vm_payload
+from src.integrations.app import IntegrationsApp
+from src.library.app import LibraryApp
 
-from src.fleet.adapters.outbound.repository import AgentRepo
+_SANDBOX_WORKDIR = Path("/tmp/officeclaw")
+_DEFAULT_IMAGE = "ghcr.io/hkuds/nanobot:latest"
+_DEFAULT_CPUS = "1"
+_DEFAULT_MEMORY = "512M"
 
 
 def _find_free_port() -> int:
@@ -15,95 +21,95 @@ def _find_free_port() -> int:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         return s.getsockname()[1]
 
-_SANDBOX_WORKDIR = Path("/tmp/officeclaw")
-_DEFAULT_IMAGE = "ghcr.io/hkuds/nanobot:latest"
-_DEFAULT_CPUS = "1"
-_DEFAULT_MEMORY = "512M"
 
+class SandboxService:
+    """App-layer service: manages sandbox lifecycle via msb CLI."""
 
-async def start_agent_sandbox(conn: asyncpg.Connection, agent_id: UUID) -> str:
-    """
-    Build VM payload, write workspace files to /tmp/officeclaw/<agent_id>/,
-    launch sandbox via `msb run --detach`. Returns sandbox_id (msb sandbox name).
+    def __init__(
+        self,
+        agents: AgentService,
+        integrations: IntegrationsApp,
+        skills: LibraryApp,
+    ) -> None:
+        self._agents = agents
+        self._integrations = integrations
+        self._skills = skills
 
-    Uses asyncio.create_subprocess_exec (no shell=True -- injection-safe).
-    """
-    from src.fleet.adapters.outbound.vm_payload import build_vm_payload
+    async def start(self, agent_id: UUID) -> str:
+        """Build VM payload, write workspace, launch msb sandbox. Returns sandbox_id."""
+        payload = await build_vm_payload(agent_id, self._agents, self._integrations, self._skills)
 
-    payload = await build_vm_payload(conn, agent_id)
+        workdir = _SANDBOX_WORKDIR / str(agent_id)
+        workdir.mkdir(parents=True, exist_ok=True)
 
-    workdir = _SANDBOX_WORKDIR / str(agent_id)
-    workdir.mkdir(parents=True, exist_ok=True)
+        for f in payload["files"]:
+            dest = workdir / f["path"]
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            with open(dest, "w") as fh:
+                fh.write(f["content"])
 
-    for f in payload["files"]:
-        dest = workdir / f["path"]
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        with open(dest, "w") as fh:
-            fh.write(f["content"])
+        with open(workdir / "config.json", "w") as fh:
+            fh.write(payload["config_json"])
 
-    with open(workdir / "config.json", "w") as fh:
-        fh.write(payload["config_json"])
+        sandbox_name = f"agent-{agent_id}"
+        gateway_port = _find_free_port()
+        cmd: list[str] = [
+            "msb",
+            "run",
+            _DEFAULT_IMAGE,
+            "--name",
+            sandbox_name,
+            "--detach",
+            "--volume",
+            f"{workdir}:/workspace",
+            "--cpus",
+            _DEFAULT_CPUS,
+            "--memory",
+            _DEFAULT_MEMORY,
+            "-p",
+            f"{gateway_port}:18790",
+        ]
+        for key, val in payload["env"].items():
+            cmd += ["-e", f"{key}={val}"]
 
-    sandbox_name = f"agent-{agent_id}"
-    gateway_port = _find_free_port()
-    cmd: list[str] = [
-        "msb",
-        "run",
-        _DEFAULT_IMAGE,
-        "--name",
-        sandbox_name,
-        "--detach",
-        "--volume",
-        f"{workdir}:/workspace",
-        "--cpus",
-        _DEFAULT_CPUS,
-        "--memory",
-        _DEFAULT_MEMORY,
-        "-p",
-        f"{gateway_port}:18790",
-    ]
-    for key, val in payload["env"].items():
-        cmd += ["-e", f"{key}={val}"]
-
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    _, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        raise RuntimeError(f"msb run failed: {stderr.decode()}")
-
-    await AgentRepo(conn).update(
-        agent_id, status="running", sandbox_id=sandbox_name, gateway_port=gateway_port
-    )
-    return sandbox_name
-
-
-async def stop_agent_sandbox(conn: asyncpg.Connection, agent_id: UUID) -> None:
-    """
-    Stop and remove sandbox via `msb stop` + `msb rm`, clean up workspace files.
-    Does not raise on msb errors (sandbox may already be gone).
-    """
-    record = await AgentRepo(conn).find_by_id(agent_id)
-    if not record or not record["sandbox_id"]:
-        raise ValueError(f"Agent {agent_id} has no running sandbox")
-
-    sandbox_name = record["sandbox_id"]
-
-    for subcmd in (
-        ["msb", "stop", sandbox_name],
-        ["msb", "rm", sandbox_name],
-    ):
         proc = await asyncio.create_subprocess_exec(
-            *subcmd,
+            *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        await proc.communicate()
+        _, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(f"msb run failed: {stderr.decode()}")
 
-    workdir = _SANDBOX_WORKDIR / str(agent_id)
-    if workdir.exists():
-        shutil.rmtree(workdir)
+        await self._agents.update(
+            agent_id,
+            status="running",
+            sandbox_id=sandbox_name,
+            gateway_port=gateway_port,
+        )
+        return sandbox_name
 
-    await AgentRepo(conn).update(agent_id, status="idle", sandbox_id=None, gateway_port=None)
+    async def stop(self, agent_id: UUID) -> None:
+        """Stop and remove msb sandbox, clean up workspace."""
+        record = await self._agents.find_by_id(agent_id)
+        if not record or not record["sandbox_id"]:
+            raise ValueError(f"Agent {agent_id} has no running sandbox")
+
+        sandbox_name = record["sandbox_id"]
+
+        for subcmd in (
+            ["msb", "stop", sandbox_name],
+            ["msb", "rm", sandbox_name],
+        ):
+            proc = await asyncio.create_subprocess_exec(
+                *subcmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await proc.communicate()
+
+        workdir = _SANDBOX_WORKDIR / str(agent_id)
+        if workdir.exists():
+            shutil.rmtree(workdir)
+
+        await self._agents.update(agent_id, status="idle", sandbox_id=None, gateway_port=None)

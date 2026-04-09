@@ -16,12 +16,12 @@ from uuid import UUID
 import asyncpg
 
 from src.shared.config import get_settings
-from src.fleet.adapters.outbound.repository import AgentRepo
-from src.fleet.adapters.outbound.repository import AgentFileRepo
-from src.integrations.adapters.outbound.repository import EnvRepo
-from src.integrations.adapters.outbound.repository import LinkRepo
-from src.integrations.adapters.outbound.repository import AgentMcpRepo
-from src.identity.adapters.outbound.repository import UserRepo
+from src.fleet.adapters.out.repository import AgentRepo
+from src.fleet.adapters.out.repository import AgentFileRepo
+from src.integrations.adapters.out.repository import EnvRepo
+from src.integrations.adapters.out.repository import LinkRepo
+from src.integrations.adapters.out.repository import AgentMcpRepo
+from src.identity.adapters.out.repository import UserRepo
 
 _SOUL_MD = """
 You are the Admin agent for OfficeClaw -- a fleet manager AI that helps users
@@ -68,7 +68,7 @@ Fleet management tool. Use it to:
 """
 
 
-async def create_admin_for_user(conn: asyncpg.Connection, user_id: UUID) -> str:
+async def create_admin_for_user(conn: asyncpg.Pool, user_id: UUID) -> str:
     """
     Bootstrap the Admin agent for a newly registered user.
     Returns the plain-text OFFICECLAW_TOKEN (show once to the user).

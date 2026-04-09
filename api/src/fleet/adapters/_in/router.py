@@ -1,41 +1,44 @@
 from collections.abc import AsyncGenerator
 from uuid import UUID
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
-import asyncpg
-import httpx
-from src.shared.db.pool import get_pool
-from src.fleet.core.schema import AgentCreate, AgentOut, AgentUpdate
-from src.fleet.adapters.outbound.repository import AgentRepo
-from src.fleet.core.schema import AgentFileIn, AgentFileOut
-from src.fleet.adapters.outbound.repository import AgentFileRepo
+
+from src.fleet.app import FleetApp
+from src.fleet.core.schema import AgentCreate, AgentFileIn, AgentFileOut, AgentOut, AgentUpdate
 
 router = APIRouter()
 
 
-def get_repo(pool: asyncpg.Connection = Depends(get_pool)) -> AgentRepo:
-    return AgentRepo(pool)
+def get_fleet(request: Request) -> FleetApp:
+    return request.app.state.fleet
 
 
 @router.post("", response_model=AgentOut, status_code=201)
 async def create_agent(
-    body: AgentCreate, repo: AgentRepo = Depends(get_repo)
+    body: AgentCreate,
+    fleet: FleetApp = Depends(get_fleet),
 ) -> AgentOut:
-    record = await repo.create(body.user_id, body.name, body.image, body.is_admin)
+    record = await fleet.create_agent(body.user_id, body.name, body.image, body.is_admin)
     return AgentOut(**dict(record))
 
 
 @router.get("", response_model=list[AgentOut])
 async def list_agents(
-    user_id: UUID, repo: AgentRepo = Depends(get_repo)
+    user_id: UUID,
+    fleet: FleetApp = Depends(get_fleet),
 ) -> list[AgentOut]:
-    records = await repo.list_by_user(user_id)
+    records = await fleet.list_agents(user_id)
     return [AgentOut(**dict(r)) for r in records]
 
 
 @router.get("/{agent_id}", response_model=AgentOut)
-async def get_agent(agent_id: UUID, repo: AgentRepo = Depends(get_repo)) -> AgentOut:
-    record = await repo.find_by_id(agent_id)
+async def get_agent(
+    agent_id: UUID,
+    fleet: FleetApp = Depends(get_fleet),
+) -> AgentOut:
+    record = await fleet.find_agent(agent_id)
     if not record:
         raise HTTPException(404, "Agent not found")
     return AgentOut(**dict(record))
@@ -43,56 +46,57 @@ async def get_agent(agent_id: UUID, repo: AgentRepo = Depends(get_repo)) -> Agen
 
 @router.patch("/{agent_id}", response_model=AgentOut)
 async def update_agent(
-    agent_id: UUID, body: AgentUpdate, repo: AgentRepo = Depends(get_repo)
+    agent_id: UUID,
+    body: AgentUpdate,
+    fleet: FleetApp = Depends(get_fleet),
 ) -> AgentOut:
     updates = body.model_dump(exclude_none=True)
     if not updates:
         raise HTTPException(400, "No fields to update")
-    record = await repo.update(agent_id, **updates)
+    record = await fleet.update_agent(agent_id, **updates)
     if not record:
         raise HTTPException(404, "Agent not found")
     return AgentOut(**dict(record))
 
 
 @router.delete("/{agent_id}", status_code=204)
-async def delete_agent(agent_id: UUID, repo: AgentRepo = Depends(get_repo)) -> None:
-    record = await repo.find_by_id(agent_id)
+async def delete_agent(
+    agent_id: UUID,
+    fleet: FleetApp = Depends(get_fleet),
+) -> None:
+    record = await fleet.find_agent(agent_id)
     if not record:
         raise HTTPException(404, "Agent not found")
-    await repo.delete(agent_id)
+    await fleet.delete_agent(agent_id)
 
 
 @router.post("/{agent_id}/start", response_model=AgentOut)
 async def start_agent(
     agent_id: UUID,
-    conn: asyncpg.Connection = Depends(get_pool),
+    fleet: FleetApp = Depends(get_fleet),
 ) -> AgentOut:
-    record = await AgentRepo(conn).find_by_id(agent_id)
+    record = await fleet.find_agent(agent_id)
     if not record:
         raise HTTPException(404, "Agent not found")
     if record["status"] == "running":
         raise HTTPException(409, "Agent is already running")
-    from src.fleet.app.sandbox import start_agent_sandbox
-
-    await start_agent_sandbox(conn, agent_id)
-    updated = await AgentRepo(conn).find_by_id(agent_id)
+    await fleet.start_sandbox(agent_id)
+    updated = await fleet.find_agent(agent_id)
     return AgentOut(**dict(updated))
 
 
 @router.post("/{agent_id}/stop", response_model=AgentOut)
 async def stop_agent(
     agent_id: UUID,
-    conn: asyncpg.Connection = Depends(get_pool),
+    fleet: FleetApp = Depends(get_fleet),
 ) -> AgentOut:
-    record = await AgentRepo(conn).find_by_id(agent_id)
+    record = await fleet.find_agent(agent_id)
     if not record:
         raise HTTPException(404, "Agent not found")
     if record["status"] != "running":
         raise HTTPException(409, "Agent is not running")
-    from src.fleet.app.sandbox import stop_agent_sandbox
-
-    await stop_agent_sandbox(conn, agent_id)
-    updated = await AgentRepo(conn).find_by_id(agent_id)
+    await fleet.stop_sandbox(agent_id)
+    updated = await fleet.find_agent(agent_id)
     return AgentOut(**dict(updated))
 
 
@@ -100,9 +104,9 @@ async def stop_agent(
 async def chat_agent(
     agent_id: UUID,
     request: Request,
-    conn: asyncpg.Connection = Depends(get_pool),
+    fleet: FleetApp = Depends(get_fleet),
 ) -> StreamingResponse:
-    record = await AgentRepo(conn).find_by_id(agent_id)
+    record = await fleet.find_agent(agent_id)
     if not record:
         raise HTTPException(404, "Agent not found")
     if record["status"] != "running":
@@ -126,33 +130,32 @@ async def chat_agent(
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
-def get_file_repo(pool: asyncpg.Connection = Depends(get_pool)) -> AgentFileRepo:
-    return AgentFileRepo(pool)
-
-
 @router.put("/{agent_id}/files", response_model=AgentFileOut)
 async def upsert_file(
     agent_id: UUID,
     body: AgentFileIn,
-    repo: AgentFileRepo = Depends(get_file_repo),
+    fleet: FleetApp = Depends(get_fleet),
 ) -> AgentFileOut:
-    record = await repo.upsert(agent_id, body.path, body.content)
+    record = await fleet.upsert_file(agent_id, body.path, body.content)
     return AgentFileOut(**dict(record))
 
 
 @router.get("/{agent_id}/files", response_model=list[AgentFileOut])
 async def list_files(
-    agent_id: UUID, repo: AgentFileRepo = Depends(get_file_repo)
+    agent_id: UUID,
+    fleet: FleetApp = Depends(get_fleet),
 ) -> list[AgentFileOut]:
-    records = await repo.list_by_agent(agent_id)
+    records = await fleet.list_files(agent_id)
     return [AgentFileOut(**dict(r)) for r in records]
 
 
 @router.get("/{agent_id}/files/{path:path}", response_model=AgentFileOut)
 async def get_file(
-    agent_id: UUID, path: str, repo: AgentFileRepo = Depends(get_file_repo)
+    agent_id: UUID,
+    path: str,
+    fleet: FleetApp = Depends(get_fleet),
 ) -> AgentFileOut:
-    record = await repo.find(agent_id, path)
+    record = await fleet.find_file(agent_id, path)
     if not record:
         raise HTTPException(404, "File not found")
     return AgentFileOut(**dict(record))
