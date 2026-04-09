@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.env
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Node
+node_modules/
+.svelte-kit/
+
+# Misc
+.DS_Store
+.superpowers/
