@@ -22,7 +22,8 @@ async def test_list_agents_for_user(client, user_id):
     await client.post("/agents", json={"user_id": user_id, "name": "A2"})
     resp = await client.get(f"/agents?user_id={user_id}")
     assert resp.status_code == 200
-    assert len(resp.json()) == 2
+    # user registration creates 1 Admin agent; 2 more added above = 3 total
+    assert len(resp.json()) == 3
 
 
 async def test_update_agent_status(client, user_id):

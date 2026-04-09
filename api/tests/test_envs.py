@@ -28,7 +28,8 @@ async def test_list_envs(client, user_id):
     await client.post("/envs", json={"user_id": user_id, "name": "env1", "values": {}})
     await client.post("/envs", json={"user_id": user_id, "name": "env2", "values": {}})
     resp = await client.get(f"/envs?user_id={user_id}")
-    assert len(resp.json()) == 2
+    # user registration creates 1 'officeclaw' env; 2 more added above = 3 total
+    assert len(resp.json()) == 3
     for env in resp.json():
         assert "values" not in env
 

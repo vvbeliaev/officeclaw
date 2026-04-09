@@ -12,3 +12,10 @@ class UserOut(BaseModel):
     id: UUID
     email: str
     created_at: datetime
+
+
+class UserRegistered(BaseModel):
+    id: UUID
+    email: str
+    created_at: datetime
+    officeclaw_token: str  # shown once at registration, store it securely

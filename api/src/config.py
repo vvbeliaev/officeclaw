@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     database_url: str
     encryption_key: str
     debug: bool = False
+    mcp_base_url: str = "http://localhost:8000"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
