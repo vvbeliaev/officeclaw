@@ -15,7 +15,7 @@ async def plain_agent(conn) -> UUID:
     """Create a plain (non-admin) agent with a real user."""
     from src.fleet.adapters.out.repository import AgentRepo
     uid = (await conn.fetchrow(
-        "INSERT INTO users (email) VALUES ($1) RETURNING id",
+        'INSERT INTO "user" (email) VALUES ($1) RETURNING id',
         f"sandbox-test-{uuid.uuid4()}@example.com",
     ))["id"]
     agent = await AgentRepo(conn).create(uid, "TestBot", "ghcr.io/hkuds/nanobot:latest", False)
@@ -93,3 +93,26 @@ async def test_stop_sandbox_updates_db(conn, sandbox_svc, plain_agent):
     rec = await AgentRepo(conn).find_by_id(plain_agent)
     assert rec["status"] == "idle"
     assert rec["sandbox_id"] is None
+
+
+async def test_stop_sandbox_syncs_mutable_files(conn, sandbox_svc, plain_agent):
+    from src.fleet.adapters.out.repository import AgentFileRepo
+    with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
+         patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch("builtins.open", MagicMock()):
+        await sandbox_svc.start_sandbox(plain_agent)
+
+    memory_content = "# Memory\nRemembered something."
+
+    def _exists(self: object) -> bool:
+        return str(self).endswith("MEMORY.md")
+
+    with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
+         patch("src.fleet.app.sandbox.shutil.rmtree"), \
+         patch("pathlib.Path.exists", _exists), \
+         patch("pathlib.Path.read_text", return_value=memory_content):
+        await sandbox_svc.stop_sandbox(plain_agent)
+
+    rec = await AgentFileRepo(conn).find(plain_agent, "memory/MEMORY.md")
+    assert rec is not None
+    assert rec["content"] == memory_content

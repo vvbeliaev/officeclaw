@@ -9,7 +9,7 @@ AgentStatus = Literal["idle", "running", "error"]
 class AgentCreate(BaseModel):
     user_id: UUID
     name: str
-    image: str = "ghcr.io/hkuds/nanobot:latest"
+    image: str = "localhost:5005/officeclaw/agent:latest"
     is_admin: bool = False
 
 

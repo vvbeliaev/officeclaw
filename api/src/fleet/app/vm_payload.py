@@ -117,6 +117,11 @@ async def _build_config_json(
             "defaults": {
                 "workspace": "/workspace",
                 "model": _DEFAULT_MODEL,
+                "dream": {
+                    "intervalH": 2,
+                    "maxBatchSize": 20,
+                    "maxIterations": 10,
+                },
             }
         },
         "providers": providers,
@@ -125,6 +130,10 @@ async def _build_config_json(
             "exec": {"enable": True},
             "mcpServers": mcp_servers,
         },
-        "gateway": {"host": "0.0.0.0", "port": 18790},
+        "gateway": {
+            "host": "0.0.0.0",
+            "port": 18790,
+            "heartbeat": {"enabled": True, "intervalS": 1800},
+        },
     }
     return config_dict, extra_env

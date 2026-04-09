@@ -62,9 +62,16 @@ async def full_agent(client):
 
 
 async def test_vm_payload_structure(client, full_agent, conn):
-    from src.fleet.adapters.out.vm_payload import build_vm_payload
+    from src.fleet.app.vm_payload import build_vm_payload
+    import src.fleet.di as fleet_di
+    import src.integrations.di as integrations_di
+    import src.library.di as library_di
 
-    payload = await build_vm_payload(conn, full_agent)
+    integrations = integrations_di.build(conn)  # type: ignore[arg-type]
+    library = library_di.build(conn)  # type: ignore[arg-type]
+    fleet = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
+
+    payload = await build_vm_payload(full_agent, fleet._agents, integrations, library)  # type: ignore[arg-type]
 
     # Files
     paths = {f["path"] for f in payload["files"]}

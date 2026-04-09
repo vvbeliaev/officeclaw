@@ -217,7 +217,7 @@ async def get_fleet_status(context: Context) -> dict:
 
 @mcp.tool()
 async def create_agent(
-    context: Context, name: str, image: str = "ghcr.io/hkuds/nanobot:latest"
+    context: Context, name: str, image: str = "localhost:5005/officeclaw/agent:latest"
 ) -> dict:
     """Create a new agent. Returns {id, name, status}."""
     user_id = await _require_user(context)

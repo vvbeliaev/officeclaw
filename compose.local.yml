@@ -1,4 +1,10 @@
 services:
+  registry:
+    image: registry:2
+    ports:
+      - "5005:5000"
+    restart: unless-stopped
+
   db:
     image: pgvector/pgvector:pg18
     ports:

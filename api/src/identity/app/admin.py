@@ -95,7 +95,7 @@ async def create_admin_for_user(conn: asyncpg.Pool, user_id: UUID) -> str:
     agent_record = await agents_repo.create(
         user_id,
         "Admin",
-        "ghcr.io/hkuds/nanobot:latest",
+        "localhost:5005/officeclaw/agent:latest",
         True,
     )
     agent_id = agent_record["id"]

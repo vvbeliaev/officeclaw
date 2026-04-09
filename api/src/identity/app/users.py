@@ -103,7 +103,7 @@ class UserService:
         )
 
         agent_record = await self._fleet.create_agent(
-            user_id, "Admin", "ghcr.io/hkuds/nanobot:latest", is_admin=True
+            user_id, "Admin", "localhost:5005/officeclaw/agent:latest", is_admin=True
         )
         agent_id = agent_record["id"]
 
