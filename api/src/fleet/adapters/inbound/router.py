@@ -3,9 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException
 import asyncpg
 from src.shared.db.pool import get_pool
 from src.fleet.core.schema import AgentCreate, AgentOut, AgentUpdate
-from src.fleet.adapters.repository import AgentRepo
+from src.fleet.adapters.outbound.repository import AgentRepo
 from src.fleet.core.schema import AgentFileIn, AgentFileOut
-from src.fleet.adapters.repository import AgentFileRepo
+from src.fleet.adapters.outbound.repository import AgentFileRepo
 
 router = APIRouter()
 

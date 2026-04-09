@@ -13,9 +13,9 @@ import json
 import logging
 from uuid import UUID
 import asyncpg
-from src.fleet.adapters.repository import AgentFileRepo
-from src.integrations.adapters.repository import LinkRepo, EnvRepo, ChannelRepo, AgentMcpRepo
-from src.library.adapters.repository import SkillFileRepo
+from src.fleet.adapters.outbound.repository import AgentFileRepo
+from src.integrations.adapters.outbound.repository import LinkRepo, EnvRepo, ChannelRepo, AgentMcpRepo
+from src.library.adapters.outbound.repository import SkillFileRepo
 
 logger = logging.getLogger(__name__)
 

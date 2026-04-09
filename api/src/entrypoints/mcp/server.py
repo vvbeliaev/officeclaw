@@ -17,10 +17,10 @@ import asyncpg
 from fastmcp import FastMCP
 from fastmcp.server.context import Context
 
-from src.fleet.adapters.outbound.repository import AgentRepo, AgentFileRepo
-from src.integrations.adapters.outbound.repository import EnvRepo, ChannelRepo, LinkRepo
-from src.library.adapters.outbound.repository import SkillRepo
-from src.identity.adapters.outbound.repository import UserRepo
+from src.fleet.adapters.repository import AgentRepo, AgentFileRepo
+from src.integrations.adapters.repository import EnvRepo, ChannelRepo, LinkRepo
+from src.library.adapters.repository import SkillRepo
+from src.identity.adapters.repository import UserRepo
 
 logger = logging.getLogger(__name__)
 

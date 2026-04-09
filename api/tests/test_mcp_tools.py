@@ -96,7 +96,7 @@ async def test_mcp_create_and_list_skills(mcp_conn_user):
 
 async def test_mcp_attach_skill(mcp_conn_user):
     from src.adapters.mcp.server import mcp_create_agent, mcp_create_skill, mcp_attach_skill
-    from src.integrations.adapters.repository import LinkRepo
+    from src.integrations.adapters.outbound.repository import LinkRepo
     conn, user_id = mcp_conn_user
     agent = await mcp_create_agent(conn, user_id, "SkillBot", "ghcr.io/hkuds/nanobot:latest")
     skill = await mcp_create_skill(conn, user_id, "calc", "Calculator")

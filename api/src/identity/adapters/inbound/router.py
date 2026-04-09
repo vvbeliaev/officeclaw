@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.identity.app.admin import create_admin_for_user
 from src.shared.db.pool import get_pool
 from src.identity.core.schema import UserCreate, UserOut, UserRegistered
-from src.identity.adapters.repository import UserRepo
+from src.identity.adapters.outbound.repository import UserRepo
 
 router = APIRouter()
 

@@ -16,12 +16,12 @@ from uuid import UUID
 import asyncpg
 
 from src.shared.config import get_settings
-from src.fleet.adapters.repository import AgentRepo
-from src.fleet.adapters.repository import AgentFileRepo
-from src.integrations.adapters.repository import EnvRepo
-from src.integrations.adapters.repository import LinkRepo
-from src.integrations.adapters.repository import AgentMcpRepo
-from src.identity.adapters.repository import UserRepo
+from src.fleet.adapters.outbound.repository import AgentRepo
+from src.fleet.adapters.outbound.repository import AgentFileRepo
+from src.integrations.adapters.outbound.repository import EnvRepo
+from src.integrations.adapters.outbound.repository import LinkRepo
+from src.integrations.adapters.outbound.repository import AgentMcpRepo
+from src.identity.adapters.outbound.repository import UserRepo
 
 _SOUL_MD = """
 You are the Admin agent for OfficeClaw -- a fleet manager AI that helps users

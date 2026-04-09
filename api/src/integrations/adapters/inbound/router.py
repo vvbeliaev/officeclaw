@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import asyncpg
 from src.shared.db.pool import get_pool
 from src.integrations.core.schema import EnvCreate, EnvOut, ChannelCreate, ChannelOut, McpCreate, McpOut
-from src.integrations.adapters.repository import EnvRepo, ChannelRepo, LinkRepo, AgentMcpRepo
+from src.integrations.adapters.outbound.repository import EnvRepo, ChannelRepo, LinkRepo, AgentMcpRepo
 from src.library.core.schema import SkillOut
 
 envs_router = APIRouter()

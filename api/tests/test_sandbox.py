@@ -9,7 +9,7 @@ import pytest
 async def plain_agent(conn) -> UUID:
     """Create a plain (non-admin) agent with a real user."""
     import uuid
-    from src.fleet.adapters.repository import AgentRepo
+    from src.fleet.adapters.outbound.repository import AgentRepo
     uid = (await conn.fetchrow(
         "INSERT INTO users (email) VALUES ($1) RETURNING id",
         f"sandbox-test-{uuid.uuid4()}@example.com",
@@ -40,7 +40,7 @@ async def test_start_sandbox_calls_msb(conn, plain_agent):
 
 async def test_start_sandbox_updates_db(conn, plain_agent):
     from src.fleet.app.sandbox import start_agent_sandbox
-    from src.fleet.adapters.repository import AgentRepo
+    from src.fleet.adapters.outbound.repository import AgentRepo
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
          patch("builtins.open", MagicMock()):
@@ -76,7 +76,7 @@ async def test_stop_sandbox_calls_msb_stop_and_rm(conn, plain_agent):
 
 async def test_stop_sandbox_updates_db(conn, plain_agent):
     from src.fleet.app.sandbox import start_agent_sandbox, stop_agent_sandbox
-    from src.fleet.adapters.repository import AgentRepo
+    from src.fleet.adapters.outbound.repository import AgentRepo
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
          patch("builtins.open", MagicMock()):

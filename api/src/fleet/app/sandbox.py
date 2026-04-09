@@ -5,7 +5,7 @@ from uuid import UUID
 
 import asyncpg
 
-from src.fleet.adapters.repository import AgentRepo
+from src.fleet.adapters.outbound.repository import AgentRepo
 
 _SANDBOX_WORKDIR = Path("/tmp/officeclaw")
 _DEFAULT_IMAGE = "ghcr.io/hkuds/nanobot:latest"
@@ -20,7 +20,7 @@ async def start_agent_sandbox(conn: asyncpg.Connection, agent_id: UUID) -> str:
 
     Uses asyncio.create_subprocess_exec (no shell=True -- injection-safe).
     """
-    from src.fleet.adapters.vm_payload import build_vm_payload
+    from src.fleet.adapters.outbound.vm_payload import build_vm_payload
 
     payload = await build_vm_payload(conn, agent_id)
 
