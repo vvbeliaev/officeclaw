@@ -15,13 +15,17 @@ def get_repo(pool: asyncpg.Connection = Depends(get_pool)) -> AgentRepo:
 
 
 @router.post("", response_model=AgentOut, status_code=201)
-async def create_agent(body: AgentCreate, repo: AgentRepo = Depends(get_repo)) -> AgentOut:
+async def create_agent(
+    body: AgentCreate, repo: AgentRepo = Depends(get_repo)
+) -> AgentOut:
     record = await repo.create(body.user_id, body.name, body.image, body.is_admin)
     return AgentOut(**dict(record))
 
 
 @router.get("", response_model=list[AgentOut])
-async def list_agents(user_id: UUID, repo: AgentRepo = Depends(get_repo)) -> list[AgentOut]:
+async def list_agents(
+    user_id: UUID, repo: AgentRepo = Depends(get_repo)
+) -> list[AgentOut]:
     records = await repo.list_by_user(user_id)
     return [AgentOut(**dict(r)) for r in records]
 

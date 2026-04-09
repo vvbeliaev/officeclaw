@@ -10,8 +10,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from src.db.pool import get_pool
-from src.main import create_app
+from src.shared.db.pool import get_pool
+from src.ports.rest.main import create_app
 
 TEST_DB_URL = os.environ.get(
     "TEST_DATABASE_URL",

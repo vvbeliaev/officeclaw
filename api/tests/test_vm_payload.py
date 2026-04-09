@@ -38,7 +38,7 @@ async def full_agent(client):
 
 
 async def test_vm_payload_structure(client, full_agent, conn):
-    from src.vm_payload import build_vm_payload
+    from src.ports.sandbox.vm_payload import build_vm_payload
     payload = await build_vm_payload(conn, full_agent)
 
     # Files

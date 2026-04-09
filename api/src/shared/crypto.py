@@ -1,7 +1,7 @@
 # api/src/crypto.py
 import json
 from cryptography.fernet import Fernet
-from src.config import get_settings
+from src.shared.config import get_settings
 
 _fernet: Fernet | None = None
 

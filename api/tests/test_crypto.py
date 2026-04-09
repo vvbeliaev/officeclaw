@@ -1,5 +1,5 @@
 # api/tests/test_crypto.py
-from src.crypto import encrypt_json, decrypt_json
+from src.shared.crypto import encrypt_json, decrypt_json
 
 
 def test_encrypt_decrypt_roundtrip():
