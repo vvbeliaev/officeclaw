@@ -1,3 +1,4 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from src.db.pool import create_pool, close_pool
@@ -5,7 +6,7 @@ from src.routers import users, agents, skills, envs, channels, links
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await create_pool(app)
     yield
     await close_pool(app)

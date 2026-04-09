@@ -1,9 +1,15 @@
-from fastapi import FastAPI
+import asyncpg
+from fastapi import FastAPI, Request
 
 
 async def create_pool(app: FastAPI) -> None:
-    pass
+    from src.config import get_settings
+    app.state.pool = await asyncpg.create_pool(get_settings().database_url)
 
 
 async def close_pool(app: FastAPI) -> None:
-    pass
+    await app.state.pool.close()
+
+
+def get_pool(request: Request) -> asyncpg.Pool:
+    return request.app.state.pool

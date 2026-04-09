@@ -8,3 +8,16 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Environment files
+.env
+.env.*.local
+
+# Cache directories
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage
+htmlcov/
+.coverage
