@@ -187,9 +187,7 @@ async def mcp_create_env(
     return {"id": str(record["id"]), "name": record["name"]}
 
 
-async def mcp_list_channels(
-    integrations: IntegrationsApp, user_id: UUID
-) -> list[dict]:
+async def mcp_list_channels(integrations: IntegrationsApp, user_id: UUID) -> list[dict]:
     records = await integrations.list_channels(user_id)
     return [{"id": str(r["id"]), "type": r["type"]} for r in records]
 

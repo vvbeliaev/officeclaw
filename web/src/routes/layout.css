@@ -192,9 +192,10 @@
 	* {
 		@apply border-border outline-ring/50;
 	}
-	/* Remove browser/Tailwind-forms default focus rings — each component handles its own */
+	/* Remove browser/Tailwind-forms default focus rings and box-shadow rings — each component handles its own */
 	input, textarea, select, button {
 		outline: none;
+		box-shadow: none;
 	}
 	body {
 		@apply bg-background text-foreground;
