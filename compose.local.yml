@@ -26,6 +26,12 @@ services:
     ports:
       - "8000:8000"
     env_file: api/.env
+    environment:
+      SANDBOX_RUNNER: docker
+      SANDBOX_GATEWAY_HOST: host.docker.internal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/officeclaw:/tmp/officeclaw
     depends_on:
       db:
         condition: service_healthy

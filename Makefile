@@ -4,12 +4,12 @@ infra:
 	docker compose -f compose.local.yml up -d db registry
 
 dev:
-	cd api && uv run uvicorn src.entrypoints.rest.main:app --reload --port 8000
+	cd api && uv run uvicorn src.entrypoint.main:app --reload --port 8000
 
 dev-web:
 	cd web && pnpm dev
 
-api:
+dev-api:
 	docker compose -f compose.local.yml up -d db registry api web
 
 agent-build:

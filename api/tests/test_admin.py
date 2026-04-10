@@ -47,5 +47,7 @@ async def test_admin_agent_has_env_linked(client, fleet_deps, integrations_deps)
     agents = await fleet_deps.list_agents(uid)
     agent_id = next(a["id"] for a in agents if a["is_admin"])
     envs = await integrations_deps.list_agent_envs(agent_id)
-    assert len(envs) == 1
-    assert envs[0]["name"] == "officeclaw"
+    names = {e["name"] for e in envs}
+    # Bootstrap now seeds two envs: the officeclaw token env and the
+    # default-llm env that feeds ${OFFICECLAW_LLM_*} into the sandbox.
+    assert names == {"officeclaw", "default-llm"}

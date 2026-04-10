@@ -106,6 +106,20 @@ class UserService:
             user_id, "officeclaw", {"OFFICECLAW_TOKEN": token}
         )
 
+        # Seed the default-llm env from server settings so every new user
+        # starts with a working LLM out of the box. When DEFAULT_LLM_API_KEY
+        # is empty the env is still created (with blanks) — the user can
+        # fill it in later via the workspace UI.
+        default_llm_env = await self._integrations.create_env(
+            user_id,
+            "default-llm",
+            {
+                "OFFICECLAW_LLM_API_KEY": settings.default_llm_api_key,
+                "OFFICECLAW_LLM_BASE_URL": settings.default_llm_base_url,
+                "OFFICECLAW_LLM_MODEL": settings.default_llm_model,
+            },
+        )
+
         agent_record = await self._fleet.create_agent(
             user_id, "Admin", "localhost:5005/officeclaw/agent:latest", is_admin=True
         )
@@ -126,5 +140,6 @@ class UserService:
         )
 
         await self._integrations.attach_env(agent_id, env_record["id"])
+        await self._integrations.attach_env(agent_id, default_llm_env["id"])
 
         return token

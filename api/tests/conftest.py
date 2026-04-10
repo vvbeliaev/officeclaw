@@ -11,11 +11,19 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from src.entrypoint.main import create_app
+from src.shared.config import get_settings
 import src.fleet.di as fleet_di
 import src.identity.di as identity_di
 import src.library.di as library_di
 import src.integrations.di as integrations_di
 from src.entrypoint.mcp import setup as mcp_setup
+
+# Prime the cached Settings instance at import time. Some tests patch
+# `builtins.open` (e.g. tests/test_sandbox.py), which breaks
+# pydantic-settings if it tries to read .env for the first time inside
+# the patched scope. Loading settings here guarantees the LRU cache
+# already holds a valid instance.
+get_settings()
 
 TEST_DB_URL = os.environ.get(
     "TEST_DATABASE_URL",

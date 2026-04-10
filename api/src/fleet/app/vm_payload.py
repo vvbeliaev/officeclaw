@@ -8,6 +8,7 @@ Output shape:
   "config_json": str,              # nanobot config.json content
 }
 """
+
 import json
 import logging
 from uuid import UUID
@@ -18,7 +19,10 @@ from src.library.app import LibraryApp
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_MODEL = "anthropic/claude-sonnet-4-6"
+# Fallback model string burned into config.json if a user env override
+# is absent. nanobot resolves ${OFFICECLAW_LLM_MODEL} from the sandbox
+# env vars; see _build_config_json below.
+_FALLBACK_MODEL = "${OFFICECLAW_LLM_MODEL}"
 
 
 async def build_vm_payload(
@@ -73,16 +77,17 @@ async def _build_config_json(
     integrations: IntegrationsApp,
     env_vars: dict,
 ) -> tuple[dict, dict]:
-    # Providers: one entry per known key prefix found in env_vars
-    providers: dict = {}
-    if any(k.startswith("ANTHROPIC") for k in env_vars):
-        providers["anthropic"] = {"apiKey": "${ANTHROPIC_API_KEY}"}
-    if any(k.startswith("OPENAI") for k in env_vars):
-        providers["openai"] = {"apiKey": "${OPENAI_API_KEY}"}
-    if any(k.startswith("OPENROUTER") for k in env_vars):
-        providers["openrouter"] = {"apiKey": "${OPENROUTER_API_KEY}"}
-    if any(k.startswith("GROQ") for k in env_vars):
-        providers["groq"] = {"apiKey": "${GROQ_API_KEY}"}
+    # Single OpenAI-compatible provider slot. nanobot's `custom` entry in
+    # the provider registry is a direct OpenAI-compat client — we force
+    # it via `agents.defaults.provider = "custom"` so the match bypasses
+    # keyword-based resolution entirely. Actual values live in env vars
+    # so secrets never touch config.json on disk.
+    providers: dict = {
+        "custom": {
+            "api_key": "${OFFICECLAW_LLM_API_KEY}",
+            "api_base": "${OFFICECLAW_LLM_BASE_URL}",
+        }
+    }
 
     # Channels
     extra_env: dict = {}
@@ -116,7 +121,8 @@ async def _build_config_json(
         "agents": {
             "defaults": {
                 "workspace": "/workspace",
-                "model": _DEFAULT_MODEL,
+                "model": _FALLBACK_MODEL,
+                "provider": "custom",
                 "dream": {
                     "intervalH": 2,
                     "maxBatchSize": 20,

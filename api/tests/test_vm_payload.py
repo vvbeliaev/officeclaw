@@ -85,6 +85,12 @@ async def test_vm_payload_structure(client, full_agent, conn):
     # config.json
     config = json.loads(payload["config_json"])
     assert config["agents"]["defaults"]["workspace"] == "/workspace"
-    assert config["providers"]["anthropic"]["apiKey"] == "${ANTHROPIC_API_KEY}"
+    # All agents use the single openai-compat "custom" provider slot,
+    # forced via agents.defaults.provider so nanobot bypasses keyword-
+    # based matching entirely. Secrets stay in env vars.
+    assert config["agents"]["defaults"]["provider"] == "custom"
+    assert config["agents"]["defaults"]["model"] == "${OFFICECLAW_LLM_MODEL}"
+    assert config["providers"]["custom"]["api_key"] == "${OFFICECLAW_LLM_API_KEY}"
+    assert config["providers"]["custom"]["api_base"] == "${OFFICECLAW_LLM_BASE_URL}"
     assert config["channels"]["telegram"]["token"] == "${TELEGRAM_TOKEN}"
     assert config["tools"]["mcpServers"]["officeclaw"]["url"] == "http://mcp:8700/mcp"

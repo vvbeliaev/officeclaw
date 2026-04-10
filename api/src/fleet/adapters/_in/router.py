@@ -1,3 +1,4 @@
+import json
 from collections.abc import AsyncGenerator
 from uuid import UUID
 
@@ -6,7 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from src.fleet.app import FleetApp
-from src.fleet.core.schema import AgentCreate, AgentFileIn, AgentFileOut, AgentOut, AgentUpdate
+from src.fleet.app.sandbox import gateway_base_url
+from src.fleet.core.schema import (
+    AgentCreate,
+    AgentFileIn,
+    AgentFileOut,
+    AgentOut,
+    AgentUpdate,
+)
 
 router = APIRouter()
 
@@ -20,7 +28,9 @@ async def create_agent(
     body: AgentCreate,
     fleet: FleetApp = Depends(get_fleet),
 ) -> AgentOut:
-    record = await fleet.create_agent(body.user_id, body.name, body.image, body.is_admin)
+    record = await fleet.create_agent(
+        body.user_id, body.name, body.image, body.is_admin
+    )
     return AgentOut(**dict(record))
 
 
@@ -80,12 +90,18 @@ async def stop_agent(
     return AgentOut(**dict(updated))
 
 
-@router.post("/{agent_id}/chat")
-async def chat_agent(
+@router.post("/{agent_id}/v1/chat/completions")
+async def proxy_chat_completions(
     agent_id: UUID,
     request: Request,
     fleet: FleetApp = Depends(get_fleet),
 ) -> StreamingResponse:
+    """Transparent proxy to the nanobot gateway's /v1/chat/completions.
+
+    Supports both stream=false (JSON) and stream=true (SSE).
+    The BFF uses @ai-sdk/openai pointing at this endpoint, so no format
+    translation is needed here — bytes flow through unchanged.
+    """
     record = await fleet.find_agent(agent_id)
     if not record:
         raise HTTPException(404, "Agent not found")
@@ -95,19 +111,31 @@ async def chat_agent(
         raise HTTPException(503, "Agent gateway not available")
 
     body = await request.body()
-    headers = {
-        k: v for k, v in request.headers.items()
-        if k.lower() in ("content-type", "accept")
-    }
-    gateway_url = f"http://localhost:{record['gateway_port']}/chat"
+    gateway_url = f"{gateway_base_url(record['gateway_port'])}/v1/chat/completions"
 
     async def stream() -> AsyncGenerator[bytes, None]:
         async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream("POST", gateway_url, content=body, headers=headers) as resp:
+            async with client.stream(
+                "POST",
+                gateway_url,
+                content=body,
+                headers={"Content-Type": "application/json"},
+            ) as resp:
+                if resp.status_code >= 400:
+                    error_body = await resp.aread()
+                    raise HTTPException(resp.status_code, error_body.decode())
                 async for chunk in resp.aiter_bytes():
                     yield chunk
 
-    return StreamingResponse(stream(), media_type="text/event-stream")
+    # Detect streaming from the JSON body's "stream" flag.
+    # @ai-sdk/openai does not send Accept: text/event-stream — it uses stream:true.
+    try:
+        is_streaming = json.loads(body).get("stream", False)
+    except (json.JSONDecodeError, AttributeError):
+        is_streaming = False
+    media_type = "text/event-stream" if is_streaming else "application/json"
+
+    return StreamingResponse(stream(), media_type=media_type)
 
 
 @router.put("/{agent_id}/files", response_model=AgentFileOut)

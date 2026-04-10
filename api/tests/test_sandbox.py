@@ -8,8 +8,26 @@ import pytest
 import src.fleet.di as fleet_di
 import src.integrations.di as integrations_di
 import src.library.di as library_di
+from src.shared.config import get_settings
 
 _WAIT_GW = "src.fleet.app.sandbox._wait_for_gateway"
+
+
+@pytest.fixture(autouse=True)
+def force_msb_runner():
+    """Pin the sandbox runner to msb regardless of local .env.
+
+    The assertions in this module check for msb-specific command shape;
+    developers running with SANDBOX_RUNNER=docker locally would otherwise
+    see spurious failures.
+    """
+    settings = get_settings()
+    original = settings.sandbox_runner
+    settings.sandbox_runner = "msb"
+    try:
+        yield
+    finally:
+        settings.sandbox_runner = original
 
 
 @pytest.fixture
