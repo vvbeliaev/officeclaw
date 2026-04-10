@@ -28,6 +28,32 @@ class EnvRepo:
             raise ValueError(f"Env {env_id} not found")
         return decrypt_json(bytes(record["values_encrypted"]))
 
+    async def update(
+        self, env_id: UUID, name: str | None = None, values: dict | None = None
+    ) -> asyncpg.Record | None:
+        parts: list[str] = []
+        params: list = [env_id]
+        i = 2
+
+        if name is not None:
+            parts.append(f"name = ${i}")
+            params.append(name)
+            i += 1
+
+        if values is not None:
+            parts.append(f"values_encrypted = ${i}")
+            params.append(encrypt_json(values))
+            i += 1
+
+        if not parts:
+            return await self.find_by_id(env_id)
+
+        return await self._conn.fetchrow(
+            f"UPDATE user_envs SET {', '.join(parts)} WHERE id = $1"
+            " RETURNING id, user_id, name, created_at",
+            *params,
+        )
+
     async def delete(self, env_id: UUID) -> None:
         await self._conn.execute("DELETE FROM user_envs WHERE id = $1", env_id)
 

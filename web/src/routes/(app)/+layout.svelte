@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
 	import { authClient } from '$lib/auth-client';
@@ -47,6 +47,68 @@
 			.slice(0, 2)
 			.toUpperCase() ?? '?'
 	);
+
+	// ── Spawn agent ───────────────────────────────────────────
+	let spawning = $state(false);
+	let spawnName = $state('');
+	let spawnInput: HTMLInputElement | null = $state(null);
+	let spawnError: string | null = $state(null);
+	let spawnLoading = $state(false);
+
+	function openSpawn() {
+		spawning = true;
+		spawnName = '';
+		spawnError = null;
+		// Focus after DOM update
+		setTimeout(() => spawnInput?.focus(), 0);
+	}
+
+	function cancelSpawn() {
+		spawning = false;
+		spawnName = '';
+		spawnError = null;
+	}
+
+	async function createAgent() {
+		const name = spawnName.trim();
+		if (!name || spawnLoading) return;
+
+		spawnLoading = true;
+		spawnError = null;
+
+		try {
+			const res = await fetch('/api/agents', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name })
+			});
+
+			if (!res.ok) {
+				const text = await res.text();
+				spawnError = text || `HTTP ${res.status}`;
+				return;
+			}
+
+			const agent = await res.json();
+			spawning = false;
+			spawnName = '';
+			await invalidateAll();
+			goto(`/agents/${agent.id}`);
+		} catch (err) {
+			spawnError = err instanceof Error ? err.message : 'Failed to create agent';
+		} finally {
+			spawnLoading = false;
+		}
+	}
+
+	function onSpawnKey(e: KeyboardEvent) {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			createAgent();
+		} else if (e.key === 'Escape') {
+			cancelSpawn();
+		}
+	}
 </script>
 
 <div class="shell">
@@ -61,12 +123,18 @@
 			<section class="section">
 				<div class="section-head">
 					<span class="section-label font-mono">fleet</span>
-					<button class="section-spawn" type="button" aria-label="Spawn agent">
+					<button
+						class="section-spawn"
+						class:active={spawning}
+						type="button"
+						aria-label="Spawn agent"
+						onclick={openSpawn}
+					>
 						<Icon icon="oc:spawn" width={12} height={12} />
 					</button>
 				</div>
 
-				{#if data.agents.length === 0}
+				{#if data.agents.length === 0 && !spawning}
 					<p class="empty">
 						Bootstrap pending<span class="blink">…</span>
 					</p>
@@ -81,6 +149,44 @@
 								active={activeAgentId === agent.id}
 							/>
 						{/each}
+
+						{#if spawning}
+							<div class="spawn-form">
+								<input
+									bind:this={spawnInput}
+									bind:value={spawnName}
+									onkeydown={onSpawnKey}
+									placeholder="agent name…"
+									class="spawn-input font-mono"
+									maxlength={64}
+									disabled={spawnLoading}
+								/>
+								{#if spawnError}
+									<p class="spawn-error font-mono">{spawnError}</p>
+								{/if}
+								<div class="spawn-actions">
+									<button
+										class="spawn-confirm font-mono"
+										type="button"
+										onclick={createAgent}
+										disabled={!spawnName.trim() || spawnLoading}
+									>
+										{#if spawnLoading}
+											<span class="spinner-sm"></span>creating…
+										{:else}
+											create ↵
+										{/if}
+									</button>
+									<button
+										class="spawn-cancel font-mono"
+										type="button"
+										onclick={cancelSpawn}
+									>
+										esc
+									</button>
+								</div>
+							</div>
+						{/if}
 					</div>
 				{/if}
 			</section>
@@ -211,6 +317,109 @@
 	.section-spawn:hover {
 		color: var(--primary);
 		background: color-mix(in oklch, var(--primary) 12%, transparent);
+	}
+
+	.section-spawn.active {
+		color: var(--primary);
+		background: color-mix(in oklch, var(--primary) 14%, transparent);
+	}
+
+	/* ── Spawn inline form ────────────────────────────────── */
+	.spawn-form {
+		margin: 0.1rem 0.25rem 0.25rem;
+		padding: 0.55rem 0.7rem 0.5rem;
+		background: color-mix(in oklch, var(--sidebar-accent) 50%, transparent);
+		border: 1px solid color-mix(in oklch, var(--primary) 22%, var(--sidebar-border));
+		border-radius: 0.35rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+		animation: spawn-appear 120ms ease;
+	}
+
+	@keyframes spawn-appear {
+		from {
+			opacity: 0;
+			transform: translateY(-4px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.spawn-input {
+		width: 100%;
+		background: transparent;
+		border: none;
+		outline: none;
+		font-size: 0.78rem;
+		color: var(--sidebar-foreground);
+		letter-spacing: 0.01em;
+	}
+
+	.spawn-input::placeholder {
+		color: color-mix(in oklch, var(--sidebar-foreground) 35%, transparent);
+	}
+
+	.spawn-input:disabled {
+		opacity: 0.5;
+	}
+
+	.spawn-error {
+		font-size: 0.62rem;
+		color: var(--destructive);
+		letter-spacing: 0.02em;
+	}
+
+	.spawn-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		border-top: 1px solid color-mix(in oklch, var(--sidebar-border) 60%, transparent);
+		padding-top: 0.35rem;
+	}
+
+	.spawn-confirm {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.6rem;
+		letter-spacing: 0.06em;
+		color: var(--primary);
+		transition: opacity 150ms ease;
+	}
+
+	.spawn-confirm:disabled {
+		opacity: 0.35;
+		cursor: not-allowed;
+	}
+
+	.spawn-cancel {
+		font-size: 0.6rem;
+		letter-spacing: 0.06em;
+		color: color-mix(in oklch, var(--sidebar-foreground) 35%, transparent);
+		transition: color 150ms ease;
+	}
+
+	.spawn-cancel:hover {
+		color: var(--sidebar-foreground);
+	}
+
+	.spinner-sm {
+		display: inline-block;
+		width: 8px;
+		height: 8px;
+		border-radius: 9999px;
+		border: 1px solid currentColor;
+		border-right-color: transparent;
+		animation: spin 0.8s linear infinite;
+	}
+
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.empty {

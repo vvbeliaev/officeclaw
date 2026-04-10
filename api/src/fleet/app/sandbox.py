@@ -216,16 +216,24 @@ class SandboxService:
         payload = await build_vm_payload(agent_id, self._agents, self._integrations, self._skills)
 
         workdir = _sandbox_workdir(agent_id)
-        workdir.mkdir(parents=True, exist_ok=True)
-
-        for f in payload["files"]:
-            dest = workdir / f["path"]
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            with open(dest, "w") as fh:
-                fh.write(f["content"])
-
-        with open(workdir / "config.json", "w") as fh:
-            fh.write(payload["config_json"])
+        tmp_workdir = workdir.parent / f".tmp-{agent_id}"
+        try:
+            tmp_workdir.mkdir(parents=True, exist_ok=True)
+            for f in payload["files"]:
+                dest = tmp_workdir / f["path"]
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                with open(dest, "w") as fh:
+                    fh.write(f["content"])
+            with open(tmp_workdir / "config.json", "w") as fh:
+                fh.write(payload["config_json"])
+            # Atomic swap: remove stale workdir (orphan from a previous crash),
+            # then rename tmp into place — rename() is atomic on POSIX.
+            if workdir.exists():
+                shutil.rmtree(workdir)
+            tmp_workdir.rename(workdir)
+        except Exception:
+            shutil.rmtree(tmp_workdir, ignore_errors=True)
+            raise
 
         sandbox_name = f"agent-{agent_id}"
 
@@ -283,11 +291,15 @@ class SandboxService:
         )
         await proc.communicate()
 
-        # Sync mutable workspace files back to Postgres before the volume is removed
+        # Sync mutable workspace files back to Postgres — best-effort, must not
+        # block the cleanup steps that follow.
         workdir = _sandbox_workdir(agent_id)
-        synced = _read_workspace_files(workdir)
-        if synced:
-            await self._agents.bulk_upsert_files(agent_id, synced)
+        try:
+            synced = _read_workspace_files(workdir)
+            if synced:
+                await self._agents.bulk_upsert_files(agent_id, synced)
+        except Exception:
+            _log.exception("Failed to sync workspace files for agent %s during stop", agent_id)
 
         proc = await asyncio.create_subprocess_exec(
             *_rm_cmd(sandbox_name),
@@ -297,7 +309,7 @@ class SandboxService:
         await proc.communicate()
 
         if workdir.exists():
-            shutil.rmtree(workdir)
+            shutil.rmtree(workdir, ignore_errors=True)
 
         await self._agents.update(agent_id, status="idle", sandbox_id=None, gateway_port=None)
 

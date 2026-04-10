@@ -1,5 +1,8 @@
 import { error } from '@sveltejs/kit';
-import type { PageLoad } from './$types';
+import { db } from '$lib/server/db';
+import { userEnvs } from '$lib/server/db/app.schema';
+import { eq, desc } from 'drizzle-orm';
+import type { PageServerLoad } from './$types';
 
 const SECTIONS = {
 	skills: {
@@ -22,8 +25,23 @@ const SECTIONS = {
 
 type SectionKey = keyof typeof SECTIONS;
 
-export const load: PageLoad = ({ params }) => {
+export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!(params.section in SECTIONS)) error(404, 'Unknown workspace section');
 	const key = params.section as SectionKey;
-	return { section: SECTIONS[key], key };
+	const section = SECTIONS[key];
+
+	if (key !== 'environments') return { section, key, envs: null };
+
+	const userId = locals.user!.id;
+	const envs = await db
+		.select({
+			id: userEnvs.id,
+			name: userEnvs.name,
+			createdAt: userEnvs.createdAt
+		})
+		.from(userEnvs)
+		.where(eq(userEnvs.userId, userId))
+		.orderBy(desc(userEnvs.createdAt));
+
+	return { section, key, envs };
 };

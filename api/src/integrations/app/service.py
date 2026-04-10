@@ -37,6 +37,11 @@ class IntegrationsService:
     async def get_decrypted_env(self, env_id: UUID) -> dict:
         return await self._envs.get_decrypted_values(env_id)
 
+    async def update_env(
+        self, env_id: UUID, name: str | None = None, values: dict | None = None
+    ) -> asyncpg.Record | None:
+        return await self._envs.update(env_id, name=name, values=values)
+
     async def delete_env(self, env_id: UUID) -> None:
         await self._envs.delete(env_id)
 

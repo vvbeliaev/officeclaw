@@ -104,12 +104,11 @@ async def create_admin_for_user(conn: asyncpg.Pool, user_id: UUID) -> str:
     await files_repo.upsert(agent_id, "AGENTS.md", _AGENTS_MD)
     await files_repo.upsert(agent_id, "TOOLS.md", _TOOLS_MD)
 
-    mcp_url = f"{settings.mcp_base_url}/mcp"
     await mcp_repo.create(
         agent_id,
         "officeclaw",
         {
-            "url": mcp_url,
+            "url": "${OFFICECLAW_MCP_URL}",
             "headers": {"Authorization": "Bearer ${OFFICECLAW_TOKEN}"},
         },
     )

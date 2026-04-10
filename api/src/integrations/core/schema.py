@@ -9,12 +9,21 @@ class EnvCreate(BaseModel):
     values: dict  # written, never read back
 
 
+class EnvUpdate(BaseModel):
+    name: str | None = None
+    values: dict | None = None  # replaces encrypted blob when provided
+
+
 class EnvOut(BaseModel):
     id: UUID
     user_id: UUID
     name: str
     created_at: datetime
     # values intentionally omitted
+
+
+class EnvValuesOut(BaseModel):
+    values: dict  # decrypted key-value pairs, returned only on explicit request
 
 
 class ChannelCreate(BaseModel):

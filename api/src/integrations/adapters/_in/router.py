@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from src.integrations.app import IntegrationsApp
 from src.integrations.core.schema import (
     ChannelCreate, ChannelOut,
-    EnvCreate, EnvOut,
+    EnvCreate, EnvOut, EnvUpdate, EnvValuesOut,
     McpCreate, McpOut,
 )
 
@@ -28,6 +28,29 @@ async def create_env(
         record = await deps.create_env(body.user_id, body.name, body.values)
     except asyncpg.UniqueViolationError:
         raise HTTPException(409, "Env name already exists for this user")
+    return EnvOut(**dict(record))
+
+
+@envs_router.get("/{env_id}/values", response_model=EnvValuesOut)
+async def get_env_values(
+    env_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> EnvValuesOut:
+    if not await deps.find_env(env_id):
+        raise HTTPException(404, "Env not found")
+    values = await deps.get_decrypted_env(env_id)
+    return EnvValuesOut(values=values)
+
+
+@envs_router.patch("/{env_id}", response_model=EnvOut)
+async def update_env(
+    env_id: UUID,
+    body: EnvUpdate,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> EnvOut:
+    if not await deps.find_env(env_id):
+        raise HTTPException(404, "Env not found")
+    record = await deps.update_env(env_id, name=body.name, values=body.values)
     return EnvOut(**dict(record))
 
 

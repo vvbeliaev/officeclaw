@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import AgentAvatar from './agent-avatar.svelte';
+	import { Icon } from '$lib/icons';
 
 	type AgentStatus = 'running' | 'idle' | 'error';
 
@@ -52,6 +54,18 @@
 			<span class="status-label font-mono">{statusLabel}</span>
 		</div>
 	</div>
+
+	<button
+		class="gear-btn"
+		aria-label="Agent settings"
+		onclick={(e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			goto(`/agents/${id}/settings`);
+		}}
+	>
+		<Icon icon="tabler:settings" width={12} height={12} />
+	</button>
 </a>
 
 <style>
@@ -139,5 +153,34 @@
 		font-size: 0.625rem;
 		color: color-mix(in oklch, var(--sidebar-foreground) 50%, transparent);
 		letter-spacing: 0.02em;
+	}
+
+	/* ── Gear button ─────────────────────────────────────────── */
+	.gear-btn {
+		position: absolute;
+		right: 0.55rem;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 22px;
+		height: 22px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 4px;
+		color: color-mix(in oklch, var(--sidebar-foreground) 38%, transparent);
+		opacity: 0;
+		transition:
+			opacity 120ms ease,
+			color 120ms ease,
+			background 120ms ease;
+	}
+
+	.agent-card:hover .gear-btn {
+		opacity: 1;
+	}
+
+	.gear-btn:hover {
+		color: var(--primary);
+		background: color-mix(in oklch, var(--primary) 12%, transparent);
 	}
 </style>

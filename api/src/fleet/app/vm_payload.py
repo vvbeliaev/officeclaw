@@ -126,10 +126,15 @@ async def _build_config_json(
         if not env_vars.get(key) and val:
             extra_env[key] = val
 
+    # MCP URL is injected at VM-start time (not burned in at bootstrap) so that
+    # the correct hostname is always used — e.g. host.docker.internal for local
+    # Docker dev vs a real hostname in production.
+    extra_env["OFFICECLAW_MCP_URL"] = f"{settings.mcp_base_url}/mcp"
+
     # MCP servers
     mcp_servers: dict = {}
-    # for mcp in await integrations.get_all_decrypted_mcp(agent_id):
-        # mcp_servers[mcp["name"]] = mcp["config"]
+    for mcp in await integrations.get_all_decrypted_mcp(agent_id):
+        mcp_servers[mcp["name"]] = mcp["config"]
 
     config_dict = {
         "agents": {
