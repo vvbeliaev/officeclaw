@@ -1,5 +1,5 @@
 import { error } from '@sveltejs/kit';
-import { createOpenAI } from '@ai-sdk/openai';
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
 import { convertToModelMessages, streamText } from 'ai';
 import type { UIMessage } from 'ai';
 import type { RequestHandler } from './$types';
@@ -13,13 +13,21 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	const body = (await request.json()) as { messages: UIMessage[] };
 
-	const nanobot = createOpenAI({
+	// Inject session_id so nanobot uses an isolated session per agent
+	// (nanobot server.py: session_key = f"api:{session_id}").
+	const sessionId = params.id;
+	const nanobot = createOpenAICompatible({
+		name: 'gpt-4o-mini',
 		baseURL: `${API_URL}/agents/${params.id}/v1`,
-		apiKey: 'not-required'
+		headers: { Authorization: 'Bearer not-required' },
+		fetch: async (url, init) => {
+			const body = JSON.parse((init?.body as string) ?? '{}');
+			return fetch(url, { ...init, body: JSON.stringify({ ...body, session_id: sessionId }) });
+		}
 	});
 
 	const result = streamText({
-		model: nanobot('nanobot'),
+		model: nanobot('gpt-4o-mini'),
 		messages: await convertToModelMessages(body.messages)
 	});
 

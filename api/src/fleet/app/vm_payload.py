@@ -16,6 +16,7 @@ from uuid import UUID
 from src.fleet.app.agents import AgentService
 from src.integrations.app import IntegrationsApp
 from src.library.app import LibraryApp
+from src.shared.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -112,10 +113,23 @@ async def _build_config_json(
                 "allowFrom": cfg.get("allow_from", []),
             }
 
+    # Ensure LLM vars are present — fall back to server-wide defaults if the
+    # agent's linked envs didn't supply them (e.g. bootstrapped before defaults
+    # were configured, or user wiped the default-llm env).
+    settings = get_settings()
+    llm_defaults = {
+        "OFFICECLAW_LLM_API_KEY": settings.default_llm_api_key,
+        "OFFICECLAW_LLM_BASE_URL": settings.default_llm_base_url,
+        "OFFICECLAW_LLM_MODEL": settings.default_llm_model,
+    }
+    for key, val in llm_defaults.items():
+        if not env_vars.get(key) and val:
+            extra_env[key] = val
+
     # MCP servers
     mcp_servers: dict = {}
-    for mcp in await integrations.get_all_decrypted_mcp(agent_id):
-        mcp_servers[mcp["name"]] = mcp["config"]
+    # for mcp in await integrations.get_all_decrypted_mcp(agent_id):
+        # mcp_servers[mcp["name"]] = mcp["config"]
 
     config_dict = {
         "agents": {

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <clipPath id="c">
+      <!-- notched bottom-right corner — same shape as the logo mark -->
+      <polygon points="0,0 32,0 32,24 24,32 0,32"/>
+    </clipPath>
+  </defs>
+
+  <!-- amber background, clipped -->
+  <rect width="32" height="32" fill="#C4892B" clip-path="url(#c)"/>
+
+  <!-- claw: original 24×24 paths, scaled 1.2× and centred in 32×32 -->
+  <!-- translate(1.6, 0.5) centres the scaled 28.8-wide glyph in 32px -->
+  <g transform="translate(1.6, 0.5) scale(1.2)" fill="none" stroke="white"
+     stroke-linecap="round">
+    <path d="M12 21C11 19 7 14 7 8"  stroke-width="1.5"/>
+    <path d="M12 21C12 19 12 13 12 7" stroke-width="1.5"/>
+    <path d="M12 21C13 19 17 14 17 8" stroke-width="1.5"/>
+    <circle cx="12" cy="21" r="1.5" fill="white" stroke="none"/>
+  </g>
+</svg>

@@ -1,5 +1,6 @@
 import asyncpg
 
+from src.fleet.adapters._in.watchers import SandboxWatcher
 from src.fleet.adapters.out.repository import AgentFileRepo, AgentRepo
 from src.fleet.app import FleetApp
 from src.fleet.app.agents import AgentService
@@ -12,7 +13,7 @@ def build(
     pool: asyncpg.Pool,
     integrations: IntegrationsApp,
     library: LibraryApp,
-) -> FleetApp:
+) -> tuple[FleetApp, SandboxWatcher]:
     agents = AgentService(AgentRepo(pool), AgentFileRepo(pool))
     sandbox = SandboxService(agents, integrations, library)
-    return FleetApp(agents, sandbox)
+    return FleetApp(agents, sandbox), SandboxWatcher(sandbox)

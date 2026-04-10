@@ -19,6 +19,9 @@ class AgentService:
     async def list_by_user(self, user_id: UUID) -> list[dict]:
         return await self._agents.list_by_user(user_id)
 
+    async def list_running(self) -> list[dict]:
+        return await self._agents.list_running()
+
     async def update(self, agent_id: UUID, **fields: object) -> dict | None:
         return await self._agents.update(agent_id, **fields)
 

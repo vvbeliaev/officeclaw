@@ -4,17 +4,13 @@
 	import { Chat, type UIMessage } from '@ai-sdk/svelte';
 	import { DefaultChatTransport } from 'ai';
 	import AgentAvatar from '$lib/components/agent-avatar.svelte';
+	import Markdown from '$lib/components/markdown.svelte';
 	import { Icon } from '$lib/icons';
 
 	let { data } = $props();
 
 	type LifecyclePhase = 'idle' | 'starting' | 'running' | 'stopping' | 'error';
 
-	// Lifecycle phase is a client-side overlay on top of the server status.
-	// Server `agent.status` is one of 'idle' | 'running' | 'error';
-	// on top of that we add transient 'starting' / 'stopping' while a
-	// request is in flight. `error` is sticky — it's cleared only when
-	// the user dismisses or retries.
 	let phaseOverride: LifecyclePhase | null = $state(null);
 	let lifecycleError: string | null = $state(null);
 
@@ -22,10 +18,6 @@
 		phaseOverride ?? (data.agent.status as LifecyclePhase)
 	);
 
-	// Recreate the Chat instance whenever the user navigates to a different
-	// agent. SvelteKit reuses the same +page.svelte component across param
-	// changes, so we rebuild the chat (and its transport) per agent id.
-	// `$derived` memoizes on data.agent.id, so one instance per agent.
 	const chat = $derived(
 		new Chat<UIMessage>({
 			id: data.agent.id,
@@ -42,18 +34,16 @@
 	let composer: HTMLTextAreaElement | null = $state(null);
 	let scroller: HTMLElement | null = $state(null);
 
-	// Auto-grow composer
 	function autoSize() {
 		if (!composer) return;
 		composer.style.height = 'auto';
-		composer.style.height = Math.min(composer.scrollHeight, 180) + 'px';
+		composer.style.height = Math.min(composer.scrollHeight, 200) + 'px';
 	}
 	$effect(() => {
 		void [input];
 		autoSize();
 	});
 
-	// Autoscroll on new messages / streaming
 	$effect(() => {
 		void [chat.messages, chat.status];
 		tick().then(() => {
@@ -75,7 +65,6 @@
 		}
 	}
 
-	// Extract plain text from a message's parts (v5 UIMessage schema).
 	function messageText(m: UIMessage): string {
 		return m.parts
 			.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
@@ -83,10 +72,6 @@
 			.join('');
 	}
 
-	// ── Lifecycle actions ────────────────────────────────────
-	// We write to `phaseOverride`, not `phase` (derived). On success
-	// we drop the override so the derived phase falls through to the
-	// freshly-loaded server status; on failure we keep it at 'error'.
 	async function startAgent() {
 		phaseOverride = 'starting';
 		lifecycleError = null;
@@ -131,7 +116,6 @@
 	const isRunning = $derived(phase === 'running');
 	const isTransitioning = $derived(phase === 'starting' || phase === 'stopping');
 
-	// Status dot variant mapping (CSS class suffix)
 	const statusDotVariant = $derived(
 		phase === 'running'
 			? 'running'
@@ -147,7 +131,7 @@
 	<!-- ── Header ─────────────────────────────────────────────── -->
 	<header class="chat-header">
 		<div class="header-left">
-			<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={32} />
+			<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={30} />
 			<div class="header-meta">
 				<h1 class="agent-name font-display">{data.agent.name}</h1>
 				<p class="agent-sub">
@@ -161,7 +145,7 @@
 		<div class="header-actions">
 			{#if phase === 'idle'}
 				<button class="lifecycle-btn start" onclick={startAgent}>
-					<Icon icon="oc:running" width={13} height={13} />
+					<Icon icon="oc:running" width={12} height={12} />
 					<span>Start</span>
 				</button>
 			{:else if phase === 'starting'}
@@ -171,7 +155,7 @@
 				</button>
 			{:else if phase === 'running'}
 				<button class="lifecycle-btn stop" onclick={stopAgent}>
-					<Icon icon="oc:stopped" width={12} height={12} />
+					<Icon icon="oc:stopped" width={11} height={11} />
 					<span>Stop</span>
 				</button>
 			{:else if phase === 'stopping'}
@@ -181,17 +165,17 @@
 				</button>
 			{:else if phase === 'error'}
 				<button class="lifecycle-btn retry" onclick={startAgent}>
-					<Icon icon="oc:error" width={13} height={13} />
-					<span>Retry start</span>
+					<Icon icon="oc:error" width={12} height={12} />
+					<span>Retry</span>
 				</button>
 			{/if}
 			<div class="header-divider"></div>
 			<button class="header-btn" aria-label="Agent scope" disabled={!isRunning}>
-				<Icon icon="oc:tool" width={14} height={14} />
+				<Icon icon="oc:tool" width={13} height={13} />
 				<span>Scope</span>
 			</button>
 			<button class="header-btn" aria-label="Agent logs">
-				<Icon icon="oc:log" width={14} height={14} />
+				<Icon icon="oc:log" width={13} height={13} />
 				<span>Logs</span>
 			</button>
 		</div>
@@ -200,7 +184,7 @@
 	<!-- ── Lifecycle error banner ─────────────────────────────── -->
 	{#if lifecycleError}
 		<div class="lifecycle-error">
-			<Icon icon="oc:error" width={14} height={14} />
+			<Icon icon="oc:error" width={13} height={13} />
 			<div class="lifecycle-error-body">
 				<div class="lifecycle-error-title font-mono">sandbox lifecycle failed</div>
 				<pre class="lifecycle-error-detail">{lifecycleError}</pre>
@@ -217,7 +201,7 @@
 			<!-- ── Offline / transitional state ─────────────── -->
 			<div class="offline-state">
 				<div class="offline-inner">
-					<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={72} />
+					<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={68} />
 
 					<h2 class="offline-title font-display">
 						{#if phase === 'idle'}
@@ -275,6 +259,7 @@
 			<div class="thread">
 				{#if chat.messages.length === 0}
 					<div class="intro">
+						<p class="intro-eyebrow font-mono">ready</p>
 						<h2 class="intro-title font-display">
 							Hey <em>{data.user?.name?.split(' ')[0] ?? 'there'}</em>.
 						</h2>
@@ -298,12 +283,12 @@
 						</article>
 					{:else}
 						<article class="msg agent-msg">
-							<div class="agent-mark font-display">—</div>
+							<div class="agent-avatar-col">
+								<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={22} />
+							</div>
 							<div class="agent-body">
 								<div class="agent-name-tag font-display">{data.agent.name}</div>
-								<div class="prose">
-									{text}{#if isStreaming && isLast}<span class="cursor">▮</span>{/if}
-								</div>
+								<Markdown {text} streaming={isStreaming && isLast} />
 							</div>
 						</article>
 					{/if}
@@ -311,17 +296,23 @@
 
 				{#if chat.status === 'submitted' && chat.messages.at(-1)?.role === 'user'}
 					<article class="msg agent-msg">
-						<div class="agent-mark font-display">—</div>
+						<div class="agent-avatar-col">
+							<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={22} />
+						</div>
 						<div class="agent-body">
 							<div class="agent-name-tag font-display">{data.agent.name}</div>
-							<div class="thinking prose font-mono">thinking<span class="cursor">▮</span></div>
+							<div class="thinking-dots" aria-label="thinking">
+								<span></span>
+								<span></span>
+								<span></span>
+							</div>
 						</div>
 					</article>
 				{/if}
 
 				{#if chat.error}
 					<article class="msg error-msg font-mono">
-						<Icon icon="oc:error" width={14} height={14} />
+						<Icon icon="oc:error" width={13} height={13} />
 						{chat.error.message}
 						<button class="retry" onclick={() => chat.clearError()}>dismiss</button>
 					</article>
@@ -341,6 +332,7 @@
 				}}
 			>
 				<textarea
+					class="composer-input"
 					bind:this={composer}
 					bind:value={input}
 					onkeydown={onKey}
@@ -354,20 +346,21 @@
 				<div class="composer-foot">
 					<span class="hint font-mono">
 						{#if isTransitioning}
-							sandbox stopping — composer paused
+							sandbox stopping
 						{:else}
-							⌘ + ⏎ to send
+							<kbd>⌘</kbd><kbd>↵</kbd> to send
 						{/if}
 					</span>
 					<button
 						type="submit"
-						class="send"
+						class="send-btn"
 						disabled={isStreaming || !input.trim() || !isRunning}
+						aria-label="Send message"
 					>
 						{#if isStreaming}
-							streaming<span class="cursor">▮</span>
+							<span class="spinner send-spinner"></span>
 						{:else}
-							send
+							<Icon icon="tabler:arrow-up" width={14} height={14} />
 						{/if}
 					</button>
 				</div>
@@ -387,12 +380,12 @@
 
 	/* ── Header ────────────────────────────────────────────── */
 	.chat-header {
-		height: 56px;
+		height: 54px;
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0 1.5rem;
+		padding: 0 1.25rem;
 		border-bottom: 1px solid var(--border);
 		background: var(--background);
 	}
@@ -400,62 +393,55 @@
 	.header-left {
 		display: flex;
 		align-items: center;
-		gap: 0.85rem;
+		gap: 0.75rem;
 	}
 
 	.header-meta {
 		display: flex;
 		flex-direction: column;
-		gap: 0.15rem;
+		gap: 0.1rem;
 	}
 
 	.agent-name {
-		font-size: 1.125rem;
-		font-style: italic;
+		font-size: 1rem;
+		font-variation-settings: 'opsz' 24, 'wght' 650;
 		line-height: 1;
-		letter-spacing: -0.005em;
+		letter-spacing: -0.01em;
 	}
 
 	.agent-sub {
-		font-size: 0.68rem;
+		font-size: 0.65rem;
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
+		gap: 0.35rem;
 		color: var(--muted-foreground);
 	}
 
-	.agent-sub .sep {
-		opacity: 0.5;
-	}
-
-	.agent-sub .image {
-		opacity: 0.75;
-	}
+	.agent-sub .sep { opacity: 0.4; }
+	.agent-sub .image { opacity: 0.65; }
 
 	.header-actions {
 		display: flex;
 		align-items: center;
-		gap: 0.25rem;
+		gap: 0.2rem;
 	}
 
 	.header-divider {
 		width: 1px;
-		height: 18px;
+		height: 16px;
 		background: var(--border);
-		margin: 0 0.35rem;
+		margin: 0 0.3rem;
 	}
 
 	.header-btn {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-		padding: 0.4rem 0.7rem;
-		font-size: 0.72rem;
-		border-radius: 0.25rem;
+		gap: 0.35rem;
+		padding: 0.35rem 0.6rem;
+		font-size: 0.7rem;
+		border-radius: 0.3rem;
 		color: var(--muted-foreground);
-		transition:
-			background 150ms ease,
-			color 150ms ease;
+		transition: background 150ms ease, color 150ms ease;
 	}
 
 	.header-btn:hover:not(:disabled) {
@@ -464,44 +450,36 @@
 	}
 
 	.header-btn:disabled {
-		opacity: 0.4;
+		opacity: 0.35;
 		cursor: not-allowed;
 	}
 
-	/* ── Lifecycle button (start/stop/retry) ──────────────── */
+	/* ── Lifecycle buttons ────────────────────────────────── */
 	.lifecycle-btn {
 		display: flex;
 		align-items: center;
-		gap: 0.45rem;
-		padding: 0.45rem 0.85rem;
-		font-size: 0.72rem;
+		gap: 0.4rem;
+		padding: 0.38rem 0.8rem;
+		font-size: 0.7rem;
 		font-family: var(--font-mono);
 		letter-spacing: 0.02em;
-		border-radius: 0.25rem;
+		border-radius: 0.3rem;
 		border: 1px solid transparent;
-		transition:
-			background 150ms ease,
-			border-color 150ms ease,
-			color 150ms ease,
-			box-shadow 150ms ease;
+		transition: background 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
 	}
 
 	.lifecycle-btn.start {
 		background: var(--primary);
 		color: var(--primary-foreground);
-		box-shadow: 0 0 12px color-mix(in oklch, var(--primary) 30%, transparent);
+		box-shadow: 0 0 12px color-mix(in oklch, var(--primary) 28%, transparent);
 	}
-
-	.lifecycle-btn.start:hover {
-		filter: brightness(1.08);
-	}
+	.lifecycle-btn.start:hover { filter: brightness(1.07); }
 
 	.lifecycle-btn.stop {
 		background: transparent;
 		color: var(--muted-foreground);
 		border-color: var(--border);
 	}
-
 	.lifecycle-btn.stop:hover {
 		color: var(--foreground);
 		border-color: color-mix(in oklch, var(--destructive) 40%, var(--border));
@@ -511,60 +489,48 @@
 	.lifecycle-btn.transitioning {
 		background: color-mix(in oklch, var(--primary) 10%, transparent);
 		color: var(--primary);
-		border-color: color-mix(in oklch, var(--primary) 30%, transparent);
+		border-color: color-mix(in oklch, var(--primary) 28%, transparent);
 		cursor: default;
 	}
 
 	.lifecycle-btn.retry {
 		background: color-mix(in oklch, var(--destructive) 10%, transparent);
 		color: var(--destructive);
-		border-color: color-mix(in oklch, var(--destructive) 35%, transparent);
+		border-color: color-mix(in oklch, var(--destructive) 32%, transparent);
 	}
-
 	.lifecycle-btn.retry:hover {
 		background: color-mix(in oklch, var(--destructive) 16%, transparent);
 	}
 
 	/* ── Spinner ──────────────────────────────────────────── */
 	.spinner {
-		width: 12px;
-		height: 12px;
+		width: 11px;
+		height: 11px;
 		border-radius: 9999px;
 		border: 1.5px solid currentColor;
 		border-right-color: transparent;
-		animation: spin 0.8s linear infinite;
+		animation: spin 0.75s linear infinite;
 	}
+	.spinner-mono { width: 9px; height: 9px; border-width: 1px; }
+	.send-spinner { width: 13px; height: 13px; }
 
-	.spinner-mono {
-		width: 10px;
-		height: 10px;
-		border-width: 1px;
-	}
-
-	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
+	@keyframes spin { to { transform: rotate(360deg); } }
 
 	/* ── Lifecycle error banner ───────────────────────────── */
 	.lifecycle-error {
 		display: flex;
 		align-items: flex-start;
 		gap: 0.65rem;
-		padding: 0.75rem 1.5rem;
-		background: color-mix(in oklch, var(--destructive) 10%, transparent);
-		border-bottom: 1px solid color-mix(in oklch, var(--destructive) 30%, transparent);
+		padding: 0.65rem 1.25rem;
+		background: color-mix(in oklch, var(--destructive) 9%, transparent);
+		border-bottom: 1px solid color-mix(in oklch, var(--destructive) 28%, transparent);
 		color: var(--destructive);
 	}
 
-	.lifecycle-error-body {
-		flex: 1;
-		min-width: 0;
-	}
+	.lifecycle-error-body { flex: 1; min-width: 0; }
 
 	.lifecycle-error-title {
-		font-size: 0.68rem;
+		font-size: 0.65rem;
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
 		margin-bottom: 0.2rem;
@@ -572,17 +538,17 @@
 
 	.lifecycle-error-detail {
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: 0.7rem;
 		line-height: 1.45;
 		margin: 0;
 		white-space: pre-wrap;
 		word-wrap: break-word;
-		color: color-mix(in oklch, var(--destructive) 85%, var(--foreground));
+		color: color-mix(in oklch, var(--destructive) 80%, var(--foreground));
 	}
 
 	.lifecycle-error-dismiss {
 		flex-shrink: 0;
-		font-size: 0.65rem;
+		font-size: 0.63rem;
 		color: var(--destructive);
 		text-decoration: underline;
 		text-underline-offset: 3px;
@@ -593,8 +559,13 @@
 	.canvas {
 		flex: 1;
 		overflow-y: auto;
-		padding: 3rem 1.5rem 2rem;
+		padding: 2.5rem 1.5rem 1.5rem;
 		scroll-behavior: smooth;
+	}
+
+	/* Subtle top-fade when scrolled */
+	.canvas {
+		mask-image: linear-gradient(to bottom, transparent 0, black 2.5rem);
 	}
 
 	.thread {
@@ -602,12 +573,12 @@
 		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
-		gap: 2rem;
+		gap: 1.75rem;
 	}
 
-	/* ── Offline state (idle / starting / error) ─────────── */
+	/* ── Offline state ───────────────────────────────────── */
 	.offline-state {
-		max-width: 36rem;
+		max-width: 34rem;
 		margin: 0 auto;
 		display: flex;
 		flex-direction: column;
@@ -623,14 +594,16 @@
 	}
 
 	.offline-title {
-		font-size: 2.5rem;
-		line-height: 1.05;
-		letter-spacing: -0.01em;
-		margin: 2rem 0 1rem;
+		font-size: 2.25rem;
+		font-variation-settings: 'opsz' 48, 'wght' 700;
+		line-height: 1.08;
+		letter-spacing: -0.015em;
+		margin: 1.75rem 0 0.9rem;
 	}
 
 	.offline-title em {
 		color: var(--primary);
+		font-style: italic;
 	}
 
 	.dot-dot-dot {
@@ -640,206 +613,189 @@
 	}
 
 	@keyframes dot-fade {
-		0%,
-		100% {
-			opacity: 0.3;
-		}
-		50% {
-			opacity: 1;
-		}
+		0%, 100% { opacity: 0.3; }
+		50% { opacity: 1; }
 	}
 
 	.offline-sub {
-		font-size: 0.92rem;
+		font-size: 0.9rem;
 		line-height: 1.65;
 		color: var(--muted-foreground);
-		max-width: 28rem;
-		margin-bottom: 2.25rem;
+		max-width: 26rem;
+		margin-bottom: 2rem;
 	}
 
 	.offline-cta {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.7rem 1.25rem;
+		padding: 0.65rem 1.2rem;
 		background: var(--primary);
 		color: var(--primary-foreground);
 		font-family: var(--font-mono);
-		font-size: 0.78rem;
+		font-size: 0.76rem;
 		letter-spacing: 0.03em;
-		border-radius: 0.3rem;
-		box-shadow: 0 0 20px color-mix(in oklch, var(--primary) 30%, transparent);
-		transition:
-			filter 150ms ease,
-			transform 150ms ease;
+		border-radius: 9999px;
+		box-shadow: 0 0 20px color-mix(in oklch, var(--primary) 28%, transparent);
+		transition: filter 150ms ease, transform 150ms ease;
 	}
 
-	.offline-cta:hover {
-		filter: brightness(1.08);
-		transform: translateY(-1px);
-	}
+	.offline-cta:hover { filter: brightness(1.07); transform: translateY(-1px); }
+	.offline-cta:active { transform: translateY(0); }
 
-	.offline-cta:active {
-		transform: translateY(0);
-	}
-
-	/* ── Boot log (starting state) ────────────────────────── */
+	/* ── Boot log ─────────────────────────────────────────── */
 	.boot-log {
-		background: color-mix(in oklch, var(--muted) 50%, transparent);
+		background: color-mix(in oklch, var(--card) 80%, transparent);
 		border: 1px solid var(--border);
-		border-radius: 0.3rem;
-		padding: 1rem 1.25rem;
-		font-size: 0.72rem;
-		line-height: 1.9;
+		border-radius: 0.5rem;
+		padding: 0.9rem 1.1rem;
+		font-size: 0.7rem;
+		line-height: 2;
 		color: var(--muted-foreground);
 		text-align: left;
 		min-width: 18rem;
 	}
 
-	.boot-line {
-		display: flex;
-		align-items: center;
-		gap: 0.55rem;
-	}
-
-	.boot-line.active {
-		color: var(--primary);
-	}
-
-	.boot-line.pending {
-		opacity: 0.4;
-	}
+	.boot-line { display: flex; align-items: center; gap: 0.5rem; }
+	.boot-line.active { color: var(--primary); }
+	.boot-line.pending { opacity: 0.35; }
 
 	.tick {
 		font-family: var(--font-mono);
 		width: 10px;
 		text-align: center;
-		color: color-mix(in oklch, var(--status-running) 80%, transparent);
+		color: var(--status-running);
 	}
 
-	.boot-line.pending .tick {
-		color: var(--muted-foreground);
-	}
+	.boot-line.pending .tick { color: var(--muted-foreground); }
 
 	/* ── Intro ────────────────────────────────────────────── */
 	.intro {
-		padding: 2rem 0 1rem;
-		border-bottom: 1px solid var(--border);
-		margin-bottom: 1rem;
+		padding: 1.5rem 0 2rem;
+	}
+
+	.intro-eyebrow {
+		font-size: 0.62rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		color: var(--primary);
+		margin-bottom: 0.85rem;
+		opacity: 0.8;
 	}
 
 	.intro-title {
-		font-size: 2.75rem;
-		line-height: 1;
-		letter-spacing: -0.01em;
-		margin-bottom: 1rem;
+		font-size: 2.5rem;
+		font-variation-settings: 'opsz' 48, 'wght' 720;
+		line-height: 1.05;
+		letter-spacing: -0.015em;
+		margin-bottom: 0.9rem;
 	}
 
 	.intro-title em {
 		color: var(--primary);
+		font-style: italic;
 	}
 
 	.intro-sub {
 		font-size: 0.95rem;
-		line-height: 1.6;
+		line-height: 1.65;
 		color: var(--muted-foreground);
-		max-width: 36rem;
+		max-width: 34rem;
 	}
 
-	/* ── Messages (editorial — no bubbles) ───────────────────── */
+	/* ── Messages ─────────────────────────────────────────── */
 	.msg {
 		position: relative;
+		animation: msg-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
 	}
 
+	@keyframes msg-in {
+		from { opacity: 0; transform: translateY(8px); }
+		to   { opacity: 1; transform: translateY(0); }
+	}
+
+	/* Agent message — avatar + body */
 	.agent-msg {
 		display: grid;
-		grid-template-columns: 1.5rem 1fr;
-		gap: 1rem;
+		grid-template-columns: 1.75rem 1fr;
+		gap: 0.75rem;
 		align-items: start;
 	}
 
-	.agent-mark {
-		font-size: 1.5rem;
-		line-height: 1;
-		color: var(--primary);
-		opacity: 0.9;
-		padding-top: 0.1rem;
-		user-select: none;
+	.agent-avatar-col {
+		padding-top: 0.15rem;
+	}
+
+	.agent-body {
+		min-width: 0;
 	}
 
 	.agent-name-tag {
-		font-size: 0.72rem;
-		font-style: italic;
-		color: color-mix(in oklch, var(--primary) 60%, var(--foreground));
+		font-size: 0.7rem;
+		font-variation-settings: 'opsz' 12, 'wght' 550;
+		color: color-mix(in oklch, var(--primary) 65%, var(--foreground));
 		letter-spacing: 0.01em;
-		margin-bottom: 0.45rem;
+		margin-bottom: 0.35rem;
 	}
 
-	.prose {
-		font-size: 0.98rem;
-		line-height: 1.65;
-		color: var(--foreground);
-		white-space: pre-wrap;
-		word-wrap: break-word;
+	/* Thinking dots */
+	.thinking-dots {
+		display: flex;
+		gap: 5px;
+		align-items: center;
+		padding: 0.4rem 0;
 	}
 
-	.thinking {
-		font-size: 0.78rem;
-		color: var(--muted-foreground);
-		letter-spacing: 0.02em;
+	.thinking-dots span {
+		display: block;
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: var(--muted-foreground);
+		animation: thinking-bounce 1.4s ease-in-out infinite;
+		opacity: 0.5;
 	}
 
-	/* User messages: right outdent, warm quote treatment */
+	.thinking-dots span:nth-child(2) { animation-delay: 0.18s; }
+	.thinking-dots span:nth-child(3) { animation-delay: 0.36s; }
+
+	@keyframes thinking-bounce {
+		0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+		30%           { transform: translateY(-5px); opacity: 1; }
+	}
+
+	/* User message — right-aligned pill */
 	.user-msg {
 		display: flex;
 		justify-content: flex-end;
-		padding-left: 4rem;
+		padding-left: 5rem;
 	}
 
 	.user-bubble {
 		position: relative;
 		font-size: 0.95rem;
-		line-height: 1.55;
+		line-height: 1.6;
 		color: var(--foreground);
-		padding: 0.75rem 1rem 0.75rem 1.25rem;
-		background: color-mix(in oklch, var(--muted) 70%, transparent);
-		border-radius: 0.35rem 0.35rem 0 0.35rem;
-		max-width: 32rem;
+		padding: 0.7rem 1rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 1rem 1rem 0.2rem 1rem;
+		max-width: 30rem;
 		white-space: pre-wrap;
 		word-wrap: break-word;
-		border-right: 2px solid color-mix(in oklch, var(--primary) 35%, transparent);
 	}
 
-	/* Streaming cursor */
-	.cursor {
-		display: inline-block;
-		color: var(--primary);
-		animation: cursor-blink 1s ease-in-out infinite;
-		margin-left: 2px;
-		font-family: var(--font-mono);
-	}
-
-	@keyframes cursor-blink {
-		0%,
-		100% {
-			opacity: 1;
-		}
-		50% {
-			opacity: 0.2;
-		}
-	}
-
-	/* Chat-level error */
+	/* Error */
 	.error-msg {
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
-		padding: 0.6rem 0.85rem;
+		padding: 0.55rem 0.8rem;
 		background: color-mix(in oklch, var(--destructive) 8%, transparent);
-		border: 1px solid color-mix(in oklch, var(--destructive) 30%, transparent);
+		border: 1px solid color-mix(in oklch, var(--destructive) 28%, transparent);
 		color: var(--destructive);
-		font-size: 0.72rem;
-		border-radius: 0.25rem;
+		font-size: 0.7rem;
+		border-radius: 0.4rem;
 	}
 
 	.retry {
@@ -852,12 +808,7 @@
 	/* ── Composer ───────────────────────────────────────────── */
 	.composer-wrap {
 		flex-shrink: 0;
-		padding: 1rem 1.5rem 1.5rem;
-		background: linear-gradient(
-			to top,
-			var(--background) 30%,
-			color-mix(in oklch, var(--background) 0%, transparent)
-		);
+		padding: 0.75rem 1.5rem 1.25rem;
 	}
 
 	.composer {
@@ -865,78 +816,95 @@
 		margin: 0 auto;
 		background: var(--card);
 		border: 1px solid var(--border);
-		border-radius: 0.4rem;
-		padding: 0.85rem 1rem 0.6rem;
-		transition:
-			border-color 150ms ease,
-			box-shadow 150ms ease;
+		border-radius: 0.875rem;
+		padding: 0.9rem 1rem 0.7rem 1.1rem;
+		transition: border-color 200ms ease, box-shadow 200ms ease;
 	}
 
 	.composer:focus-within {
-		border-color: color-mix(in oklch, var(--primary) 55%, var(--border));
-		box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 14%, transparent);
+		border-color: color-mix(in oklch, var(--primary) 50%, var(--border));
+		box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 10%, transparent);
 	}
 
-	.composer textarea {
+	/* Critical: kill the global outline-ring/50 on the textarea itself */
+	.composer-input {
 		width: 100%;
 		border: 0;
-		outline: 0;
+		outline: none !important;
+		box-shadow: none !important;
 		resize: none;
 		background: transparent;
 		color: var(--foreground);
 		font-family: var(--font-sans);
 		font-size: 0.95rem;
-		line-height: 1.5;
-		min-height: 1.5rem;
-		max-height: 180px;
+		line-height: 1.55;
+		min-height: 1.55rem;
+		max-height: 200px;
 	}
 
-	.composer textarea::placeholder {
-		color: color-mix(in oklch, var(--foreground) 30%, transparent);
-		font-family: var(--font-mono);
-		font-size: 0.85rem;
+	.composer-input::placeholder {
+		color: color-mix(in oklch, var(--foreground) 28%, transparent);
 		font-style: normal;
 	}
 
-	.composer textarea:disabled {
-		color: color-mix(in oklch, var(--foreground) 40%, transparent);
+	.composer-input:disabled {
+		color: color-mix(in oklch, var(--foreground) 35%, transparent);
 	}
 
 	.composer-foot {
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		margin-top: 0.5rem;
-		padding-top: 0.5rem;
-		border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+		margin-top: 0.55rem;
 	}
 
 	.hint {
-		font-size: 0.62rem;
-		color: color-mix(in oklch, var(--foreground) 35%, transparent);
+		font-size: 0.6rem;
+		color: color-mix(in oklch, var(--foreground) 28%, transparent);
 		letter-spacing: 0.03em;
+		display: flex;
+		align-items: center;
+		gap: 0.2rem;
 	}
 
-	.send {
-		font-size: 0.72rem;
+	kbd {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.05rem 0.3rem;
+		border-radius: 0.2rem;
+		background: color-mix(in oklch, var(--foreground) 8%, transparent);
+		border: 1px solid color-mix(in oklch, var(--foreground) 12%, transparent);
 		font-family: var(--font-mono);
-		padding: 0.4rem 0.85rem;
-		border-radius: 0.25rem;
+		font-size: 0.6rem;
+		line-height: 1.4;
+	}
+
+	.send-btn {
+		width: 28px;
+		height: 28px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 50%;
 		background: var(--primary);
 		color: var(--primary-foreground);
-		transition:
-			filter 150ms ease,
-			background 150ms ease;
-		letter-spacing: 0.03em;
+		flex-shrink: 0;
+		transition: filter 150ms ease, transform 150ms ease, background 150ms ease;
 	}
 
-	.send:hover:not(:disabled) {
-		filter: brightness(1.05);
+	.send-btn:hover:not(:disabled) {
+		filter: brightness(1.07);
+		transform: scale(1.05);
 	}
 
-	.send:disabled {
+	.send-btn:active:not(:disabled) {
+		transform: scale(0.97);
+	}
+
+	.send-btn:disabled {
 		background: color-mix(in oklch, var(--foreground) 10%, transparent);
-		color: color-mix(in oklch, var(--foreground) 40%, transparent);
+		color: color-mix(in oklch, var(--foreground) 35%, transparent);
 		cursor: not-allowed;
 	}
 </style>

@@ -4,6 +4,19 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<title>OfficeClaw</title>
+		<!-- Sync theme restore — runs before paint to prevent flash -->
+		<script>
+			(function () {
+				var t = localStorage.getItem('oc-theme');
+				var h = document.documentElement;
+				h.classList.remove('dark', 'sage');
+				if (t === 'light') return;
+				if (t === 'sage') { h.classList.add('dark', 'sage'); return; }
+				h.classList.add('dark'); // default
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

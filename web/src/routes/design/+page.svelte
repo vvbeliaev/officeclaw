@@ -566,9 +566,9 @@
 	<div class="mx-auto max-w-6xl flex items-center justify-between">
 		<div class="flex items-center gap-2">
 			<Icon icon="oc:claw" class="size-4 text-primary" />
-			<span class="text-xs font-mono text-muted-foreground">OfficeClaw · Open Craft design system</span>
+			<span class="text-xs font-mono text-muted-foreground">OfficeClaw · Warm Studio design system</span>
 		</div>
-		<span class="text-xs text-muted-foreground">Instrument Serif · DM Sans · DM Mono</span>
+		<span class="text-xs text-muted-foreground">Fraunces · Plus Jakarta Sans · DM Mono</span>
 	</div>
 </footer>
 

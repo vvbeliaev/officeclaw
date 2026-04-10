@@ -2,12 +2,31 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { onMount } from 'svelte';
 	import { authClient } from '$lib/auth-client';
 	import { Icon } from '$lib/icons';
 	import AgentSidebarCard from '$lib/components/agent-sidebar-card.svelte';
 	import WorkspaceNav from '$lib/components/workspace-nav.svelte';
+	import OfficeclawLogo from '$lib/components/officeclaw-logo.svelte';
 
 	let { data, children } = $props();
+
+	type Theme = 'light' | 'dark' | 'sage';
+	let theme = $state<Theme>('dark');
+
+	onMount(() => {
+		const saved = localStorage.getItem('oc-theme') as Theme | null;
+		if (saved === 'light' || saved === 'dark' || saved === 'sage') theme = saved;
+	});
+
+	function setTheme(t: Theme) {
+		theme = t;
+		localStorage.setItem('oc-theme', t);
+		const h = document.documentElement;
+		h.classList.remove('dark', 'sage');
+		if (t === 'dark') h.classList.add('dark');
+		if (t === 'sage') h.classList.add('dark', 'sage');
+	}
 
 	type AgentStatus = 'running' | 'idle' | 'error';
 
@@ -34,12 +53,7 @@
 	<aside class="sidebar">
 		<!-- Logo -->
 		<header class="logo-row">
-			<div class="logo-mark">
-				<Icon icon="oc:claw" width={13} height={13} />
-			</div>
-			<span class="logo-text">
-				Office<span class="logo-bold">Claw</span>
-			</span>
+			<OfficeclawLogo />
 		</header>
 
 		<div class="scroll">
@@ -81,6 +95,34 @@
 				</div>
 				<WorkspaceNav counts={data.workspaceCounts} />
 			</section>
+		</div>
+
+		<!-- Theme switcher -->
+		<div class="theme-row">
+			<button
+				class="theme-btn"
+				class:active={theme === 'light'}
+				onclick={() => setTheme('light')}
+				title="Light"
+			>
+				<Icon icon="tabler:sun" width={13} height={13} />
+			</button>
+			<button
+				class="theme-btn"
+				class:active={theme === 'dark'}
+				onclick={() => setTheme('dark')}
+				title="Dark — Amber"
+			>
+				<Icon icon="tabler:moon" width={13} height={13} />
+			</button>
+			<button
+				class="theme-btn sage"
+				class:active={theme === 'sage'}
+				onclick={() => setTheme('sage')}
+				title="Dark — Sage"
+			>
+				<Icon icon="tabler:leaf" width={13} height={13} />
+			</button>
 		</div>
 
 		<!-- User footer -->
@@ -127,29 +169,6 @@
 		padding: 0 1rem;
 		border-bottom: 1px solid var(--sidebar-border);
 		flex-shrink: 0;
-	}
-
-	.logo-mark {
-		width: 28px;
-		height: 28px;
-		background: var(--primary);
-		color: var(--primary-foreground);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		flex-shrink: 0;
-		clip-path: polygon(0 0, 100% 0, 100% 75%, 75% 100%, 0 100%);
-	}
-
-	.logo-text {
-		font-size: 0.875rem;
-		letter-spacing: -0.01em;
-		color: var(--sidebar-foreground);
-		font-weight: 400;
-	}
-
-	.logo-bold {
-		font-weight: 600;
 	}
 
 	.scroll {
@@ -225,6 +244,42 @@
 		height: 1px;
 		margin: 0.5rem 1.1rem 0.75rem;
 		background: var(--sidebar-border);
+	}
+
+	/* ── Theme switcher ──────────────────────────────────────── */
+	.theme-row {
+		display: flex;
+		gap: 0.2rem;
+		padding: 0.5rem 0.75rem;
+		border-top: 1px solid var(--sidebar-border);
+	}
+
+	.theme-btn {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.38rem;
+		border-radius: 0.3rem;
+		color: color-mix(in oklch, var(--sidebar-foreground) 40%, transparent);
+		transition:
+			color 150ms ease,
+			background 150ms ease;
+	}
+
+	.theme-btn:hover {
+		color: var(--sidebar-foreground);
+		background: var(--sidebar-accent);
+	}
+
+	.theme-btn.active {
+		color: var(--sidebar-primary);
+		background: color-mix(in oklch, var(--sidebar-primary) 14%, transparent);
+	}
+
+	.theme-btn.sage.active {
+		color: oklch(0.72 0.14 148);
+		background: color-mix(in oklch, oklch(0.72 0.14 148) 14%, transparent);
 	}
 
 	/* ── User footer ─────────────────────────────────────────── */

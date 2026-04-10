@@ -54,3 +54,4 @@ class FleetApp:
 
     async def stop_sandbox(self, agent_id: UUID) -> None:
         await self._sandbox.stop(agent_id)
+

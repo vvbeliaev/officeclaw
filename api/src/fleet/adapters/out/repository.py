@@ -28,6 +28,11 @@ class AgentRepo:
             "SELECT * FROM agents WHERE user_id = $1", user_id
         )
 
+    async def list_running(self) -> list[asyncpg.Record]:
+        return await self._conn.fetch(
+            "SELECT * FROM agents WHERE status = 'running'"
+        )
+
     async def update(self, agent_id: UUID, **fields) -> asyncpg.Record | None:
         unknown = set(fields) - _ALLOWED_UPDATE_FIELDS
         if unknown:

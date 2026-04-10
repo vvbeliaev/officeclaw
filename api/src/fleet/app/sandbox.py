@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import shutil
 import socket
 from pathlib import Path
@@ -11,6 +12,8 @@ from src.fleet.app.vm_payload import build_vm_payload
 from src.integrations.app import IntegrationsApp
 from src.library.app import LibraryApp
 from src.shared.config import get_settings
+
+_log = logging.getLogger(__name__)
 
 _DEFAULT_IMAGE = "localhost:5005/officeclaw/agent:latest"
 
@@ -134,6 +137,36 @@ async def _capture_logs(name: str, tail: int = 80) -> str:
         return f"(failed to collect logs: {exc})"
 
 
+async def _is_sandbox_alive(name: str) -> bool:
+    """Return True if the named container is in the 'running' state."""
+    runner = get_settings().sandbox_runner
+    if runner == "docker":
+        cmd = ["docker", "inspect", "--format", "{{.State.Status}}", name]
+    else:
+        # msb: exits 0 and prints "running" when alive, non-zero otherwise
+        cmd = ["msb", "inspect", "--format", "{{.State.Status}}", name]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await proc.communicate()
+        return proc.returncode == 0 and stdout.decode().strip() == "running"
+    except Exception:
+        return False
+
+
+def _read_workspace_files(workdir: Path) -> list[dict]:
+    """Read all mutable workspace files that currently exist on disk."""
+    result = []
+    for rel_path in _MUTABLE_PATHS:
+        full_path = workdir / rel_path
+        if full_path.exists():
+            result.append({"path": rel_path, "content": full_path.read_text()})
+    return result
+
+
 async def _wait_for_gateway(port: int, sandbox_name: str) -> None:
     """Poll nanobot gateway until it accepts an HTTP response or times out.
 
@@ -252,11 +285,7 @@ class SandboxService:
 
         # Sync mutable workspace files back to Postgres before the volume is removed
         workdir = _sandbox_workdir(agent_id)
-        synced: list[dict] = []
-        for rel_path in _MUTABLE_PATHS:
-            full_path = workdir / rel_path
-            if full_path.exists():
-                synced.append({"path": rel_path, "content": full_path.read_text()})
+        synced = _read_workspace_files(workdir)
         if synced:
             await self._agents.bulk_upsert_files(agent_id, synced)
 
@@ -271,3 +300,41 @@ class SandboxService:
             shutil.rmtree(workdir)
 
         await self._agents.update(agent_id, status="idle", sandbox_id=None, gateway_port=None)
+
+    async def _sync_agent_files(self, agent_id: UUID) -> None:
+        """Read mutable workspace files from disk and upsert into Postgres."""
+        workdir = _sandbox_workdir(agent_id)
+        files = _read_workspace_files(workdir)
+        if files:
+            await self._agents.bulk_upsert_files(agent_id, files)
+
+    async def check_health(self) -> None:
+        """One-shot pass: mark crashed/missing sandboxes as error and sync their files."""
+        running = await self._agents.list_running()
+        for agent in running:
+            sandbox_name = agent["sandbox_id"]
+            if not sandbox_name:
+                continue
+            if await _is_sandbox_alive(sandbox_name):
+                continue
+            agent_id: UUID = agent["id"]
+            _log.warning("Sandbox %s is dead; marking agent %s as error", sandbox_name, agent_id)
+            try:
+                await self._sync_agent_files(agent_id)
+            except Exception:
+                _log.exception("Failed to sync files for crashed agent %s", agent_id)
+            await _force_rm_sandbox(sandbox_name)
+            workdir = _sandbox_workdir(agent_id)
+            if workdir.exists():
+                shutil.rmtree(workdir, ignore_errors=True)
+            await self._agents.update(agent_id, status="error", sandbox_id=None, gateway_port=None)
+
+    async def sync_all(self) -> None:
+        """One-shot pass: persist mutable workspace files for all running agents."""
+        running = await self._agents.list_running()
+        for agent in running:
+            try:
+                await self._sync_agent_files(agent["id"])
+            except Exception:
+                _log.exception("Failed to sync files for agent %s", agent["id"])
+
