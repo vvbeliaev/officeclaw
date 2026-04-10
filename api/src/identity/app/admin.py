@@ -7,8 +7,9 @@ Creates:
   2. user_envs row: name='officeclaw', values={OFFICECLAW_TOKEN: token}
   3. agents row: name='Admin', is_admin=True
   4. agent_files: SOUL.md, AGENTS.md, TOOLS.md
-  5. agent_mcp: name='officeclaw', config with url + auth header
-  6. agent_envs link: admin agent <- officeclaw env
+  5. user_mcp row: name='officeclaw', type='http', config with url + auth header
+  6. agent_mcp link: admin agent <-> officeclaw mcp
+  7. agent_envs link: admin agent <- officeclaw env
 """
 import secrets
 from uuid import UUID
@@ -20,7 +21,7 @@ from src.fleet.adapters.out.repository import AgentRepo
 from src.fleet.adapters.out.repository import AgentFileRepo
 from src.integrations.adapters.out.repository import EnvRepo
 from src.integrations.adapters.out.repository import LinkRepo
-from src.integrations.adapters.out.repository import AgentMcpRepo
+from src.integrations.adapters.out.repository import UserMcpRepo
 from src.identity.adapters.out.repository import UserRepo
 
 _SOUL_MD = """
@@ -84,7 +85,7 @@ async def create_admin_for_user(conn: asyncpg.Pool, user_id: UUID) -> str:
     files_repo = AgentFileRepo(conn)
     envs_repo = EnvRepo(conn)
     links_repo = LinkRepo(conn)
-    mcp_repo = AgentMcpRepo(conn)
+    mcp_repo = UserMcpRepo(conn)
 
     await users_repo.set_token(user_id, token)
 
@@ -104,15 +105,17 @@ async def create_admin_for_user(conn: asyncpg.Pool, user_id: UUID) -> str:
     await files_repo.upsert(agent_id, "AGENTS.md", _AGENTS_MD)
     await files_repo.upsert(agent_id, "TOOLS.md", _TOOLS_MD)
 
-    await mcp_repo.create(
-        agent_id,
+    mcp_record = await mcp_repo.create(
+        user_id,
         "officeclaw",
+        "http",
         {
             "url": "${OFFICECLAW_MCP_URL}",
             "headers": {"Authorization": "Bearer ${OFFICECLAW_TOKEN}"},
         },
     )
 
+    await links_repo.attach_mcp(agent_id, mcp_record["id"])
     await links_repo.attach_env(agent_id, env_record["id"])
 
     return token

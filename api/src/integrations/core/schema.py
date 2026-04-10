@@ -41,12 +41,16 @@ class ChannelOut(BaseModel):
 
 
 class McpCreate(BaseModel):
+    user_id: UUID
     name: str
-    config: dict  # {command, args} or {url, headers} -- never returned
+    type: str   # 'stdio' | 'http'
+    config: dict  # written, never returned
 
 
 class McpOut(BaseModel):
     id: UUID
-    agent_id: UUID
+    user_id: UUID
     name: str
+    type: str
+    created_at: datetime
     # config intentionally omitted

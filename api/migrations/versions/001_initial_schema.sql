@@ -54,8 +54,8 @@ CREATE TABLE "verification" (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX session_user_id_idx        ON "session"(user_id);
-CREATE INDEX account_user_id_idx        ON "account"(user_id);
+CREATE INDEX session_user_id_idx         ON "session"(user_id);
+CREATE INDEX account_user_id_idx         ON "account"(user_id);
 CREATE INDEX verification_identifier_idx ON "verification"(identifier);
 
 -- ── app domain ──────────────────────────────────────────────
@@ -118,12 +118,14 @@ CREATE TABLE user_channels (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE agent_mcp (
-    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    agent_id         UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    name             TEXT NOT NULL,
-    config_encrypted BYTEA NOT NULL,
-    UNIQUE(agent_id, name)
+CREATE TABLE user_mcp (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          UUID        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    name             TEXT        NOT NULL,
+    type             TEXT        NOT NULL DEFAULT 'http',  -- 'stdio' | 'http'
+    config_encrypted BYTEA       NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, name)
 );
 
 CREATE TABLE agent_skills (
@@ -141,5 +143,12 @@ CREATE TABLE agent_envs (
 CREATE TABLE agent_channels (
     agent_id   UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     channel_id UUID NOT NULL REFERENCES user_channels(id) ON DELETE CASCADE,
-    PRIMARY KEY (agent_id, channel_id)
+    PRIMARY KEY (agent_id, channel_id),
+    UNIQUE(channel_id)  -- one channel → one agent (exclusive)
+);
+
+CREATE TABLE agent_mcp (
+    agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    mcp_id   UUID NOT NULL REFERENCES user_mcp(id) ON DELETE CASCADE,
+    PRIMARY KEY (agent_id, mcp_id)
 );

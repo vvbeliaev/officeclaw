@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { agents, skills, userEnvs, userChannels } from '$lib/server/db/app.schema';
+import { agents, skills, userEnvs, userChannels, userMcp } from '$lib/server/db/app.schema';
 import { eq, desc, count } from 'drizzle-orm';
 import type { LayoutServerLoad } from './$types';
 
@@ -18,10 +18,11 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		.orderBy(desc(agents.isAdmin), desc(agents.createdAt));
 
 	// Workspace counts — shown as badges in the sidebar.
-	const [[skillsCount], [envsCount], [channelsCount]] = await Promise.all([
+	const [[skillsCount], [envsCount], [channelsCount], [mcpCount]] = await Promise.all([
 		db.select({ n: count() }).from(skills).where(eq(skills.userId, userId)),
 		db.select({ n: count() }).from(userEnvs).where(eq(userEnvs.userId, userId)),
-		db.select({ n: count() }).from(userChannels).where(eq(userChannels.userId, userId))
+		db.select({ n: count() }).from(userChannels).where(eq(userChannels.userId, userId)),
+		db.select({ n: count() }).from(userMcp).where(eq(userMcp.userId, userId))
 	]);
 
 	return {
@@ -32,6 +33,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 			skills: skillsCount?.n ?? 0,
 			envs: envsCount?.n ?? 0,
 			channels: channelsCount?.n ?? 0,
+			mcp: mcpCount?.n ?? 0,
 			knowledge: 0
 		}
 	};

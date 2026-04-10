@@ -99,18 +99,38 @@ async def _build_config_json(
         if ch_type == "telegram":
             token_key = "TELEGRAM_TOKEN"
             extra_env.setdefault(token_key, cfg.get("token", ""))
-            channels_config["telegram"] = {
+            tg: dict = {
                 "enabled": True,
                 "token": f"${{{token_key}}}",
-                "allowFrom": cfg.get("allow_from", []),
+                "allowFrom": cfg.get("allow_from", ["*"]),
             }
+            if cfg.get("operators"):
+                tg["operators"] = cfg["operators"]
+            if cfg.get("streaming") is not None:
+                tg["streaming"] = cfg["streaming"]
+            if cfg.get("proxy"):
+                tg["proxy"] = cfg["proxy"]
+            if cfg.get("group_policy"):
+                tg["groupPolicy"] = cfg["group_policy"]
+            if cfg.get("react_emoji"):
+                tg["reactEmoji"] = cfg["react_emoji"]
+            channels_config["telegram"] = tg
         elif ch_type == "discord":
             token_key = "DISCORD_TOKEN"
             extra_env.setdefault(token_key, cfg.get("token", ""))
             channels_config["discord"] = {
                 "enabled": True,
                 "token": f"${{{token_key}}}",
-                "allowFrom": cfg.get("allow_from", []),
+                "allowFrom": cfg.get("allow_from", ["*"]),
+            }
+        elif ch_type == "whatsapp":
+            bridge_token_key = "WHATSAPP_BRIDGE_TOKEN"
+            extra_env.setdefault(bridge_token_key, cfg.get("bridge_token", ""))
+            channels_config["whatsapp"] = {
+                "enabled": True,
+                "bridgeUrl": cfg.get("bridge_url", "ws://localhost:3001"),
+                "bridgeToken": f"${{{bridge_token_key}}}",
+                "allowFrom": cfg.get("allow_from", ["*"]),
             }
 
     # Ensure LLM vars are present — fall back to server-wide defaults if the

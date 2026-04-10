@@ -12,6 +12,7 @@ from src.integrations.core.schema import (
 
 envs_router = APIRouter()
 channels_router = APIRouter()
+mcp_router = APIRouter()
 links_router = APIRouter(prefix="/agents/{agent_id}")
 
 
@@ -83,6 +84,28 @@ async def delete_channel(
     await deps.delete_channel(channel_id)
 
 
+@mcp_router.post("", response_model=McpOut, status_code=201)
+async def create_mcp(
+    body: McpCreate,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> McpOut:
+    try:
+        record = await deps.create_mcp(body.user_id, body.name, body.type, body.config)
+    except asyncpg.UniqueViolationError:
+        raise HTTPException(409, "MCP name already exists for this user")
+    return McpOut(**dict(record))
+
+
+@mcp_router.delete("/{mcp_id}", status_code=204)
+async def delete_mcp(
+    mcp_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> None:
+    if not await deps.find_mcp(mcp_id):
+        raise HTTPException(404, "MCP not found")
+    await deps.delete_mcp(mcp_id)
+
+
 @links_router.post("/skills/{skill_id}", status_code=204)
 async def attach_skill(
     agent_id: UUID, skill_id: UUID,
@@ -120,7 +143,10 @@ async def attach_channel(
     agent_id: UUID, channel_id: UUID,
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> None:
-    await deps.attach_channel(agent_id, channel_id)
+    try:
+        await deps.attach_channel(agent_id, channel_id)
+    except asyncpg.UniqueViolationError:
+        raise HTTPException(409, "Channel already assigned to another agent")
 
 
 @links_router.delete("/channels/{channel_id}", status_code=204)
@@ -131,10 +157,17 @@ async def detach_channel(
     await deps.detach_channel(agent_id, channel_id)
 
 
-@links_router.post("/mcp", response_model=McpOut, status_code=201)
-async def add_mcp(
-    agent_id: UUID,
-    body: McpCreate,
+@links_router.post("/mcp/{mcp_id}", status_code=204)
+async def attach_mcp(
+    agent_id: UUID, mcp_id: UUID,
     deps: IntegrationsApp = Depends(get_integrations),
-) -> McpOut:
-    return McpOut(**dict(await deps.create_mcp(agent_id, body.name, body.config)))
+) -> None:
+    await deps.attach_mcp(agent_id, mcp_id)
+
+
+@links_router.delete("/mcp/{mcp_id}", status_code=204)
+async def detach_mcp(
+    agent_id: UUID, mcp_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> None:
+    await deps.detach_mcp(agent_id, mcp_id)

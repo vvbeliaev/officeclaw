@@ -7,6 +7,7 @@
 			skills: number;
 			envs: number;
 			channels: number;
+			mcp: number;
 			knowledge: number;
 		};
 	};
@@ -17,6 +18,7 @@
 		{ href: '/workspace/skills', label: 'Skills', icon: 'oc:tool', count: counts.skills },
 		{ href: '/workspace/environments', label: 'Environments', icon: 'oc:configure', count: counts.envs },
 		{ href: '/workspace/channels', label: 'Channels', icon: 'oc:log', count: counts.channels },
+		{ href: '/workspace/mcp', label: 'MCP Servers', icon: 'oc:memory', count: counts.mcp },
 		{ href: '/workspace/knowledge', label: 'Knowledge', icon: 'oc:memory', count: counts.knowledge }
 	]);
 

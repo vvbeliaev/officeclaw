@@ -14,6 +14,7 @@ from src.identity.adapters._in.router import router as users_router
 from src.integrations.adapters._in.router import (
     envs_router,
     channels_router,
+    mcp_router,
     links_router,
 )
 from src.library.adapters._in.router import router as skills_router
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(skills_router, prefix="/skills", tags=["skills"])
     app.include_router(envs_router, prefix="/envs", tags=["envs"])
     app.include_router(channels_router, prefix="/channels", tags=["channels"])
+    app.include_router(mcp_router, prefix="/user-mcp", tags=["mcp"])
     app.include_router(links_router, tags=["links"])
 
     app.mount("/mcp", mcp.http_app())

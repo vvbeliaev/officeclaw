@@ -1,10 +1,10 @@
 import asyncpg
 
 from src.integrations.adapters.out.repository import (
-    AgentMcpRepo,
     ChannelRepo,
     EnvRepo,
     LinkRepo,
+    UserMcpRepo,
 )
 from src.integrations.app import IntegrationsApp
 
@@ -14,5 +14,5 @@ def build(pool: asyncpg.Pool) -> IntegrationsApp:
         env_repo=EnvRepo(pool),
         channel_repo=ChannelRepo(pool),
         link_repo=LinkRepo(pool),
-        mcp_repo=AgentMcpRepo(pool),
+        mcp_repo=UserMcpRepo(pool),
     )

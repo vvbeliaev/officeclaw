@@ -3,10 +3,10 @@ from uuid import UUID
 import asyncpg
 
 from src.integrations.adapters.out.repository import (
-    AgentMcpRepo,
     ChannelRepo,
     EnvRepo,
     LinkRepo,
+    UserMcpRepo,
 )
 
 
@@ -16,7 +16,7 @@ class IntegrationsService:
         env_repo: EnvRepo,
         channel_repo: ChannelRepo,
         link_repo: LinkRepo,
-        mcp_repo: AgentMcpRepo,
+        mcp_repo: UserMcpRepo,
     ) -> None:
         self._envs = env_repo
         self._channels = channel_repo
@@ -62,6 +62,20 @@ class IntegrationsService:
     async def delete_channel(self, channel_id: UUID) -> None:
         await self._channels.delete(channel_id)
 
+    # --- MCP ---
+
+    async def create_mcp(self, user_id: UUID, name: str, type_: str, config: dict) -> asyncpg.Record:
+        return await self._mcp.create(user_id, name, type_, config)
+
+    async def find_mcp(self, mcp_id: UUID) -> asyncpg.Record | None:
+        return await self._mcp.find_by_id(mcp_id)
+
+    async def list_mcps(self, user_id: UUID) -> list[asyncpg.Record]:
+        return await self._mcp.list_by_user(user_id)
+
+    async def delete_mcp(self, mcp_id: UUID) -> None:
+        await self._mcp.delete(mcp_id)
+
     # --- Links: skills ---
 
     async def attach_skill(self, agent_id: UUID, skill_id: UUID) -> None:
@@ -95,13 +109,16 @@ class IntegrationsService:
     async def list_agent_channels(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._links.list_channels(agent_id)
 
-    # --- MCP ---
+    # --- Links: mcp ---
 
-    async def create_mcp(self, agent_id: UUID, name: str, config: dict) -> asyncpg.Record:
-        return await self._mcp.create(agent_id, name, config)
+    async def attach_mcp(self, agent_id: UUID, mcp_id: UUID) -> None:
+        await self._links.attach_mcp(agent_id, mcp_id)
 
-    async def list_agent_mcp(self, agent_id: UUID) -> list[asyncpg.Record]:
-        return await self._mcp.list_by_agent(agent_id)
+    async def detach_mcp(self, agent_id: UUID, mcp_id: UUID) -> None:
+        await self._links.detach_mcp(agent_id, mcp_id)
+
+    async def list_agent_mcps(self, agent_id: UUID) -> list[asyncpg.Record]:
+        return await self._links.list_mcps(agent_id)
 
     async def get_all_decrypted_mcp(self, agent_id: UUID) -> list[dict]:
-        return await self._mcp.get_all_decrypted(agent_id)
+        return await self._links.list_mcps_decrypted(agent_id)

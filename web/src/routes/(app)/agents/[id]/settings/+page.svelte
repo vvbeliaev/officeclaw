@@ -11,6 +11,41 @@
 	let confirmDelete = $state(false);
 	let saving = $state(false);
 	let deleting = $state(false);
+
+	// Pending connection operations keyed by "<action>:<id>"
+	let pending = $state<Record<string, boolean>>({});
+	// Per-operation error messages (used for channel 409)
+	let opErrors = $state<Record<string, string>>({});
+
+	function connEnhance(opKey: string) {
+		return () => {
+			pending = { ...pending, [opKey]: true };
+			opErrors = Object.fromEntries(Object.entries(opErrors).filter(([k]) => k !== opKey));
+			return async ({ result, update }: { result: { type: string; data?: Record<string, string> }; update: () => Promise<void> }) => {
+				pending = Object.fromEntries(Object.entries(pending).filter(([k]) => k !== opKey));
+				if (result.type === 'failure') {
+					opErrors = { ...opErrors, [opKey]: result.data?.error ?? 'Error' };
+				} else {
+					await update();
+				}
+			};
+		};
+	}
+
+	type Channel = { id: string; type: string; createdAt: Date; attached: boolean; takenBy: string | null };
+	type Skill   = { id: string; name: string; attached: boolean };
+	type Env     = { id: string; name: string; attached: boolean };
+	type Mcp     = { id: string; name: string; type: string; attached: boolean };
+
+	const CHANNEL_META: Record<string, { label: string; icon: string }> = {
+		telegram:  { label: 'Telegram',  icon: 'tabler:brand-telegram' },
+		discord:   { label: 'Discord',   icon: 'tabler:brand-discord'  },
+		whatsapp:  { label: 'WhatsApp',  icon: 'tabler:brand-whatsapp' }
+	};
+
+	function fmtDate(d: Date) {
+		return new Date(d).toLocaleDateString('en', { month: 'short', day: 'numeric' });
+	}
 </script>
 
 <div class="settings-shell">
@@ -107,29 +142,199 @@
 			<section class="section">
 				<header class="section-head">
 					<span class="section-title font-mono">connections</span>
-					<span class="section-badge font-mono">soon</span>
 				</header>
-				<div class="connections-grid">
-					<div class="conn-card">
-						<Icon icon="tabler:plug" width={16} height={16} />
-						<span class="conn-label font-mono">MCPs</span>
-						<span class="conn-count font-mono">—</span>
+
+				<!-- MCPs -->
+				<div class="conn-block">
+					<div class="conn-block-head">
+						<Icon icon="tabler:plug" width={13} height={13} />
+						<span class="conn-block-title font-mono">mcps</span>
+						<span class="conn-block-count font-mono">{(data.mcps as Mcp[]).filter(m => m.attached).length}</span>
 					</div>
-					<div class="conn-card">
-						<Icon icon="tabler:bulb" width={16} height={16} />
-						<span class="conn-label font-mono">Skills</span>
-						<span class="conn-count font-mono">—</span>
+					{#each (data.mcps as Mcp[]).filter(m => m.attached) as mcp (mcp.id)}
+						<div class="conn-row">
+							<span class="conn-row-name">{mcp.name}</span>
+							<span class="conn-row-badge font-mono">{mcp.type}</span>
+							{#if mcp.name === 'officeclaw' && data.agent.isAdmin}
+								<span class="conn-lock" title="System — cannot be detached from Admin">
+									<Icon icon="tabler:lock" width={11} height={11} />
+								</span>
+							{:else}
+								<form method="POST" action="?/detachMcp" use:enhance={connEnhance(`detach:mcp:${mcp.id}`)}>
+									<input type="hidden" name="mcp_id" value={mcp.id} />
+									<button class="conn-detach" type="submit" disabled={!!pending[`detach:mcp:${mcp.id}`]} title="Detach">
+										{#if pending[`detach:mcp:${mcp.id}`]}
+											<span class="spinner spinner--sm"></span>
+										{:else}
+											<Icon icon="tabler:x" width={11} height={11} />
+										{/if}
+									</button>
+								</form>
+							{/if}
+						</div>
+					{/each}
+					{#each (data.mcps as Mcp[]).filter(m => !m.attached && (data.agent.isAdmin || m.name !== 'officeclaw')) as mcp (mcp.id)}
+						<form method="POST" action="?/attachMcp" use:enhance={connEnhance(`attach:mcp:${mcp.id}`)}>
+							<input type="hidden" name="mcp_id" value={mcp.id} />
+							<button class="conn-available" type="submit" disabled={!!pending[`attach:mcp:${mcp.id}`]}>
+								<span class="conn-available-name">{mcp.name}</span>
+								<span class="conn-row-badge font-mono">{mcp.type}</span>
+								{#if pending[`attach:mcp:${mcp.id}`]}
+									<span class="spinner spinner--sm"></span>
+								{:else}
+									<Icon icon="tabler:plus" width={11} height={11} class="conn-available-icon" />
+								{/if}
+							</button>
+						</form>
+					{/each}
+					{#if (data.mcps as Mcp[]).length === 0}
+						<p class="conn-empty font-mono">No MCP servers in workspace</p>
+					{/if}
+				</div>
+
+				<!-- Skills -->
+				<div class="conn-block">
+					<div class="conn-block-head">
+						<Icon icon="tabler:bulb" width={13} height={13} />
+						<span class="conn-block-title font-mono">skills</span>
+						<span class="conn-block-count font-mono">{(data.skills as Skill[]).filter(s => s.attached).length}</span>
 					</div>
-					<div class="conn-card">
-						<Icon icon="tabler:key" width={16} height={16} />
-						<span class="conn-label font-mono">Env vars</span>
-						<span class="conn-count font-mono">—</span>
+					{#each (data.skills as Skill[]).filter(s => s.attached) as skill (skill.id)}
+						<div class="conn-row">
+							<span class="conn-row-name">{skill.name}</span>
+							<form method="POST" action="?/detachSkill" use:enhance={connEnhance(`detach:skill:${skill.id}`)}>
+								<input type="hidden" name="skill_id" value={skill.id} />
+								<button class="conn-detach" type="submit" disabled={!!pending[`detach:skill:${skill.id}`]} title="Detach">
+									{#if pending[`detach:skill:${skill.id}`]}
+										<span class="spinner spinner--sm"></span>
+									{:else}
+										<Icon icon="tabler:x" width={11} height={11} />
+									{/if}
+								</button>
+							</form>
+						</div>
+					{/each}
+					{#each (data.skills as Skill[]).filter(s => !s.attached) as skill (skill.id)}
+						<form method="POST" action="?/attachSkill" use:enhance={connEnhance(`attach:skill:${skill.id}`)}>
+							<input type="hidden" name="skill_id" value={skill.id} />
+							<button class="conn-available" type="submit" disabled={!!pending[`attach:skill:${skill.id}`]}>
+								<span class="conn-available-name">{skill.name}</span>
+								{#if pending[`attach:skill:${skill.id}`]}
+									<span class="spinner spinner--sm"></span>
+								{:else}
+									<Icon icon="tabler:plus" width={11} height={11} class="conn-available-icon" />
+								{/if}
+							</button>
+						</form>
+					{/each}
+					{#if (data.skills as Skill[]).length === 0}
+						<p class="conn-empty font-mono">No skills in workspace</p>
+					{/if}
+				</div>
+
+				<!-- Env vars -->
+				<div class="conn-block">
+					<div class="conn-block-head">
+						<Icon icon="tabler:key" width={13} height={13} />
+						<span class="conn-block-title font-mono">env vars</span>
+						<span class="conn-block-count font-mono">{(data.envs as Env[]).filter(e => e.attached).length}</span>
 					</div>
-					<div class="conn-card">
-						<Icon icon="tabler:message" width={16} height={16} />
-						<span class="conn-label font-mono">Channels</span>
-						<span class="conn-count font-mono">—</span>
+					{#each (data.envs as Env[]).filter(e => e.attached) as env (env.id)}
+						<div class="conn-row">
+							<span class="conn-row-name">{env.name}</span>
+							{#if env.name === 'officeclaw' && data.agent.isAdmin}
+								<span class="conn-lock" title="System — cannot be detached from Admin">
+									<Icon icon="tabler:lock" width={11} height={11} />
+								</span>
+							{:else}
+								<form method="POST" action="?/detachEnv" use:enhance={connEnhance(`detach:env:${env.id}`)}>
+									<input type="hidden" name="env_id" value={env.id} />
+									<button class="conn-detach" type="submit" disabled={!!pending[`detach:env:${env.id}`]} title="Detach">
+										{#if pending[`detach:env:${env.id}`]}
+											<span class="spinner spinner--sm"></span>
+										{:else}
+											<Icon icon="tabler:x" width={11} height={11} />
+										{/if}
+									</button>
+								</form>
+							{/if}
+						</div>
+					{/each}
+					{#each (data.envs as Env[]).filter(e => !e.attached && (data.agent.isAdmin || e.name !== 'officeclaw')) as env (env.id)}
+						<form method="POST" action="?/attachEnv" use:enhance={connEnhance(`attach:env:${env.id}`)}>
+							<input type="hidden" name="env_id" value={env.id} />
+							<button class="conn-available" type="submit" disabled={!!pending[`attach:env:${env.id}`]}>
+								<span class="conn-available-name">{env.name}</span>
+								{#if pending[`attach:env:${env.id}`]}
+									<span class="spinner spinner--sm"></span>
+								{:else}
+									<Icon icon="tabler:plus" width={11} height={11} class="conn-available-icon" />
+								{/if}
+							</button>
+						</form>
+					{/each}
+					{#if (data.envs as Env[]).length === 0}
+						<p class="conn-empty font-mono">No env var sets in workspace</p>
+					{/if}
+				</div>
+
+				<!-- Channels -->
+				<div class="conn-block">
+					<div class="conn-block-head">
+						<Icon icon="tabler:message" width={13} height={13} />
+						<span class="conn-block-title font-mono">channels</span>
+						<span class="conn-block-count font-mono">{(data.channels as Channel[]).filter(c => c.attached).length}</span>
 					</div>
+					{#each (data.channels as Channel[]).filter(c => c.attached) as ch (ch.id)}
+						{@const meta = CHANNEL_META[ch.type] ?? { label: ch.type, icon: 'tabler:message' }}
+						<div class="conn-row">
+							<Icon icon={meta.icon} width={13} height={13} class="conn-channel-icon" />
+							<span class="conn-row-name">{meta.label}</span>
+							<span class="conn-row-muted font-mono">{fmtDate(ch.createdAt)}</span>
+							<form method="POST" action="?/detachChannel" use:enhance={connEnhance(`detach:ch:${ch.id}`)}>
+								<input type="hidden" name="channel_id" value={ch.id} />
+								<button class="conn-detach" type="submit" disabled={!!pending[`detach:ch:${ch.id}`]} title="Detach">
+									{#if pending[`detach:ch:${ch.id}`]}
+										<span class="spinner spinner--sm"></span>
+									{:else}
+										<Icon icon="tabler:x" width={11} height={11} />
+									{/if}
+								</button>
+							</form>
+						</div>
+					{/each}
+					{#each (data.channels as Channel[]).filter(c => !c.attached && !c.takenBy) as ch (ch.id)}
+						{@const meta = CHANNEL_META[ch.type] ?? { label: ch.type, icon: 'tabler:message' }}
+						{@const opKey = `attach:ch:${ch.id}`}
+						<form method="POST" action="?/attachChannel" use:enhance={connEnhance(opKey)}>
+							<input type="hidden" name="channel_id" value={ch.id} />
+							<button class="conn-available" type="submit" disabled={!!pending[opKey]}>
+								<Icon icon={meta.icon} width={13} height={13} class="conn-channel-icon" />
+								<span class="conn-available-name">{meta.label}</span>
+								<span class="conn-row-muted font-mono">{fmtDate(ch.createdAt)}</span>
+								{#if pending[opKey]}
+									<span class="spinner spinner--sm"></span>
+								{:else}
+									<Icon icon="tabler:plus" width={11} height={11} class="conn-available-icon" />
+								{/if}
+							</button>
+							{#if opErrors[opKey]}
+								<p class="conn-error font-mono">{opErrors[opKey]}</p>
+							{/if}
+						</form>
+					{/each}
+					{#each (data.channels as Channel[]).filter(c => c.takenBy) as ch (ch.id)}
+						{@const meta = CHANNEL_META[ch.type] ?? { label: ch.type, icon: 'tabler:message' }}
+						<div class="conn-row conn-row--taken">
+							<Icon icon={meta.icon} width={13} height={13} class="conn-channel-icon" />
+							<span class="conn-row-name">{meta.label}</span>
+							<span class="conn-row-muted font-mono">{fmtDate(ch.createdAt)}</span>
+							<span class="conn-taken-label font-mono">→ {ch.takenBy}</span>
+						</div>
+					{/each}
+					{#if (data.channels as Channel[]).length === 0}
+						<p class="conn-empty font-mono">No channels in workspace</p>
+					{/if}
 				</div>
 			</section>
 
@@ -293,17 +498,6 @@
 		color: var(--muted-foreground);
 	}
 
-	.section-badge {
-		font-size: 0.52rem;
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
-		color: var(--muted-foreground);
-		background: color-mix(in oklch, var(--muted) 60%, transparent);
-		padding: 0.1rem 0.38rem;
-		border-radius: 2px;
-		opacity: 0.6;
-	}
-
 	.section--danger .section-title {
 		color: color-mix(in oklch, var(--destructive) 80%, var(--muted-foreground));
 	}
@@ -442,35 +636,180 @@
 		background: var(--muted);
 	}
 
-	/* ── Connections grid ─────────────────────────────────── */
-	.connections-grid {
-		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: 0.6rem;
-	}
-
-	.conn-card {
+	/* ── Connections ──────────────────────────────────────── */
+	.conn-block {
 		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		padding: 0.75rem 1rem;
+		flex-direction: column;
 		background: var(--card);
 		border: 1px solid var(--border);
-		border-radius: 0.3rem;
-		color: var(--muted-foreground);
-		opacity: 0.5;
+		border-radius: 0.35rem;
+		overflow: hidden;
 	}
 
-	.conn-label {
+	.conn-block-head {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.55rem 0.85rem;
+		background: color-mix(in oklch, var(--muted) 40%, transparent);
+		border-bottom: 1px solid var(--border);
+		color: var(--muted-foreground);
+	}
+
+	.conn-block-title {
 		flex: 1;
-		font-size: 0.68rem;
+		font-size: 0.6rem;
+		text-transform: uppercase;
+		letter-spacing: 0.14em;
+	}
+
+	.conn-block-count {
+		font-size: 0.65rem;
+		color: var(--muted-foreground);
+		opacity: 0.7;
+	}
+
+	/* Attached item row */
+	.conn-row {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		padding: 0.5rem 0.85rem;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.conn-row:last-child {
+		border-bottom: none;
+	}
+
+	.conn-row--taken {
+		opacity: 0.45;
+	}
+
+	.conn-row-name {
+		flex: 1;
+		font-size: 0.82rem;
+		color: var(--foreground);
+	}
+
+	.conn-row-badge {
+		font-size: 0.58rem;
 		text-transform: uppercase;
 		letter-spacing: 0.1em;
+		color: var(--muted-foreground);
+		background: var(--muted);
+		padding: 0.1rem 0.35rem;
+		border-radius: 2px;
 	}
 
-	.conn-count {
-		font-size: 0.68rem;
+	.conn-row-muted {
+		font-size: 0.62rem;
+		color: var(--muted-foreground);
+		opacity: 0.6;
+	}
+
+	.conn-taken-label {
+		font-size: 0.62rem;
+		color: var(--muted-foreground);
+		opacity: 0.6;
+		margin-left: auto;
+	}
+
+	/* System lock indicator */
+	.conn-lock {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		color: var(--muted-foreground);
+		opacity: 0.35;
+		flex-shrink: 0;
+	}
+
+	/* Detach button */
+	.conn-detach {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		border-radius: 0.2rem;
+		color: var(--muted-foreground);
+		transition:
+			color 120ms ease,
+			background 120ms ease;
+		flex-shrink: 0;
+	}
+
+	.conn-detach:hover:not(:disabled) {
+		color: var(--destructive);
+		background: color-mix(in oklch, var(--destructive) 10%, transparent);
+	}
+
+	.conn-detach:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* Available item (attach button styled as a row) */
+	.conn-available {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		width: 100%;
+		padding: 0.5rem 0.85rem;
+		border-bottom: 1px solid var(--border);
+		color: var(--muted-foreground);
+		text-align: left;
+		transition:
+			background 120ms ease,
+			color 120ms ease;
+	}
+
+	.conn-available:last-of-type {
+		border-bottom: none;
+	}
+
+	.conn-available:hover:not(:disabled) {
+		background: color-mix(in oklch, var(--primary) 6%, transparent);
+		color: var(--foreground);
+	}
+
+	.conn-available:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.conn-available-name {
+		flex: 1;
+		font-size: 0.82rem;
+	}
+
+	:global(.conn-available-icon) {
+		opacity: 0.5;
+		flex-shrink: 0;
+	}
+
+	:global(.conn-channel-icon) {
+		flex-shrink: 0;
+		color: var(--muted-foreground);
+	}
+
+	.conn-empty {
+		padding: 0.75rem 0.85rem;
+		font-size: 0.65rem;
+		color: var(--muted-foreground);
+		opacity: 0.5;
+		letter-spacing: 0.04em;
+	}
+
+	.conn-error {
+		padding: 0.3rem 0.85rem;
+		font-size: 0.62rem;
+		color: var(--destructive);
 		letter-spacing: 0.02em;
+		border-top: 1px solid color-mix(in oklch, var(--destructive) 20%, transparent);
 	}
 
 	/* ── Danger desc ──────────────────────────────────────── */
@@ -505,6 +844,12 @@
 		border: 1.5px solid currentColor;
 		border-right-color: transparent;
 		animation: spin 0.8s linear infinite;
+	}
+
+	.spinner--sm {
+		width: 9px;
+		height: 9px;
+		border-width: 1.5px;
 	}
 
 	.spinner--danger {

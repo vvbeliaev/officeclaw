@@ -130,15 +130,17 @@ class UserService:
         await self._fleet.upsert_file(agent_id, "TOOLS.md", _TOOLS_MD)
 
         mcp_url = f"{settings.mcp_base_url}/mcp"
-        await self._integrations.create_mcp(
-            agent_id,
+        mcp_record = await self._integrations.create_mcp(
+            user_id,
             "officeclaw",
+            "http",
             {
                 "url": mcp_url,
                 "headers": {"Authorization": "Bearer ${OFFICECLAW_TOKEN}"},
             },
         )
 
+        await self._integrations.attach_mcp(agent_id, mcp_record["id"])
         await self._integrations.attach_env(agent_id, env_record["id"])
         await self._integrations.attach_env(agent_id, default_llm_env["id"])
 

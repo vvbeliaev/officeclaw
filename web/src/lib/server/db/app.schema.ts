@@ -97,17 +97,32 @@ export const userChannels = pgTable('user_channels', {
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 
+export const userMcp = pgTable(
+	'user_mcp',
+	{
+		id: uuid().defaultRandom().primaryKey().notNull(),
+		userId: uuid('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		name: text().notNull(),
+		type: text().notNull(), // 'stdio' | 'http'
+		// config_encrypted (bytea) excluded — encrypted by Python, never read in web
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(t) => [unique('user_mcp_user_id_name_key').on(t.userId, t.name)]
+);
+
 export const agentMcp = pgTable(
 	'agent_mcp',
 	{
-		id: uuid().defaultRandom().primaryKey().notNull(),
 		agentId: uuid('agent_id')
 			.notNull()
 			.references(() => agents.id, { onDelete: 'cascade' }),
-		name: text().notNull()
-		// config_encrypted (bytea) excluded — encrypted by Python, never read in web
+		mcpId: uuid('mcp_id')
+			.notNull()
+			.references(() => userMcp.id, { onDelete: 'cascade' })
 	},
-	(t) => [unique('agent_mcp_agent_id_name_key').on(t.agentId, t.name)]
+	(t) => [primaryKey({ columns: [t.agentId, t.mcpId] })]
 );
 
 export const agentSkills = pgTable(
@@ -146,7 +161,10 @@ export const agentChannels = pgTable(
 			.notNull()
 			.references(() => userChannels.id, { onDelete: 'cascade' })
 	},
-	(t) => [primaryKey({ columns: [t.agentId, t.channelId] })]
+	(t) => [
+		primaryKey({ columns: [t.agentId, t.channelId] }),
+		unique('agent_channels_channel_id_key').on(t.channelId)
+	]
 );
 
 // Relations
@@ -163,7 +181,8 @@ export const agentFilesRelations = relations(agentFiles, ({ one }) => ({
 	agent: one(agents, { fields: [agentFiles.agentId], references: [agents.id] })
 }));
 export const agentMcpRelations = relations(agentMcp, ({ one }) => ({
-	agent: one(agents, { fields: [agentMcp.agentId], references: [agents.id] })
+	agent: one(agents, { fields: [agentMcp.agentId], references: [agents.id] }),
+	mcp: one(userMcp, { fields: [agentMcp.mcpId], references: [userMcp.id] })
 }));
 export const agentSkillsRelations = relations(agentSkills, ({ one }) => ({
 	agent: one(agents, { fields: [agentSkills.agentId], references: [agents.id] }),
@@ -191,4 +210,8 @@ export const userEnvsRelations = relations(userEnvs, ({ one }) => ({
 }));
 export const userChannelsRelations = relations(userChannels, ({ one }) => ({
 	user: one(user, { fields: [userChannels.userId], references: [user.id] })
+}));
+export const userMcpRelations = relations(userMcp, ({ one, many }) => ({
+	user: one(user, { fields: [userMcp.userId], references: [user.id] }),
+	agents: many(agentMcp)
 }));

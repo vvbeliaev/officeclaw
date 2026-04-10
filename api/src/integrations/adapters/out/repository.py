@@ -87,6 +87,42 @@ class ChannelRepo:
         await self._conn.execute("DELETE FROM user_channels WHERE id = $1", channel_id)
 
 
+class UserMcpRepo:
+    def __init__(self, conn: asyncpg.Pool) -> None:
+        self._conn = conn
+
+    async def create(self, user_id: UUID, name: str, type_: str, config: dict) -> asyncpg.Record:
+        encrypted = encrypt_json(config)
+        return await self._conn.fetchrow(
+            "INSERT INTO user_mcp (user_id, name, type, config_encrypted)"
+            " VALUES ($1, $2, $3, $4) RETURNING id, user_id, name, type, created_at",
+            user_id, name, type_, encrypted,
+        )
+
+    async def find_by_id(self, mcp_id: UUID) -> asyncpg.Record | None:
+        return await self._conn.fetchrow(
+            "SELECT id, user_id, name, type, created_at FROM user_mcp WHERE id = $1", mcp_id
+        )
+
+    async def list_by_user(self, user_id: UUID) -> list[asyncpg.Record]:
+        return await self._conn.fetch(
+            "SELECT id, user_id, name, type, created_at FROM user_mcp WHERE user_id = $1"
+            " ORDER BY created_at DESC",
+            user_id,
+        )
+
+    async def get_decrypted_config(self, mcp_id: UUID) -> dict:
+        record = await self._conn.fetchrow(
+            "SELECT config_encrypted FROM user_mcp WHERE id = $1", mcp_id
+        )
+        if not record:
+            raise ValueError(f"MCP {mcp_id} not found")
+        return decrypt_json(bytes(record["config_encrypted"]))
+
+    async def delete(self, mcp_id: UUID) -> None:
+        await self._conn.execute("DELETE FROM user_mcp WHERE id = $1", mcp_id)
+
+
 class LinkRepo:
     def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
@@ -121,13 +157,17 @@ class LinkRepo:
 
     async def list_envs(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._conn.fetch(
-            "SELECT e.id, e.user_id, e.name, e.created_at FROM user_envs e JOIN agent_envs a ON a.env_id = e.id WHERE a.agent_id = $1",
+            "SELECT e.id, e.user_id, e.name, e.created_at FROM user_envs e"
+            " JOIN agent_envs a ON a.env_id = e.id WHERE a.agent_id = $1",
             agent_id,
         )
 
     async def attach_channel(self, agent_id: UUID, channel_id: UUID) -> None:
+        # ON CONFLICT ON CONSTRAINT covers only the PK (same agent re-attaching same channel
+        # is idempotent). A unique violation on channel_id alone (different agent) propagates.
         await self._conn.execute(
-            "INSERT INTO agent_channels (agent_id, channel_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            "INSERT INTO agent_channels (agent_id, channel_id) VALUES ($1, $2)"
+            " ON CONFLICT ON CONSTRAINT agent_channels_pkey DO NOTHING",
             agent_id, channel_id,
         )
 
@@ -138,42 +178,36 @@ class LinkRepo:
 
     async def list_channels(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._conn.fetch(
-            "SELECT c.id, c.user_id, c.type, c.created_at FROM user_channels c JOIN agent_channels a ON a.channel_id = c.id WHERE a.agent_id = $1",
+            "SELECT c.id, c.user_id, c.type, c.created_at FROM user_channels c"
+            " JOIN agent_channels a ON a.channel_id = c.id WHERE a.agent_id = $1",
             agent_id,
         )
 
-
-class AgentMcpRepo:
-    def __init__(self, conn: asyncpg.Pool) -> None:
-        self._conn = conn
-
-    async def create(self, agent_id: UUID, name: str, config: dict) -> asyncpg.Record:
-        return await self._conn.fetchrow(
-            "INSERT INTO agent_mcp (agent_id, name, config_encrypted) VALUES ($1, $2, $3) RETURNING id, agent_id, name",
-            agent_id, name, encrypt_json(config),
+    async def attach_mcp(self, agent_id: UUID, mcp_id: UUID) -> None:
+        await self._conn.execute(
+            "INSERT INTO agent_mcp (agent_id, mcp_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+            agent_id, mcp_id,
         )
 
-    async def list_by_agent(self, agent_id: UUID) -> list[asyncpg.Record]:
+    async def detach_mcp(self, agent_id: UUID, mcp_id: UUID) -> None:
+        await self._conn.execute(
+            "DELETE FROM agent_mcp WHERE agent_id = $1 AND mcp_id = $2", agent_id, mcp_id
+        )
+
+    async def list_mcps(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._conn.fetch(
-            "SELECT id, agent_id, name FROM agent_mcp WHERE agent_id = $1", agent_id
+            "SELECT m.id, m.user_id, m.name, m.type, m.created_at FROM user_mcp m"
+            " JOIN agent_mcp a ON a.mcp_id = m.id WHERE a.agent_id = $1",
+            agent_id,
         )
 
-    async def get_all_decrypted(self, agent_id: UUID) -> list[dict]:
+    async def list_mcps_decrypted(self, agent_id: UUID) -> list[dict]:
         records = await self._conn.fetch(
-            "SELECT name, config_encrypted FROM agent_mcp WHERE agent_id = $1", agent_id
+            "SELECT m.name, m.config_encrypted FROM user_mcp m"
+            " JOIN agent_mcp a ON a.mcp_id = m.id WHERE a.agent_id = $1",
+            agent_id,
         )
         return [
             {"name": r["name"], "config": decrypt_json(bytes(r["config_encrypted"]))}
             for r in records
         ]
-
-    async def get_decrypted_config(self, mcp_id: UUID) -> dict:
-        record = await self._conn.fetchrow(
-            "SELECT config_encrypted FROM agent_mcp WHERE id = $1", mcp_id
-        )
-        if not record:
-            raise ValueError(f"MCP {mcp_id} not found")
-        return decrypt_json(bytes(record["config_encrypted"]))
-
-    async def delete(self, mcp_id: UUID) -> None:
-        await self._conn.execute("DELETE FROM agent_mcp WHERE id = $1", mcp_id)
