@@ -27,7 +27,12 @@ def _sandbox_workdir(agent_id: UUID) -> Path:
     """
     root = Path(get_settings().sandbox_workdir).expanduser().resolve()
     return root / str(agent_id)
-_SYNC_EXCLUDE_TOP = {"config.json", "skills", ".git", ".gitignore", ".traces"}
+_SYNC_EXCLUDE_TOP = {
+    "config.json", "skills", ".git", ".gitignore", ".traces",
+    # Runtime files are assembled fresh on every start (templates + user override).
+    # Never sync them back — the workspace copy is merged/ephemeral.
+    "SOUL.md", "AGENTS.md", "HEARTBEAT.md", "TOOLS.md", "USER.md",
+}
 _DEFAULT_CPUS = "1"
 _DEFAULT_MEMORY = "512"  # MiB
 _GATEWAY_READY_TIMEOUT = 15  # seconds to wait for nanobot gateway to be ready

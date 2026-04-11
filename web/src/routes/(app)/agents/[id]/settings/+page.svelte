@@ -38,6 +38,7 @@
 		if (!file || !file.type.startsWith('image/')) return;
 		await uploadFile(file);
 	}
+
 	let confirmDelete = $state(false);
 	let saving = $state(false);
 	let deleting = $state(false);
@@ -72,7 +73,6 @@
 	const activeLlm = $derived(
 		(data.llmProviders as LlmProvider[]).find((p) => p.attached) ?? null
 	);
-	let switchingLlm = $state(false);
 
 	const CHANNEL_META: Record<string, { label: string; icon: string }> = {
 		telegram:  { label: 'Telegram',  icon: 'tabler:brand-telegram' },
@@ -90,479 +90,409 @@
 	<header class="settings-header">
 		<div class="header-left">
 			<a href={resolve(`/agents/${data.agent.id}`)} class="back-btn" aria-label="Back to chat">
-				<Icon icon="tabler:arrow-left" width={14} height={14} />
-				<span>Back</span>
+				<Icon icon="tabler:arrow-left" width={13} height={13} />
+				<span>back</span>
 			</a>
 			<div class="header-divider"></div>
-			<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={28} />
-			<h1 class="agent-name font-display">{data.agent.name}</h1>
+			<span class="header-crumb font-mono">settings</span>
 		</div>
-		<span class="settings-label font-mono">settings</span>
+		<div class="header-agent">
+			<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={18} />
+			<span class="header-agent-name font-display">{data.agent.name}</span>
+		</div>
 	</header>
 
-	<!-- ── Body ────────────────────────────────────────────────── -->
+	<!-- ── Two-panel body ──────────────────────────────────────── -->
 	<div class="settings-body">
-		<div class="settings-content">
-			<!-- ── Identity ──────────────────────────────────── -->
-			<section class="section">
-				<header class="section-head">
-					<span class="section-title font-mono">identity</span>
-				</header>
 
-				<form
-					method="POST"
-					action="?/update"
-					use:enhance={() => {
-						saving = true;
-						return async ({ update }) => {
-							await update({ reset: false });
-							await invalidateAll();
-							saving = false;
-						};
-					}}
-					class="form-block"
+		<!-- ── LEFT: Identity panel ──────────────────────────── -->
+		<aside class="identity-panel">
+
+			<!-- Avatar dropzone -->
+			<div class="id-avatar-wrap">
+				<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+				<div
+					class="avatar-dropzone"
+					class:uploading={avatarUploading}
+					class:dragging={isDragging}
+					role="button"
+					tabindex="0"
+					aria-label="Upload avatar"
+					onclick={() => avatarFileInput?.click()}
+					onkeydown={(e) => e.key === 'Enter' && avatarFileInput?.click()}
+					ondragover={(e) => { e.preventDefault(); isDragging = true; }}
+					ondragleave={() => { isDragging = false; }}
+					ondrop={(e) => { e.preventDefault(); handleDrop(e); }}
 				>
-					<div class="field">
-						<label class="field-label font-mono" for="agent-name">Name</label>
-						<input
-							id="agent-name"
-							name="name"
-							type="text"
-							class="field-input"
-							bind:value={nameValue}
-							maxlength={64}
-							required
-						/>
-						<p class="field-hint">How this agent appears in your fleet.</p>
-					</div>
-
-					<div class="field">
-						<span class="field-label font-mono">Avatar</span>
-						<div class="avatar-zone-wrap">
-							<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-							<div
-								class="avatar-dropzone"
-								class:uploading={avatarUploading}
-								class:dragging={isDragging}
-								role="button"
-								tabindex="0"
-								aria-label="Upload avatar"
-								onclick={() => avatarFileInput?.click()}
-								onkeydown={(e) => e.key === 'Enter' && avatarFileInput?.click()}
-								ondragover={(e) => { e.preventDefault(); isDragging = true; }}
-								ondragleave={() => { isDragging = false; }}
-								ondrop={(e) => { e.preventDefault(); handleDrop(e); }}
-							>
-								<div class="avatar-dropzone-preview">
-									{#if avatarPreview}
-										<img src={avatarPreview} alt="avatar" class="avatar-dropzone-img" />
-									{:else}
-										<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={88} />
-									{/if}
-								</div>
-								<div class="avatar-dropzone-overlay">
-									{#if avatarUploading}
-										<div class="upload-spinner-ring"></div>
-									{:else}
-										<Icon icon="tabler:camera" width={18} height={18} />
-										<span class="upload-hint font-mono">{isDragging ? 'drop here' : 'change'}</span>
-									{/if}
-								</div>
-								<svg class="avatar-dropzone-ring" viewBox="0 0 100 100" aria-hidden="true">
-									<circle cx="50" cy="50" r="47" />
-								</svg>
-							</div>
-						</div>
-						<p class="field-hint avatar-hint">JPG, PNG, WebP or GIF — drop or click to change.</p>
-						<input
-							bind:this={avatarFileInput}
-							type="file"
-							accept="image/jpeg,image/png,image/webp,image/gif"
-							class="avatar-file-input"
-							onchange={handleAvatarChange}
-						/>
-					</div>
-
-					{#if form?.error}
-						<p class="form-error font-mono">{form.error}</p>
-					{/if}
-					{#if form?.success}
-						<p class="form-ok font-mono">Saved.</p>
-					{/if}
-
-					<div class="form-foot">
-						<button class="btn-primary" type="submit" disabled={saving}>
-							{#if saving}
-								<span class="spinner"></span>saving…
-							{:else}
-								Save changes
-							{/if}
-						</button>
-					</div>
-				</form>
-			</section>
-
-			<!-- ── Runtime ───────────────────────────────────── -->
-			<section class="section">
-				<header class="section-head">
-					<span class="section-title font-mono">runtime</span>
-				</header>
-				<div class="form-block">
-					<div class="field">
-						<label class="field-label font-mono" for="agent-image">Container image</label>
-						<input
-							id="agent-image"
-							type="text"
-							class="field-input field-input--readonly"
-							value={data.agent.image}
-							readonly
-						/>
-						<p class="field-hint">Docker image used when starting the sandbox. Editable soon.</p>
-					</div>
-				</div>
-			</section>
-
-			<!-- ── Connections ───────────────────────────────── -->
-			<section class="section">
-				<header class="section-head">
-					<span class="section-title font-mono">connections</span>
-				</header>
-
-				<!-- MCPs -->
-				<div class="conn-block">
-					<div class="conn-block-head">
-						<Icon icon="tabler:plug" width={13} height={13} />
-						<span class="conn-block-title font-mono">mcps</span>
-						<span class="conn-block-count font-mono">{(data.mcps as Mcp[]).filter(m => m.attached).length}</span>
-					</div>
-					{#each (data.mcps as Mcp[]).filter(m => m.attached) as mcp (mcp.id)}
-						<div class="conn-row">
-							<span class="conn-row-name">{mcp.name}</span>
-							<span class="conn-row-badge font-mono">{mcp.type}</span>
-							{#if mcp.name === 'officeclaw' && data.agent.isAdmin}
-								<span class="conn-lock" title="System — cannot be detached from Admin">
-									<Icon icon="tabler:lock" width={11} height={11} />
-								</span>
-							{:else}
-								<form method="POST" action="?/detachMcp" use:enhance={connEnhance(`detach:mcp:${mcp.id}`)}>
-									<input type="hidden" name="mcp_id" value={mcp.id} />
-									<button class="conn-detach" type="submit" disabled={!!pending[`detach:mcp:${mcp.id}`]} title="Detach">
-										{#if pending[`detach:mcp:${mcp.id}`]}
-											<span class="spinner spinner--sm"></span>
-										{:else}
-											<Icon icon="tabler:x" width={11} height={11} />
-										{/if}
-									</button>
-								</form>
-							{/if}
-						</div>
-					{/each}
-					{#each (data.mcps as Mcp[]).filter(m => !m.attached && (data.agent.isAdmin || m.name !== 'officeclaw')) as mcp (mcp.id)}
-						<form method="POST" action="?/attachMcp" use:enhance={connEnhance(`attach:mcp:${mcp.id}`)}>
-							<input type="hidden" name="mcp_id" value={mcp.id} />
-							<button class="conn-available" type="submit" disabled={!!pending[`attach:mcp:${mcp.id}`]}>
-								<span class="conn-available-name">{mcp.name}</span>
-								<span class="conn-row-badge font-mono">{mcp.type}</span>
-								{#if pending[`attach:mcp:${mcp.id}`]}
-									<span class="spinner spinner--sm"></span>
-								{:else}
-									<Icon icon="tabler:plus" width={11} height={11} class="conn-available-icon" />
-								{/if}
-							</button>
-						</form>
-					{/each}
-					{#if (data.mcps as Mcp[]).length === 0}
-						<p class="conn-empty font-mono">No MCP servers in workspace</p>
-					{/if}
-				</div>
-
-				<!-- LLM Provider -->
-				<div class="conn-block">
-					<div class="conn-block-head">
-						<Icon icon="tabler:brain" width={13} height={13} />
-						<span class="conn-block-title font-mono">llm provider</span>
-						{#if activeLlm}
-							<span class="conn-block-count font-mono">{activeLlm.name}</span>
+					<div class="avatar-preview">
+						{#if avatarPreview}
+							<img src={avatarPreview} alt="avatar" class="avatar-img" />
+						{:else}
+							<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={80} />
 						{/if}
 					</div>
-					{#if (data.llmProviders as LlmProvider[]).length === 0}
-						<p class="conn-empty font-mono">No LLM providers — add one in Workspace → Environments</p>
+					<div class="avatar-overlay">
+						{#if avatarUploading}
+							<span class="upload-spinner"></span>
+						{:else}
+							<Icon icon="tabler:camera" width={15} height={15} />
+							<span class="font-mono">{isDragging ? 'drop' : 'edit'}</span>
+						{/if}
+					</div>
+				</div>
+				<input
+					bind:this={avatarFileInput}
+					type="file"
+					accept="image/jpeg,image/png,image/webp,image/gif"
+					class="avatar-file-input"
+					onchange={handleAvatarChange}
+				/>
+				{#if data.agent.isAdmin}
+					<span class="admin-badge font-mono">admin</span>
+				{/if}
+			</div>
+
+			<!-- Name form -->
+			<form
+				method="POST"
+				action="?/update"
+				use:enhance={() => {
+					saving = true;
+					return async ({ update }) => {
+						await update({ reset: false });
+						await invalidateAll();
+						saving = false;
+					};
+				}}
+				class="id-name-form"
+			>
+				<div class="id-name-row" class:focused={false}>
+					<input
+						id="agent-name"
+						name="name"
+						type="text"
+						class="id-name-input font-display"
+						bind:value={nameValue}
+						maxlength={64}
+						required
+						placeholder="Agent name"
+					/>
+					<button class="btn-save font-mono" type="submit" disabled={saving}>
+						{#if saving}<span class="spinner"></span>{:else}save{/if}
+					</button>
+				</div>
+				{#if form?.error}
+					<p class="id-feedback id-feedback--err font-mono">{form.error}</p>
+				{/if}
+				{#if form?.success}
+					<p class="id-feedback id-feedback--ok font-mono">saved</p>
+				{/if}
+			</form>
+
+			<!-- Runtime info -->
+			<div class="id-block">
+				<p class="id-block-label font-mono">runtime</p>
+				<div class="runtime-row">
+					<span class="runtime-key font-mono">image</span>
+					<span class="runtime-val font-mono">{data.agent.image}</span>
+				</div>
+			</div>
+
+			<!-- Danger zone -->
+			{#if !data.agent.isAdmin}
+				<div class="id-block id-block--danger">
+					<p class="id-block-label id-block-label--danger font-mono">danger zone</p>
+					{#if !confirmDelete}
+						<button class="btn-danger font-mono" type="button" onclick={() => (confirmDelete = true)}>
+							<Icon icon="tabler:trash" width={11} height={11} />
+							Delete agent
+						</button>
 					{:else}
+						<p class="danger-confirm font-mono">
+							Delete <strong>{data.agent.name}</strong>? Cannot be undone.
+						</p>
+						<form
+							method="POST"
+							action="?/delete"
+							use:enhance={() => {
+								deleting = true;
+								return async ({ update }) => {
+									await update();
+									deleting = false;
+								};
+							}}
+							class="confirm-form"
+						>
+							<button class="btn-danger font-mono" type="submit" disabled={deleting}>
+								{#if deleting}
+									<span class="spinner spinner--danger"></span>
+								{:else}
+									<Icon icon="tabler:trash" width={11} height={11} />
+								{/if}
+								Confirm
+							</button>
+							<button class="btn-ghost font-mono" type="button" onclick={() => (confirmDelete = false)}>
+								Cancel
+							</button>
+						</form>
+					{/if}
+				</div>
+			{/if}
+		</aside>
+
+		<!-- ── RIGHT: Capabilities panel ────────────────────── -->
+		<div class="cap-panel">
+			<p class="cap-panel-eyebrow font-mono">capabilities</p>
+
+			<!-- LLM Provider ─ single-select row -->
+			<div class="cap-section">
+				<div class="cap-head">
+					<Icon icon="tabler:brain" width={12} height={12} class="cap-head-icon" />
+					<span class="cap-label font-mono">llm provider</span>
+					{#if activeLlm}
+						<span class="cap-meta cap-meta--active font-mono">{activeLlm.name}</span>
+					{:else}
+						<span class="cap-meta font-mono">none</span>
+					{/if}
+				</div>
+				{#if (data.llmProviders as LlmProvider[]).length === 0}
+					<p class="cap-empty font-mono">No LLM providers — add one in Environments</p>
+				{:else}
+					<div class="llm-row">
 						{#each data.llmProviders as LlmProvider[] as provider (provider.id)}
-							<form method="POST" action="?/switchLlm" use:enhance={connEnhance(`llm:${provider.id}`)}>
+							<form method="POST" action="?/switchLlm" use:enhance={connEnhance(`llm:${provider.id}`)} style="display:contents">
 								<input type="hidden" name="env_id" value={provider.id} />
 								<input type="hidden" name="old_env_id" value={activeLlm?.id ?? ''} />
 								<button
-									class="conn-available conn-llm-row"
-									class:conn-llm-active={provider.attached}
+									class="llm-pill font-mono"
+									class:llm-pill--active={provider.attached}
 									type="submit"
 									disabled={provider.attached || !!pending[`llm:${provider.id}`]}
 								>
-									<span class="conn-llm-indicator" class:conn-llm-indicator--on={provider.attached}></span>
-									<span class="conn-available-name">{provider.name}</span>
-									{#if provider.attached}
-										<span class="conn-row-badge font-mono">active</span>
-									{:else if pending[`llm:${provider.id}`]}
+									<span class="llm-dot" class:llm-dot--on={provider.attached}></span>
+									{provider.name}
+									{#if pending[`llm:${provider.id}`]}
 										<span class="spinner spinner--sm"></span>
-									{:else}
-										<span class="conn-row-badge conn-row-badge--dim font-mono">switch</span>
 									{/if}
 								</button>
 							</form>
 						{/each}
-					{/if}
-				</div>
-
-				<!-- Skills -->
-				<div class="conn-block">
-					<div class="conn-block-head">
-						<Icon icon="tabler:bulb" width={13} height={13} />
-						<span class="conn-block-title font-mono">skills</span>
-						<span class="conn-block-count font-mono">{(data.skills as Skill[]).filter(s => s.attached).length}</span>
 					</div>
-					{#each (data.skills as Skill[]).filter(s => s.attached) as skill (skill.id)}
-						<div class="conn-row">
-							<span class="conn-row-name">{skill.name}</span>
-							<form method="POST" action="?/detachSkill" use:enhance={connEnhance(`detach:skill:${skill.id}`)}>
-								<input type="hidden" name="skill_id" value={skill.id} />
-								<button class="conn-detach" type="submit" disabled={!!pending[`detach:skill:${skill.id}`]} title="Detach">
-									{#if pending[`detach:skill:${skill.id}`]}
-										<span class="spinner spinner--sm"></span>
-									{:else}
-										<Icon icon="tabler:x" width={11} height={11} />
-									{/if}
+				{/if}
+			</div>
+
+			<!-- MCP Servers -->
+			<div class="cap-section">
+				<div class="cap-head">
+					<Icon icon="tabler:plug" width={12} height={12} class="cap-head-icon" />
+					<span class="cap-label font-mono">mcp servers</span>
+					<span class="cap-meta font-mono">{(data.mcps as Mcp[]).filter(m => m.attached).length} / {(data.mcps as Mcp[]).length}</span>
+				</div>
+				{#if (data.mcps as Mcp[]).length === 0}
+					<p class="cap-empty font-mono">No MCP servers in workspace</p>
+				{:else}
+					<div class="chip-grid">
+						{#each (data.mcps as Mcp[]).filter(m => m.attached) as mcp (mcp.id)}
+							<div class="chip chip--on">
+								<span class="chip-name">{mcp.name}</span>
+								<span class="chip-tag font-mono">{mcp.type}</span>
+								{#if mcp.name === 'officeclaw' && data.agent.isAdmin}
+									<span class="chip-lock"><Icon icon="tabler:lock" width={9} height={9} /></span>
+								{:else}
+									<form method="POST" action="?/detachMcp" use:enhance={connEnhance(`detach:mcp:${mcp.id}`)} style="display:contents">
+										<input type="hidden" name="mcp_id" value={mcp.id} />
+										<button class="chip-x" type="submit" disabled={!!pending[`detach:mcp:${mcp.id}`]} title="Detach">
+											{#if pending[`detach:mcp:${mcp.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:x" width={9} height={9} />{/if}
+										</button>
+									</form>
+								{/if}
+							</div>
+						{/each}
+						{#each (data.mcps as Mcp[]).filter(m => !m.attached && (data.agent.isAdmin || m.name !== 'officeclaw')) as mcp (mcp.id)}
+							<form method="POST" action="?/attachMcp" use:enhance={connEnhance(`attach:mcp:${mcp.id}`)} style="display:contents">
+								<input type="hidden" name="mcp_id" value={mcp.id} />
+								<button class="chip chip--off" type="submit" disabled={!!pending[`attach:mcp:${mcp.id}`]}>
+									<span class="chip-name">{mcp.name}</span>
+									<span class="chip-tag font-mono">{mcp.type}</span>
+									{#if pending[`attach:mcp:${mcp.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:plus" width={9} height={9} class="chip-plus" />{/if}
 								</button>
 							</form>
-						</div>
-					{/each}
-					{#each (data.skills as Skill[]).filter(s => !s.attached) as skill (skill.id)}
-						<form method="POST" action="?/attachSkill" use:enhance={connEnhance(`attach:skill:${skill.id}`)}>
-							<input type="hidden" name="skill_id" value={skill.id} />
-							<button class="conn-available" type="submit" disabled={!!pending[`attach:skill:${skill.id}`]}>
-								<span class="conn-available-name">{skill.name}</span>
-								{#if pending[`attach:skill:${skill.id}`]}
-									<span class="spinner spinner--sm"></span>
-								{:else}
-									<Icon icon="tabler:plus" width={11} height={11} class="conn-available-icon" />
-								{/if}
-							</button>
-						</form>
-					{/each}
-					{#if (data.skills as Skill[]).length === 0}
-						<p class="conn-empty font-mono">No skills in workspace</p>
-					{/if}
-				</div>
-
-				<!-- Env vars -->
-				<div class="conn-block">
-					<div class="conn-block-head">
-						<Icon icon="tabler:key" width={13} height={13} />
-						<span class="conn-block-title font-mono">env vars</span>
-						<span class="conn-block-count font-mono">{(data.envs as Env[]).filter(e => e.attached).length}</span>
+						{/each}
 					</div>
-					{#each (data.envs as Env[]).filter(e => e.attached) as env (env.id)}
-						<div class="conn-row">
-							<span class="conn-row-name">{env.name}</span>
-							{#if env.name === 'officeclaw' && data.agent.isAdmin}
-								<span class="conn-lock" title="System — cannot be detached from Admin">
-									<Icon icon="tabler:lock" width={11} height={11} />
-								</span>
-							{:else}
-								<form method="POST" action="?/detachEnv" use:enhance={connEnhance(`detach:env:${env.id}`)}>
-									<input type="hidden" name="env_id" value={env.id} />
-									<button class="conn-detach" type="submit" disabled={!!pending[`detach:env:${env.id}`]} title="Detach">
-										{#if pending[`detach:env:${env.id}`]}
-											<span class="spinner spinner--sm"></span>
-										{:else}
-											<Icon icon="tabler:x" width={11} height={11} />
-										{/if}
+				{/if}
+			</div>
+
+			<!-- Skills -->
+			<div class="cap-section">
+				<div class="cap-head">
+					<Icon icon="tabler:bulb" width={12} height={12} class="cap-head-icon" />
+					<span class="cap-label font-mono">skills</span>
+					<span class="cap-meta font-mono">{(data.skills as Skill[]).filter(s => s.attached).length} / {(data.skills as Skill[]).length}</span>
+				</div>
+				{#if (data.skills as Skill[]).length === 0}
+					<p class="cap-empty font-mono">No skills in workspace</p>
+				{:else}
+					<div class="chip-grid">
+						{#each (data.skills as Skill[]).filter(s => s.attached) as skill (skill.id)}
+							<div class="chip chip--on">
+								<span class="chip-name">{skill.name}</span>
+								<form method="POST" action="?/detachSkill" use:enhance={connEnhance(`detach:skill:${skill.id}`)} style="display:contents">
+									<input type="hidden" name="skill_id" value={skill.id} />
+									<button class="chip-x" type="submit" disabled={!!pending[`detach:skill:${skill.id}`]} title="Detach">
+										{#if pending[`detach:skill:${skill.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:x" width={9} height={9} />{/if}
 									</button>
 								</form>
-							{/if}
-						</div>
-					{/each}
-					{#each (data.envs as Env[]).filter(e => !e.attached && (data.agent.isAdmin || e.name !== 'officeclaw')) as env (env.id)}
-						<form method="POST" action="?/attachEnv" use:enhance={connEnhance(`attach:env:${env.id}`)}>
-							<input type="hidden" name="env_id" value={env.id} />
-							<button class="conn-available" type="submit" disabled={!!pending[`attach:env:${env.id}`]}>
-								<span class="conn-available-name">{env.name}</span>
-								{#if pending[`attach:env:${env.id}`]}
-									<span class="spinner spinner--sm"></span>
-								{:else}
-									<Icon icon="tabler:plus" width={11} height={11} class="conn-available-icon" />
-								{/if}
-							</button>
-						</form>
-					{/each}
-					{#if (data.envs as Env[]).length === 0}
-						<p class="conn-empty font-mono">No env var sets in workspace</p>
-					{/if}
-				</div>
-
-				<!-- Channels -->
-				<div class="conn-block">
-					<div class="conn-block-head">
-						<Icon icon="tabler:message" width={13} height={13} />
-						<span class="conn-block-title font-mono">channels</span>
-						<span class="conn-block-count font-mono">{(data.channels as Channel[]).filter(c => c.attached).length}</span>
-					</div>
-					{#each (data.channels as Channel[]).filter(c => c.attached) as ch (ch.id)}
-						{@const meta = CHANNEL_META[ch.type] ?? { label: ch.type, icon: 'tabler:message' }}
-						<div class="conn-row">
-							<Icon icon={meta.icon} width={13} height={13} class="conn-channel-icon" />
-							<span class="conn-row-name">{meta.label}</span>
-							<span class="conn-row-muted font-mono">{fmtDate(ch.createdAt)}</span>
-							<form method="POST" action="?/detachChannel" use:enhance={connEnhance(`detach:ch:${ch.id}`)}>
-								<input type="hidden" name="channel_id" value={ch.id} />
-								<button class="conn-detach" type="submit" disabled={!!pending[`detach:ch:${ch.id}`]} title="Detach">
-									{#if pending[`detach:ch:${ch.id}`]}
-										<span class="spinner spinner--sm"></span>
-									{:else}
-										<Icon icon="tabler:x" width={11} height={11} />
-									{/if}
+							</div>
+						{/each}
+						{#each (data.skills as Skill[]).filter(s => !s.attached) as skill (skill.id)}
+							<form method="POST" action="?/attachSkill" use:enhance={connEnhance(`attach:skill:${skill.id}`)} style="display:contents">
+								<input type="hidden" name="skill_id" value={skill.id} />
+								<button class="chip chip--off" type="submit" disabled={!!pending[`attach:skill:${skill.id}`]}>
+									<span class="chip-name">{skill.name}</span>
+									{#if pending[`attach:skill:${skill.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:plus" width={9} height={9} class="chip-plus" />{/if}
 								</button>
 							</form>
-						</div>
-					{/each}
-					{#each (data.channels as Channel[]).filter(c => !c.attached && !c.takenBy) as ch (ch.id)}
-						{@const meta = CHANNEL_META[ch.type] ?? { label: ch.type, icon: 'tabler:message' }}
-						{@const opKey = `attach:ch:${ch.id}`}
-						<form method="POST" action="?/attachChannel" use:enhance={connEnhance(opKey)}>
-							<input type="hidden" name="channel_id" value={ch.id} />
-							<button class="conn-available" type="submit" disabled={!!pending[opKey]}>
-								<Icon icon={meta.icon} width={13} height={13} class="conn-channel-icon" />
-								<span class="conn-available-name">{meta.label}</span>
-								<span class="conn-row-muted font-mono">{fmtDate(ch.createdAt)}</span>
-								{#if pending[opKey]}
-									<span class="spinner spinner--sm"></span>
-								{:else}
-									<Icon icon="tabler:plus" width={11} height={11} class="conn-available-icon" />
-								{/if}
-							</button>
-							{#if opErrors[opKey]}
-								<p class="conn-error font-mono">{opErrors[opKey]}</p>
-							{/if}
-						</form>
-					{/each}
-					{#each (data.channels as Channel[]).filter(c => c.takenBy) as ch (ch.id)}
-						{@const meta = CHANNEL_META[ch.type] ?? { label: ch.type, icon: 'tabler:message' }}
-						<div class="conn-row conn-row--taken">
-							<Icon icon={meta.icon} width={13} height={13} class="conn-channel-icon" />
-							<span class="conn-row-name">{meta.label}</span>
-							<span class="conn-row-muted font-mono">{fmtDate(ch.createdAt)}</span>
-							<span class="conn-taken-label font-mono">→ {ch.takenBy}</span>
-						</div>
-					{/each}
-					{#if (data.channels as Channel[]).length === 0}
-						<p class="conn-empty font-mono">No channels in workspace</p>
-					{/if}
-				</div>
-			</section>
-
-			<!-- ── Prompts / templates ──────────────────────── -->
-			<section class="section">
-				<header class="section-head">
-					<span class="section-title font-mono">prompts</span>
-				</header>
-
-				<div class="conn-block">
-					<div class="conn-block-head">
-						<Icon icon="tabler:file-text" width={13} height={13} />
-						<span class="conn-block-title font-mono">templates</span>
-						<span class="conn-block-count font-mono">{(data.templates as Template[]).filter(t => t.attached).length}</span>
+						{/each}
 					</div>
-					{#each (data.templates as Template[]).filter(t => t.attached) as tpl (tpl.id)}
-						<div class="conn-row">
-							<span class="conn-row-name">{tpl.name}</span>
-							<span class="conn-row-badge font-mono">{tpl.templateType}</span>
-							<form method="POST" action="?/detachTemplate" use:enhance={connEnhance(`detach:tpl:${tpl.id}`)}>
+				{/if}
+			</div>
+
+			<!-- Env Vars -->
+			<div class="cap-section">
+				<div class="cap-head">
+					<Icon icon="tabler:key" width={12} height={12} class="cap-head-icon" />
+					<span class="cap-label font-mono">env vars</span>
+					<span class="cap-meta font-mono">{(data.envs as Env[]).filter(e => e.attached).length} / {(data.envs as Env[]).length}</span>
+				</div>
+				{#if (data.envs as Env[]).length === 0}
+					<p class="cap-empty font-mono">No env var sets in workspace</p>
+				{:else}
+					<div class="chip-grid">
+						{#each (data.envs as Env[]).filter(e => e.attached) as env (env.id)}
+							<div class="chip chip--on">
+								<span class="chip-name">{env.name}</span>
+								{#if env.name === 'officeclaw' && data.agent.isAdmin}
+									<span class="chip-lock"><Icon icon="tabler:lock" width={9} height={9} /></span>
+								{:else}
+									<form method="POST" action="?/detachEnv" use:enhance={connEnhance(`detach:env:${env.id}`)} style="display:contents">
+										<input type="hidden" name="env_id" value={env.id} />
+										<button class="chip-x" type="submit" disabled={!!pending[`detach:env:${env.id}`]} title="Detach">
+											{#if pending[`detach:env:${env.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:x" width={9} height={9} />{/if}
+										</button>
+									</form>
+								{/if}
+							</div>
+						{/each}
+						{#each (data.envs as Env[]).filter(e => !e.attached && (data.agent.isAdmin || e.name !== 'officeclaw')) as env (env.id)}
+							<form method="POST" action="?/attachEnv" use:enhance={connEnhance(`attach:env:${env.id}`)} style="display:contents">
+								<input type="hidden" name="env_id" value={env.id} />
+								<button class="chip chip--off" type="submit" disabled={!!pending[`attach:env:${env.id}`]}>
+									<span class="chip-name">{env.name}</span>
+									{#if pending[`attach:env:${env.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:plus" width={9} height={9} class="chip-plus" />{/if}
+								</button>
+							</form>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Channels -->
+			<div class="cap-section">
+				<div class="cap-head">
+					<Icon icon="tabler:message" width={12} height={12} class="cap-head-icon" />
+					<span class="cap-label font-mono">channels</span>
+					<span class="cap-meta font-mono">{(data.channels as Channel[]).filter(c => c.attached).length} / {(data.channels as Channel[]).length}</span>
+				</div>
+				{#if (data.channels as Channel[]).length === 0}
+					<p class="cap-empty font-mono">No channels in workspace</p>
+				{:else}
+					<div class="chip-grid">
+						{#each (data.channels as Channel[]).filter(c => c.attached) as ch (ch.id)}
+							{@const meta = CHANNEL_META[ch.type] ?? { label: ch.type, icon: 'tabler:message' }}
+							<div class="chip chip--on">
+								<Icon icon={meta.icon} width={11} height={11} />
+								<span class="chip-name">{meta.label}</span>
+								<span class="chip-date font-mono">{fmtDate(ch.createdAt)}</span>
+								<form method="POST" action="?/detachChannel" use:enhance={connEnhance(`detach:ch:${ch.id}`)} style="display:contents">
+									<input type="hidden" name="channel_id" value={ch.id} />
+									<button class="chip-x" type="submit" disabled={!!pending[`detach:ch:${ch.id}`]} title="Detach">
+										{#if pending[`detach:ch:${ch.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:x" width={9} height={9} />{/if}
+									</button>
+								</form>
+							</div>
+						{/each}
+						{#each (data.channels as Channel[]).filter(c => !c.attached && !c.takenBy) as ch (ch.id)}
+							{@const meta = CHANNEL_META[ch.type] ?? { label: ch.type, icon: 'tabler:message' }}
+							{@const opKey = `attach:ch:${ch.id}`}
+							<div class="chip-with-err">
+								<form method="POST" action="?/attachChannel" use:enhance={connEnhance(opKey)} style="display:contents">
+									<input type="hidden" name="channel_id" value={ch.id} />
+									<button class="chip chip--off" type="submit" disabled={!!pending[opKey]}>
+										<Icon icon={meta.icon} width={11} height={11} />
+										<span class="chip-name">{meta.label}</span>
+										<span class="chip-date font-mono">{fmtDate(ch.createdAt)}</span>
+										{#if pending[opKey]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:plus" width={9} height={9} class="chip-plus" />{/if}
+									</button>
+								</form>
+								{#if opErrors[opKey]}
+									<p class="chip-err font-mono">{opErrors[opKey]}</p>
+								{/if}
+							</div>
+						{/each}
+						{#each (data.channels as Channel[]).filter(c => c.takenBy) as ch (ch.id)}
+							{@const meta = CHANNEL_META[ch.type] ?? { label: ch.type, icon: 'tabler:message' }}
+							<div class="chip chip--taken">
+								<Icon icon={meta.icon} width={11} height={11} />
+								<span class="chip-name">{meta.label}</span>
+								<span class="chip-taken-by font-mono">→ {ch.takenBy}</span>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Prompts / Templates -->
+			<div class="cap-section">
+				<div class="cap-head">
+					<Icon icon="tabler:file-text" width={12} height={12} class="cap-head-icon" />
+					<span class="cap-label font-mono">prompts</span>
+					<span class="cap-meta font-mono">{(data.templates as Template[]).filter(t => t.attached).length} / {(data.templates as Template[]).length}</span>
+				</div>
+				{#if (data.templates as Template[]).length === 0}
+					<p class="cap-empty font-mono">No templates in library — <a href="/prompts" class="cap-link">create one</a></p>
+				{:else}
+					<div class="chip-grid">
+						{#each (data.templates as Template[]).filter(t => t.attached) as tpl (tpl.id)}
+							<div class="chip chip--on">
+								<span class="chip-name">{tpl.name}</span>
+								<span class="chip-tag font-mono">{tpl.templateType}</span>
+								<form method="POST" action="?/detachTemplate" use:enhance={connEnhance(`detach:tpl:${tpl.id}`)} style="display:contents">
+									<input type="hidden" name="template_id" value={tpl.id} />
+									<button class="chip-x" type="submit" disabled={!!pending[`detach:tpl:${tpl.id}`]} title="Detach">
+										{#if pending[`detach:tpl:${tpl.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:x" width={9} height={9} />{/if}
+									</button>
+								</form>
+							</div>
+						{/each}
+						{#each (data.templates as Template[]).filter(t => !t.attached) as tpl (tpl.id)}
+							<form method="POST" action="?/attachTemplate" use:enhance={connEnhance(`attach:tpl:${tpl.id}`)} style="display:contents">
 								<input type="hidden" name="template_id" value={tpl.id} />
-								<button class="conn-detach" type="submit" disabled={!!pending[`detach:tpl:${tpl.id}`]} title="Detach">
-									{#if pending[`detach:tpl:${tpl.id}`]}
-										<span class="spinner spinner--sm"></span>
-									{:else}
-										<Icon icon="tabler:x" width={11} height={11} />
-									{/if}
+								<button class="chip chip--off" type="submit" disabled={!!pending[`attach:tpl:${tpl.id}`]}>
+									<span class="chip-name">{tpl.name}</span>
+									<span class="chip-tag font-mono">{tpl.templateType}</span>
+									{#if pending[`attach:tpl:${tpl.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:plus" width={9} height={9} class="chip-plus" />{/if}
 								</button>
 							</form>
-						</div>
-					{/each}
-					{#each (data.templates as Template[]).filter(t => !t.attached) as tpl (tpl.id)}
-						<form method="POST" action="?/attachTemplate" use:enhance={connEnhance(`attach:tpl:${tpl.id}`)}>
-							<input type="hidden" name="template_id" value={tpl.id} />
-							<button class="conn-available" type="submit" disabled={!!pending[`attach:tpl:${tpl.id}`]}>
-								<span class="conn-available-name">{tpl.name}</span>
-								<span class="conn-row-badge font-mono">{tpl.templateType}</span>
-								{#if pending[`attach:tpl:${tpl.id}`]}
-									<span class="spinner spinner--sm"></span>
-								{:else}
-									<Icon icon="tabler:plus" width={11} height={11} class="conn-available-icon" />
-								{/if}
-							</button>
-						</form>
-					{/each}
-					{#if (data.templates as Template[]).length === 0}
-						<p class="conn-empty font-mono">No templates in library — <a href="/prompts" class="conn-link">create one</a></p>
-					{/if}
-				</div>
-			</section>
-
-			<!-- ── Danger zone ───────────────────────────────── -->
-			{#if !data.agent.isAdmin}
-				<section class="section section--danger">
-					<header class="section-head">
-						<span class="section-title font-mono">danger zone</span>
-					</header>
-
-					{#if !confirmDelete}
-						<div class="form-block">
-							<p class="danger-desc">
-								Permanently delete <strong>{data.agent.name}</strong> and all associated memories. This
-								cannot be undone.
-							</p>
-							<button class="btn-danger" type="button" onclick={() => (confirmDelete = true)}>
-								<Icon icon="tabler:trash" width={13} height={13} />
-								Delete agent
-							</button>
-						</div>
-					{:else}
-						<div class="form-block">
-							<p class="danger-confirm font-mono">
-								Type <strong>{data.agent.name}</strong> to confirm deletion.
-							</p>
-							<form
-								method="POST"
-								action="?/delete"
-								use:enhance={() => {
-									deleting = true;
-									return async ({ update }) => {
-										await update();
-										deleting = false;
-									};
-								}}
-								class="confirm-form"
-							>
-								<button class="btn-danger" type="submit" disabled={deleting}>
-									{#if deleting}
-										<span class="spinner spinner--danger"></span>deleting…
-									{:else}
-										<Icon icon="tabler:trash" width={13} height={13} />
-										Yes, delete {data.agent.name}
-									{/if}
-								</button>
-								<button class="btn-ghost" type="button" onclick={() => (confirmDelete = false)}>
-									Cancel
-								</button>
-							</form>
-						</div>
-					{/if}
-				</section>
-			{/if}
+						{/each}
+					</div>
+				{/if}
+			</div>
 		</div>
 	</div>
 </div>
 
 <style>
+	/* ── Shell ────────────────────────────────────────────────── */
 	.settings-shell {
 		display: flex;
 		flex-direction: column;
@@ -571,14 +501,14 @@
 		background: var(--background);
 	}
 
-	/* ── Header ────────────────────────────────────────────── */
+	/* ── Header ───────────────────────────────────────────────── */
 	.settings-header {
 		height: 56px;
 		flex-shrink: 0;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		padding: 0 1.5rem;
+		padding: 0 1.25rem;
 		border-bottom: 1px solid var(--border);
 		background: var(--background);
 	}
@@ -586,22 +516,20 @@
 	.header-left {
 		display: flex;
 		align-items: center;
-		gap: 0.85rem;
+		gap: 0.65rem;
 	}
 
 	.back-btn {
 		display: flex;
 		align-items: center;
-		gap: 0.4rem;
-		font-size: 0.72rem;
+		gap: 0.35rem;
+		font-size: 0.68rem;
 		font-family: var(--font-mono);
 		color: var(--muted-foreground);
 		text-decoration: none;
-		padding: 0.35rem 0.6rem;
-		border-radius: 0.25rem;
-		transition:
-			color 150ms ease,
-			background 150ms ease;
+		padding: 0.28rem 0.55rem;
+		border-radius: 0.2rem;
+		transition: color 150ms ease, background 150ms ease;
 	}
 
 	.back-btn:hover {
@@ -611,193 +539,296 @@
 
 	.header-divider {
 		width: 1px;
-		height: 18px;
+		height: 14px;
 		background: var(--border);
 	}
 
-	.agent-name {
-		font-size: 1.05rem;
-		font-style: italic;
-		line-height: 1;
-		letter-spacing: -0.005em;
-	}
-
-	.settings-label {
-		font-size: 0.6rem;
-		text-transform: uppercase;
-		letter-spacing: 0.16em;
-		color: var(--muted-foreground);
-		opacity: 0.6;
-	}
-
-	/* ── Body ─────────────────────────────────────────────── */
-	.settings-body {
-		flex: 1;
-		overflow-y: auto;
-		padding: 2.5rem 1.5rem 4rem;
-	}
-
-	.settings-content {
-		max-width: 36rem;
-		margin: 0 auto;
-		display: flex;
-		flex-direction: column;
-		gap: 2.5rem;
-	}
-
-	/* ── Section ──────────────────────────────────────────── */
-	.section {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
-	.section-head {
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		padding-bottom: 0.65rem;
-		border-bottom: 1px solid var(--border);
-	}
-
-	.section-title {
-		font-size: 0.6rem;
+	.header-crumb {
+		font-size: 0.55rem;
 		text-transform: uppercase;
 		letter-spacing: 0.18em;
 		color: var(--muted-foreground);
+		opacity: 0.45;
 	}
 
-	.section--danger .section-title {
-		color: color-mix(in oklch, var(--destructive) 80%, var(--muted-foreground));
+	.header-agent {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
 	}
 
-	/* ── Form ─────────────────────────────────────────────── */
-	.form-block {
+	.header-agent-name {
+		font-size: 0.92rem;
+		font-style: italic;
+		color: var(--foreground);
+		opacity: 0.65;
+	}
+
+	/* ── Body: two-column ─────────────────────────────────────── */
+	.settings-body {
+		flex: 1;
+		overflow: hidden;
+		display: grid;
+		grid-template-columns: 272px 1fr;
+	}
+
+	/* ── Identity panel (left) ────────────────────────────────── */
+	.identity-panel {
+		border-right: 1px solid var(--border);
+		overflow-y: auto;
+		padding: 2rem 1.5rem;
 		display: flex;
 		flex-direction: column;
-		gap: 1rem;
+		gap: 1.5rem;
 	}
 
-	.field {
+	/* Avatar */
+	.id-avatar-wrap {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 0.6rem;
+	}
+
+	.avatar-dropzone {
+		position: relative;
+		width: 88px;
+		height: 88px;
+		border-radius: 9999px;
+		cursor: pointer;
+		outline: 2px solid transparent;
+		outline-offset: 3px;
+		transition: outline-color 150ms ease;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	.avatar-dropzone:hover,
+	.avatar-dropzone.dragging {
+		outline-color: color-mix(in oklch, var(--primary) 45%, transparent);
+	}
+
+	.avatar-dropzone:focus-visible {
+		outline-color: var(--primary);
+	}
+
+	.avatar-preview {
+		position: absolute;
+		inset: 0;
+		border-radius: 9999px;
+		overflow: hidden;
+		background: var(--card);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.avatar-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	.avatar-overlay {
+		position: absolute;
+		inset: 0;
+		border-radius: 9999px;
+		background: color-mix(in oklch, black 55%, transparent);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.2rem;
+		opacity: 0;
+		transition: opacity 150ms ease;
+		color: white;
+		font-size: 0.58rem;
+		letter-spacing: 0.06em;
+		pointer-events: none;
+	}
+
+	.avatar-dropzone:hover .avatar-overlay,
+	.avatar-dropzone.uploading .avatar-overlay,
+	.avatar-dropzone.dragging .avatar-overlay {
+		opacity: 1;
+	}
+
+	.avatar-file-input {
+		display: none;
+	}
+
+	.admin-badge {
+		font-size: 0.52rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--primary);
+		background: color-mix(in oklch, var(--primary) 10%, transparent);
+		border: 1px solid color-mix(in oklch, var(--primary) 28%, transparent);
+		padding: 0.12rem 0.45rem;
+		border-radius: 2px;
+	}
+
+	/* Name form */
+	.id-name-form {
 		display: flex;
 		flex-direction: column;
 		gap: 0.4rem;
 	}
 
-	.field-label {
-		font-size: 0.65rem;
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
-		color: var(--muted-foreground);
-	}
-
-	.field-input {
-		width: 100%;
-		padding: 0.6rem 0.85rem;
+	.id-name-row {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
 		background: var(--card);
 		border: 1px solid var(--border);
 		border-radius: 0.3rem;
-		color: var(--foreground);
-		font-family: var(--font-sans);
-		font-size: 0.92rem;
-		transition:
-			border-color 150ms ease,
-			box-shadow 150ms ease;
+		padding: 0.2rem 0.2rem 0.2rem 0.7rem;
+		transition: border-color 150ms ease, box-shadow 150ms ease;
+	}
+
+	.id-name-row:focus-within {
+		border-color: color-mix(in oklch, var(--primary) 50%, var(--border));
+		box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 10%, transparent);
+	}
+
+	.id-name-input {
+		flex: 1;
+		background: transparent;
+		border: none;
 		outline: none;
+		font-size: 0.95rem;
+		font-style: italic;
+		color: var(--foreground);
+		min-width: 0;
 	}
 
-	.field-input:focus {
-		border-color: color-mix(in oklch, var(--primary) 55%, var(--border));
-		box-shadow: 0 0 0 3px color-mix(in oklch, var(--primary) 14%, transparent);
-	}
-
-	.field-input--readonly {
-		opacity: 0.55;
-		cursor: default;
-		font-family: var(--font-mono);
-		font-size: 0.8rem;
-	}
-
-	.field-hint {
-		font-size: 0.7rem;
+	.id-name-input::placeholder {
 		color: var(--muted-foreground);
-		line-height: 1.5;
-		opacity: 0.8;
+		opacity: 0.4;
 	}
 
-	.form-error {
-		font-size: 0.7rem;
-		color: var(--destructive);
-		letter-spacing: 0.02em;
-	}
-
-	.form-ok {
-		font-size: 0.7rem;
-		color: color-mix(in oklch, var(--status-running) 85%, var(--foreground));
-		letter-spacing: 0.02em;
-	}
-
-	.form-foot {
-		display: flex;
-	}
-
-	/* ── Buttons ──────────────────────────────────────────── */
-	.btn-primary {
+	.btn-save {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.45rem;
-		padding: 0.55rem 1.1rem;
+		gap: 0.3rem;
+		padding: 0.32rem 0.7rem;
 		background: var(--primary);
 		color: var(--primary-foreground);
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
-		letter-spacing: 0.03em;
-		border-radius: 0.25rem;
+		font-size: 0.65rem;
+		letter-spacing: 0.04em;
+		border-radius: 0.2rem;
+		flex-shrink: 0;
 		transition: filter 150ms ease;
 	}
 
-	.btn-primary:hover:not(:disabled) {
-		filter: brightness(1.08);
+	.btn-save:hover:not(:disabled) { filter: brightness(1.08); }
+	.btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
+
+	.id-feedback {
+		font-size: 0.62rem;
+		letter-spacing: 0.02em;
 	}
 
-	.btn-primary:disabled {
+	.id-feedback--err { color: var(--destructive); }
+	.id-feedback--ok  { color: color-mix(in oklch, oklch(0.65 0.18 145) 85%, var(--foreground)); }
+
+	/* Identity sub-blocks */
+	.id-block {
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+		padding-top: 1.5rem;
+		border-top: 1px solid var(--border);
+	}
+
+	.id-block-label {
+		font-size: 0.52rem;
+		text-transform: uppercase;
+		letter-spacing: 0.18em;
+		color: var(--muted-foreground);
+		opacity: 0.5;
+	}
+
+	.id-block-label--danger {
+		color: color-mix(in oklch, var(--destructive) 65%, var(--muted-foreground));
+		opacity: 1;
+	}
+
+	.runtime-row {
+		display: flex;
+		align-items: baseline;
+		gap: 0.55rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 0.25rem;
+		padding: 0.5rem 0.65rem;
+	}
+
+	.runtime-key {
+		font-size: 0.58rem;
+		text-transform: uppercase;
+		letter-spacing: 0.1em;
+		color: var(--muted-foreground);
 		opacity: 0.6;
-		cursor: not-allowed;
+		flex-shrink: 0;
+	}
+
+	.runtime-val {
+		font-size: 0.7rem;
+		color: var(--foreground);
+		opacity: 0.6;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		min-width: 0;
+	}
+
+	/* Danger */
+	.id-block--danger {
+		margin-top: auto;
 	}
 
 	.btn-danger {
 		display: inline-flex;
 		align-items: center;
-		gap: 0.4rem;
-		padding: 0.5rem 1rem;
-		background: color-mix(in oklch, var(--destructive) 10%, transparent);
+		gap: 0.38rem;
+		padding: 0.38rem 0.7rem;
+		background: color-mix(in oklch, var(--destructive) 8%, transparent);
 		color: var(--destructive);
-		border: 1px solid color-mix(in oklch, var(--destructive) 35%, transparent);
-		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		border: 1px solid color-mix(in oklch, var(--destructive) 25%, transparent);
+		font-size: 0.65rem;
 		letter-spacing: 0.03em;
 		border-radius: 0.25rem;
 		transition: background 150ms ease;
 	}
 
 	.btn-danger:hover:not(:disabled) {
-		background: color-mix(in oklch, var(--destructive) 16%, transparent);
+		background: color-mix(in oklch, var(--destructive) 14%, transparent);
 	}
 
-	.btn-danger:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
+	.btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+	.danger-confirm {
+		font-size: 0.7rem;
+		color: var(--muted-foreground);
+		line-height: 1.5;
+	}
+
+	.danger-confirm strong { color: var(--destructive); }
+
+	.confirm-form {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
 	}
 
 	.btn-ghost {
-		padding: 0.5rem 0.85rem;
+		padding: 0.38rem 0.65rem;
 		font-family: var(--font-mono);
-		font-size: 0.72rem;
+		font-size: 0.65rem;
 		color: var(--muted-foreground);
 		border-radius: 0.25rem;
-		transition:
-			color 150ms ease,
-			background 150ms ease;
+		transition: color 150ms ease, background 150ms ease;
 	}
 
 	.btn-ghost:hover {
@@ -805,245 +836,265 @@
 		background: var(--muted);
 	}
 
-	/* ── Connections ──────────────────────────────────────── */
-	.conn-block {
+	/* ── Capabilities panel (right) ───────────────────────────── */
+	.cap-panel {
+		overflow-y: auto;
+		padding: 1.75rem 2rem 3rem;
 		display: flex;
 		flex-direction: column;
-		background: var(--card);
-		border: 1px solid var(--border);
-		border-radius: 0.35rem;
-		overflow: hidden;
 	}
 
-	.conn-block-head {
+	.cap-panel-eyebrow {
+		font-size: 0.52rem;
+		text-transform: uppercase;
+		letter-spacing: 0.2em;
+		color: var(--muted-foreground);
+		opacity: 0.4;
+		margin-bottom: 1.25rem;
+	}
+
+	/* Section */
+	.cap-section {
+		display: flex;
+		flex-direction: column;
+		gap: 0.7rem;
+		padding: 1.25rem 0;
+		border-bottom: 1px solid var(--border);
+	}
+
+	.cap-section:last-of-type {
+		border-bottom: none;
+	}
+
+	.cap-head {
 		display: flex;
 		align-items: center;
-		gap: 0.5rem;
-		padding: 0.55rem 0.85rem;
-		background: color-mix(in oklch, var(--muted) 40%, transparent);
-		border-bottom: 1px solid var(--border);
+		gap: 0.45rem;
 		color: var(--muted-foreground);
 	}
 
-	.conn-block-title {
-		flex: 1;
-		font-size: 0.6rem;
-		text-transform: uppercase;
-		letter-spacing: 0.14em;
-	}
-
-	.conn-block-count {
-		font-size: 0.65rem;
-		color: var(--muted-foreground);
+	:global(.cap-head-icon) {
+		flex-shrink: 0;
 		opacity: 0.7;
 	}
 
-	/* Attached item row */
-	.conn-row {
-		display: flex;
-		align-items: center;
-		gap: 0.55rem;
-		padding: 0.5rem 0.85rem;
-		border-bottom: 1px solid var(--border);
-	}
-
-	.conn-row:last-child {
-		border-bottom: none;
-	}
-
-	.conn-row--taken {
-		opacity: 0.45;
-	}
-
-	.conn-row-name {
+	.cap-label {
 		flex: 1;
-		font-size: 0.82rem;
-		color: var(--foreground);
-	}
-
-	.conn-row-badge {
 		font-size: 0.58rem;
 		text-transform: uppercase;
-		letter-spacing: 0.1em;
+		letter-spacing: 0.15em;
+	}
+
+	.cap-meta {
+		font-size: 0.6rem;
 		color: var(--muted-foreground);
-		background: var(--muted);
-		padding: 0.1rem 0.35rem;
-		border-radius: 2px;
-	}
-
-	.conn-row-muted {
-		font-size: 0.62rem;
-		color: var(--muted-foreground);
-		opacity: 0.6;
-	}
-
-	.conn-taken-label {
-		font-size: 0.62rem;
-		color: var(--muted-foreground);
-		opacity: 0.6;
-		margin-left: auto;
-	}
-
-	/* System lock indicator */
-	.conn-lock {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 20px;
-		height: 20px;
-		color: var(--muted-foreground);
-		opacity: 0.35;
-		flex-shrink: 0;
-	}
-
-	/* Detach button */
-	.conn-detach {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 20px;
-		height: 20px;
-		border-radius: 0.2rem;
-		color: var(--muted-foreground);
-		transition:
-			color 120ms ease,
-			background 120ms ease;
-		flex-shrink: 0;
-	}
-
-	.conn-detach:hover:not(:disabled) {
-		color: var(--destructive);
-		background: color-mix(in oklch, var(--destructive) 10%, transparent);
-	}
-
-	.conn-detach:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	/* Available item (attach button styled as a row) */
-	.conn-available {
-		display: flex;
-		align-items: center;
-		gap: 0.55rem;
-		width: 100%;
-		padding: 0.5rem 0.85rem;
-		border-bottom: 1px solid var(--border);
-		color: var(--muted-foreground);
-		text-align: left;
-		transition:
-			background 120ms ease,
-			color 120ms ease;
-	}
-
-	.conn-available:last-of-type {
-		border-bottom: none;
-	}
-
-	.conn-available:hover:not(:disabled) {
-		background: color-mix(in oklch, var(--primary) 6%, transparent);
-		color: var(--foreground);
-	}
-
-	.conn-available:disabled {
-		opacity: 0.5;
-		cursor: not-allowed;
-	}
-
-	.conn-available-name {
-		flex: 1;
-		font-size: 0.82rem;
-	}
-
-	:global(.conn-available-icon) {
-		opacity: 0.5;
-		flex-shrink: 0;
-	}
-
-	:global(.conn-channel-icon) {
-		flex-shrink: 0;
-		color: var(--muted-foreground);
-	}
-
-	/* LLM provider row */
-	.conn-llm-row {
-		cursor: pointer;
-	}
-	.conn-llm-active {
-		background: color-mix(in oklch, var(--primary) 6%, transparent);
-		color: var(--foreground);
-		cursor: default;
-	}
-	.conn-llm-indicator {
-		width: 7px;
-		height: 7px;
-		border-radius: 9999px;
-		background: color-mix(in oklch, var(--muted-foreground) 40%, transparent);
-		flex-shrink: 0;
-		transition: background 150ms ease;
-	}
-	.conn-llm-indicator--on {
-		background: color-mix(in oklch, var(--primary) 80%, transparent);
-		box-shadow: 0 0 5px color-mix(in oklch, var(--primary) 40%, transparent);
-	}
-	.conn-row-badge--dim {
 		opacity: 0.45;
 	}
 
-	.conn-empty {
-		padding: 0.75rem 0.85rem;
-		font-size: 0.65rem;
-		color: var(--muted-foreground);
-		opacity: 0.5;
-		letter-spacing: 0.04em;
+	.cap-meta--active {
+		color: var(--primary);
+		opacity: 0.75;
 	}
 
-	.conn-link {
+	.cap-empty {
+		font-size: 0.68rem;
+		color: var(--muted-foreground);
+		opacity: 0.4;
+		letter-spacing: 0.02em;
+	}
+
+	.cap-link {
 		color: var(--primary);
 		text-decoration: none;
 	}
 
-	.conn-link:hover {
+	.cap-link:hover {
 		text-decoration: underline;
-		text-underline-offset: 3px;
+		text-underline-offset: 2px;
 	}
 
-	.conn-error {
-		padding: 0.3rem 0.85rem;
-		font-size: 0.62rem;
-		color: var(--destructive);
-		letter-spacing: 0.02em;
-		border-top: 1px solid color-mix(in oklch, var(--destructive) 20%, transparent);
+	/* ── LLM pill selector ────────────────────────────────────── */
+	.llm-row {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.4rem;
 	}
 
-	/* ── Danger desc ──────────────────────────────────────── */
-	.danger-desc {
-		font-size: 0.85rem;
-		line-height: 1.55;
+	.llm-pill {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.32rem 0.75rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 9999px;
+		font-size: 0.7rem;
 		color: var(--muted-foreground);
+		transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+		cursor: pointer;
 	}
 
-	.danger-confirm {
+	.llm-pill:hover:not(:disabled):not(.llm-pill--active) {
+		border-color: color-mix(in oklch, var(--primary) 40%, var(--border));
+		color: var(--foreground);
+	}
+
+	.llm-pill--active {
+		border-color: color-mix(in oklch, var(--primary) 55%, transparent);
+		background: color-mix(in oklch, var(--primary) 9%, var(--card));
+		color: var(--foreground);
+		cursor: default;
+	}
+
+	.llm-pill:disabled:not(.llm-pill--active) { opacity: 0.5; cursor: not-allowed; }
+
+	.llm-dot {
+		width: 6px;
+		height: 6px;
+		border-radius: 9999px;
+		background: color-mix(in oklch, var(--muted-foreground) 40%, transparent);
+		flex-shrink: 0;
+		transition: background 150ms ease, box-shadow 150ms ease;
+	}
+
+	.llm-dot--on {
+		background: var(--primary);
+		box-shadow: 0 0 5px color-mix(in oklch, var(--primary) 50%, transparent);
+	}
+
+	/* ── Chip grid ────────────────────────────────────────────── */
+	.chip-grid {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.38rem;
+		align-items: flex-start;
+	}
+
+	/* Base chip — div for attached, button for available */
+	.chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.32rem;
+		padding: 0.28rem 0.38rem 0.28rem 0.6rem;
+		border-radius: 0.22rem;
 		font-size: 0.75rem;
+		border: 1px solid transparent;
+		line-height: 1;
+	}
+
+	/* Active / attached */
+	.chip--on {
+		background: color-mix(in oklch, var(--primary) 9%, var(--card));
+		border-color: color-mix(in oklch, var(--primary) 22%, transparent);
+		color: var(--foreground);
+	}
+
+	/* Available / attachable */
+	.chip--off {
+		background: var(--card);
+		border-color: var(--border);
 		color: var(--muted-foreground);
-		line-height: 1.5;
+		cursor: pointer;
+		transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
 	}
 
-	.danger-confirm strong {
-		color: var(--destructive);
+	.chip--off:hover:not(:disabled) {
+		background: color-mix(in oklch, var(--primary) 5%, var(--card));
+		border-color: color-mix(in oklch, var(--primary) 28%, var(--border));
+		color: var(--foreground);
 	}
 
-	.confirm-form {
+	.chip--off:disabled { opacity: 0.45; cursor: not-allowed; }
+
+	/* Taken by another agent */
+	.chip--taken {
+		background: var(--card);
+		border-color: var(--border);
+		color: var(--muted-foreground);
+		opacity: 0.35;
+	}
+
+	.chip-name {
+		font-size: 0.75rem;
+		line-height: 1;
+	}
+
+	.chip-tag {
+		font-size: 0.53rem;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: var(--muted-foreground);
+		opacity: 0.65;
+		background: color-mix(in oklch, var(--muted) 55%, transparent);
+		padding: 0.08rem 0.28rem;
+		border-radius: 2px;
+	}
+
+	.chip-date {
+		font-size: 0.58rem;
+		color: var(--muted-foreground);
+		opacity: 0.5;
+	}
+
+	.chip-taken-by {
+		font-size: 0.6rem;
+		color: var(--muted-foreground);
+		opacity: 0.5;
+	}
+
+	.chip-lock {
 		display: flex;
 		align-items: center;
-		gap: 0.6rem;
+		color: var(--muted-foreground);
+		opacity: 0.3;
+		padding-left: 0.1rem;
 	}
 
-	/* ── Spinner ──────────────────────────────────────────── */
+	/* Detach button inside attached chip */
+	.chip-x {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 15px;
+		height: 15px;
+		border-radius: 0.15rem;
+		color: var(--muted-foreground);
+		opacity: 0.4;
+		flex-shrink: 0;
+		transition: color 100ms ease, background 100ms ease, opacity 100ms ease;
+	}
+
+	.chip-x:hover:not(:disabled) {
+		color: var(--destructive);
+		background: color-mix(in oklch, var(--destructive) 12%, transparent);
+		opacity: 1;
+	}
+
+	.chip-x:disabled { opacity: 0.25; cursor: not-allowed; }
+
+	:global(.chip-plus) {
+		opacity: 0.35;
+		flex-shrink: 0;
+	}
+
+	.chip-with-err {
+		display: flex;
+		flex-direction: column;
+		gap: 0.18rem;
+	}
+
+	.chip-err {
+		font-size: 0.58rem;
+		color: var(--destructive);
+		letter-spacing: 0.02em;
+		padding-left: 0.6rem;
+	}
+
+	/* ── Spinners ─────────────────────────────────────────────── */
 	.spinner {
 		display: inline-block;
-		width: 11px;
-		height: 11px;
+		width: 10px;
+		height: 10px;
 		border-radius: 9999px;
 		border: 1.5px solid currentColor;
 		border-right-color: transparent;
@@ -1051,9 +1102,14 @@
 	}
 
 	.spinner--sm {
-		width: 9px;
-		height: 9px;
-		border-width: 1.5px;
+		width: 8px;
+		height: 8px;
+	}
+
+	.spinner--xs {
+		width: 7px;
+		height: 7px;
+		border-width: 1px;
 	}
 
 	.spinner--danger {
@@ -1061,141 +1117,16 @@
 		border-right-color: transparent;
 	}
 
+	.upload-spinner {
+		width: 18px;
+		height: 18px;
+		border-radius: 9999px;
+		border: 2px solid white;
+		border-right-color: transparent;
+		animation: spin 0.8s linear infinite;
+	}
+
 	@keyframes spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
-	/* ── Avatar dropzone ──────────────────────────────────── */
-	.avatar-zone-wrap {
-		display: flex;
-		justify-content: flex-start;
-		padding: 0.25rem 0;
-	}
-
-	.avatar-dropzone {
-		position: relative;
-		width: 96px;
-		height: 96px;
-		border-radius: 9999px;
-		cursor: pointer;
-		outline: none;
-		-webkit-user-select: none;
-		user-select: none;
-	}
-
-	/* inner image/avatar area — inset 4px to leave room for the SVG ring */
-	.avatar-dropzone-preview {
-		position: absolute;
-		inset: 4px;
-		border-radius: 9999px;
-		overflow: hidden;
-		background: var(--card);
-		display: flex;
-		align-items: center;
-		justify-content: center;
-	}
-
-	.avatar-dropzone-img {
-		width: 100%;
-		height: 100%;
-		object-fit: cover;
-	}
-
-	/* SVG ring */
-	.avatar-dropzone-ring {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		pointer-events: none;
-		overflow: visible;
-	}
-
-	.avatar-dropzone-ring circle {
-		fill: none;
-		stroke: var(--border);
-		stroke-width: 1.5;
-		/* circumference ≈ 295 for r=47 */
-		stroke-dasharray: 6 5;
-		transition:
-			stroke 220ms ease,
-			stroke-dasharray 300ms ease,
-			stroke-width 220ms ease;
-	}
-
-	.avatar-dropzone:hover .avatar-dropzone-ring circle,
-	.avatar-dropzone:focus-visible .avatar-dropzone-ring circle {
-		stroke: color-mix(in oklch, var(--primary) 75%, var(--border));
-		stroke-dasharray: 295 0;
-		stroke-width: 1.5;
-	}
-
-	.avatar-dropzone.dragging .avatar-dropzone-ring circle {
-		stroke: var(--primary);
-		stroke-dasharray: 295 0;
-		stroke-width: 2;
-	}
-
-	.avatar-dropzone.uploading .avatar-dropzone-ring circle {
-		stroke: var(--primary);
-		stroke-dasharray: 148 147;
-		stroke-width: 1.5;
-		animation: ring-orbit 1.1s linear infinite;
-	}
-
-	@keyframes ring-orbit {
-		to { stroke-dashoffset: -295; }
-	}
-
-	/* hover / drag / uploading overlay */
-	.avatar-dropzone-overlay {
-		position: absolute;
-		inset: 4px;
-		border-radius: 9999px;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.28rem;
-		color: transparent;
-		background: oklch(0 0 0 / 0);
-		transition:
-			background 200ms ease,
-			color 200ms ease;
-		pointer-events: none;
-	}
-
-	.avatar-dropzone:hover .avatar-dropzone-overlay,
-	.avatar-dropzone:focus-visible .avatar-dropzone-overlay,
-	.avatar-dropzone.dragging .avatar-dropzone-overlay,
-	.avatar-dropzone.uploading .avatar-dropzone-overlay {
-		background: oklch(0 0 0 / 0.52);
-		color: oklch(1 0 0 / 0.9);
-	}
-
-	.upload-hint {
-		font-size: 0.5rem;
-		text-transform: uppercase;
-		letter-spacing: 0.14em;
-		line-height: 1;
-	}
-
-	.upload-spinner-ring {
-		width: 22px;
-		height: 22px;
-		border-radius: 9999px;
-		border: 2px solid oklch(1 0 0 / 0.25);
-		border-top-color: oklch(1 0 0 / 0.9);
-		animation: spin 0.75s linear infinite;
-	}
-
-	.avatar-hint {
-		margin-top: 0.15rem;
-	}
-
-	.avatar-file-input {
-		display: none;
+		to { transform: rotate(360deg); }
 	}
 </style>

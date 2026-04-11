@@ -1,9 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto, invalidateAll } from '$app/navigation';
-	import { resolve } from '$app/paths';
 	import { onMount } from 'svelte';
-	import { authClient } from '$lib/auth-client';
 	import { Icon } from '$lib/icons';
 	import AgentSidebarCard from '$lib/components/agent-sidebar-card.svelte';
 	import WorkspaceNav from '$lib/components/workspace-nav.svelte';
@@ -29,11 +27,6 @@
 	}
 
 	type AgentStatus = 'running' | 'idle' | 'error';
-
-	async function signOut() {
-		await authClient.signOut();
-		goto(resolve('/auth'));
-	}
 
 	const activeAgentId = $derived(
 		page.url.pathname.startsWith('/agents/') ? page.params.id : undefined
@@ -233,25 +226,14 @@
 		</div>
 
 		<!-- User footer -->
-		<footer class="user-footer">
-			<div class="user-row">
-				<div class="user-avatar">{initials}</div>
-				<div class="user-meta">
-					<p class="user-name">{data.user?.name ?? 'User'}</p>
-					<p class="user-email">{data.user?.email ?? ''}</p>
-				</div>
+		<a href="/profile" class="user-footer">
+			<div class="user-avatar">{initials}</div>
+			<div class="user-meta">
+				<p class="user-name">{data.user?.name ?? 'User'}</p>
+				<p class="user-email">{data.user?.email ?? ''}</p>
 			</div>
-			<div class="footer-actions">
-				<a href="/profile" class="profile-link">
-					<Icon icon="tabler:user" width={12} height={12} />
-					Profile
-				</a>
-				<button class="signout" onclick={signOut}>
-					<Icon icon="tabler:logout" width={12} height={12} />
-					Sign out
-				</button>
-			</div>
-		</footer>
+			<Icon icon="tabler:chevron-right" width={13} height={13} class="user-chevron" />
+		</a>
 	</aside>
 
 	<main class="main">
@@ -500,17 +482,19 @@
 
 	/* ── User footer ─────────────────────────────────────────── */
 	.user-footer {
-		border-top: 1px solid var(--sidebar-border);
-		padding: 0.75rem;
-		flex-shrink: 0;
-	}
-
-	.user-row {
 		display: flex;
 		align-items: center;
 		gap: 0.6rem;
-		padding: 0.3rem 0.5rem;
-		margin-bottom: 0.25rem;
+		padding: 0.6rem 0.75rem;
+		border-top: 1px solid var(--sidebar-border);
+		flex-shrink: 0;
+		text-decoration: none;
+		color: var(--sidebar-foreground);
+		transition: background 150ms ease;
+	}
+
+	.user-footer:hover {
+		background: var(--sidebar-accent);
 	}
 
 	.user-avatar {
@@ -552,31 +536,17 @@
 		text-overflow: ellipsis;
 	}
 
-	.footer-actions {
-		display: flex;
-		gap: 0.2rem;
-	}
-
-	.profile-link,
-	.signout {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		gap: 0.45rem;
-		padding: 0.35rem 0.7rem;
-		font-size: 0.68rem;
-		border-radius: 0.25rem;
-		color: color-mix(in oklch, var(--sidebar-foreground) 45%, transparent);
-		text-decoration: none;
+	:global(.user-chevron) {
+		color: color-mix(in oklch, var(--sidebar-foreground) 28%, transparent);
+		flex-shrink: 0;
 		transition:
 			color 150ms ease,
-			background 150ms ease;
+			transform 150ms ease;
 	}
 
-	.profile-link:hover,
-	.signout:hover {
-		color: var(--sidebar-foreground);
-		background: var(--sidebar-accent);
+	.user-footer:hover :global(.user-chevron) {
+		color: color-mix(in oklch, var(--sidebar-foreground) 55%, transparent);
+		transform: translateX(2px);
 	}
 
 	/* ── Main ────────────────────────────────────────────────── */
