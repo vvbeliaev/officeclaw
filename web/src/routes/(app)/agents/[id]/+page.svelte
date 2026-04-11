@@ -178,14 +178,14 @@
 				</button>
 			{/if}
 			<div class="header-divider"></div>
-			<button class="header-btn" aria-label="Agent scope" disabled={!isRunning}>
-				<Icon icon="oc:tool" width={13} height={13} />
-				<span>Scope</span>
-			</button>
-			<button class="header-btn" aria-label="Agent logs">
-				<Icon icon="oc:log" width={13} height={13} />
-				<span>Logs</span>
-			</button>
+			<a class="header-btn" href="/agents/{data.agent.id}/files" aria-label="Agent files">
+				<Icon icon="tabler:folder-open" width={13} height={13} />
+				<span>Files</span>
+			</a>
+			<a class="header-btn" href="/agents/{data.agent.id}/settings" aria-label="Agent settings">
+				<Icon icon="tabler:settings" width={13} height={13} />
+				<span>Settings</span>
+			</a>
 		</div>
 	</header>
 
