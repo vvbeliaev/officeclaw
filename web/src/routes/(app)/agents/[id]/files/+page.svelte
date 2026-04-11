@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
-	import { applyAction } from '$app/forms';
+	import { deserialize } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import AgentAvatar from '$lib/components/agent-avatar.svelte';
 	import CodeEditor from '$lib/components/code-editor.svelte';
@@ -72,9 +72,20 @@
 
 	// Track dirty (unsaved) content per path
 	let dirtyContent = $state<Record<string, string>>({});
+	// Local override: the last content we successfully saved. Used as a trusted
+	// fallback in case invalidateAll() doesn't propagate updated DB content
+	// back into `data.files` reactively.
+	let savedContent = $state<Record<string, string>>({});
 	let saving = $state(false);
 	let saveError = $state<string | null>(null);
 	let savedPath = $state<string | null>(null);
+
+	$inspect(
+		'data.files count',
+		data.files?.length,
+		data.files?.map((f) => f.path + ':' + f.content.length)
+	);
+	$inspect('selectedFile', selectedPath, selectedFile?.content?.length);
 
 	$effect(() => {
 		if (!initialized && tree.length > 0) {
@@ -96,18 +107,38 @@
 		else expandedDirs.add(path);
 	}
 
-	// Current editor content: dirty version if exists, else DB version
+	// Current editor content: dirty version if exists, else the last-saved
+	// override (if any), else the DB version from the load function.
 	const editorContent = $derived(
 		selectedFile
-			? (dirtyContent[selectedFile.fullPath] ?? selectedFile.content ?? '')
+			? (dirtyContent[selectedFile.fullPath] ??
+					savedContent[selectedFile.fullPath] ??
+					selectedFile.content ??
+					'')
 			: ''
+	);
+
+	const effectiveDbContent = $derived(
+		selectedFile ? (savedContent[selectedFile.fullPath] ?? selectedFile.content ?? '') : ''
 	);
 
 	const isDirty = $derived(
 		selectedFile != null &&
-		selectedFile.fullPath in dirtyContent &&
-		dirtyContent[selectedFile.fullPath] !== (selectedFile.content ?? '')
+			selectedFile.fullPath in dirtyContent &&
+			dirtyContent[selectedFile.fullPath] !== effectiveDbContent
 	);
+
+	// When the DB catches up with our locally-saved override, drop the override
+	// so future loads win.
+	$effect(() => {
+		if (!selectedFile) return;
+		const path = selectedFile.fullPath;
+		if (path in savedContent && selectedFile.content === savedContent[path]) {
+			const next = { ...savedContent };
+			delete next[path];
+			savedContent = next;
+		}
+	});
 
 	function onEditorChange(content: string) {
 		if (!selectedFile) return;
@@ -116,28 +147,42 @@
 
 	async function saveFile(content: string) {
 		if (!selectedFile) return;
+		const path = selectedFile.fullPath;
 		saving = true;
 		saveError = null;
 		savedPath = null;
 
 		const form = new FormData();
-		form.set('path', selectedFile.fullPath);
+		form.set('path', path);
 		form.set('content', content);
 
 		const res = await fetch('?/save', { method: 'POST', body: form });
-		const result = await res.json();
-		await applyAction(result);
+		const result = deserialize(await res.text());
 
 		if (result.type === 'failure') {
-			saveError = result.data?.error ?? 'Save failed';
-		} else {
-			const path = selectedFile.fullPath;
-			const { [path]: _, ...rest } = dirtyContent;
-			dirtyContent = rest;
-			savedPath = path;
-			setTimeout(() => { savedPath = null; }, 2000);
-			await invalidateAll();
+			saveError = (result.data as { error?: string } | undefined)?.error ?? 'Save failed';
+			saving = false;
+			return;
 		}
+
+		// 1. Record the override so editorContent has a trusted source
+		//    even if invalidateAll() ends up noop-ing.
+		savedContent = { ...savedContent, [path]: content };
+
+		// 2. Clear the dirty entry for this file.
+		const nextDirty = { ...dirtyContent };
+		delete nextDirty[path];
+		dirtyContent = nextDirty;
+
+		savedPath = path;
+		setTimeout(() => {
+			savedPath = null;
+		}, 2000);
+
+		// 3. Best-effort refresh from DB; the override keeps us correct
+		//    regardless of the outcome.
+		await invalidateAll();
+		console.log('[saveFile] after invalidateAll, data.files=', data.files);
 		saving = false;
 	}
 
@@ -241,7 +286,8 @@
 			>
 				<Icon
 					icon={expandedDirs.has(node.fullPath) ? 'tabler:folder-open' : 'tabler:folder'}
-					width={12} height={12}
+					width={12}
+					height={12}
 					class="tree-icon tree-icon-dir"
 				/>
 				<span class="tree-name">{node.name}</span>
@@ -253,9 +299,12 @@
 			<button
 				class="tree-node tree-file"
 				class:selected={selectedFile?.fullPath === node.fullPath}
-				class:dirty={node.fullPath in dirtyContent && dirtyContent[node.fullPath] !== (node.content ?? '')}
+				class:dirty={node.fullPath in dirtyContent &&
+					dirtyContent[node.fullPath] !== (node.content ?? '')}
 				style="padding-left: {0.6 + depth * 1.1}rem"
-				onclick={() => { selectedPath = node.fullPath; }}
+				onclick={() => {
+					selectedPath = node.fullPath;
+				}}
 			>
 				<Icon icon={extIcon(node.name)} width={12} height={12} class="tree-icon" />
 				<span class="tree-name">{node.name}</span>
@@ -301,7 +350,9 @@
 		font-size: 0.7rem;
 		border-radius: 0.3rem;
 		color: var(--muted-foreground);
-		transition: background 150ms ease, color 150ms ease;
+		transition:
+			background 150ms ease,
+			color 150ms ease;
 	}
 	.back-btn:hover {
 		background: var(--muted);
@@ -316,7 +367,9 @@
 
 	.agent-name {
 		font-size: 1rem;
-		font-variation-settings: 'opsz' 24, 'wght' 650;
+		font-variation-settings:
+			'opsz' 24,
+			'wght' 650;
 		line-height: 1;
 		letter-spacing: -0.01em;
 	}
@@ -368,7 +421,9 @@
 		overflow: hidden;
 	}
 
-	.tree-node:hover { background: var(--muted); }
+	.tree-node:hover {
+		background: var(--muted);
+	}
 
 	.tree-file.selected {
 		background: color-mix(in oklch, var(--primary) 10%, transparent);
@@ -390,8 +445,14 @@
 		opacity: 0.7;
 	}
 
-	:global(.tree-icon) { flex-shrink: 0; opacity: 0.7; }
-	:global(.tree-icon-dir) { color: var(--primary); opacity: 0.75; }
+	:global(.tree-icon) {
+		flex-shrink: 0;
+		opacity: 0.7;
+	}
+	:global(.tree-icon-dir) {
+		color: var(--primary);
+		opacity: 0.75;
+	}
 
 	/* ── Content ───────────────────────────────────────────── */
 	.file-content {
@@ -458,7 +519,10 @@
 		border-radius: 0.3rem;
 		border: 1px solid var(--border);
 		color: var(--muted-foreground);
-		transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+		transition:
+			background 150ms ease,
+			color 150ms ease,
+			border-color 150ms ease;
 	}
 
 	.save-btn.dirty {
@@ -485,7 +549,11 @@
 		border-right-color: transparent;
 		animation: spin 0.7s linear infinite;
 	}
-	@keyframes spin { to { transform: rotate(360deg); } }
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
 
 	.editor-wrap {
 		flex: 1;
