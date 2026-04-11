@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
+	import { applyAction } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import AgentAvatar from '$lib/components/agent-avatar.svelte';
+	import CodeEditor from '$lib/components/code-editor.svelte';
 	import { Icon } from '$lib/icons';
 
 	let { data } = $props();
@@ -54,7 +57,24 @@
 
 	const expandedDirs = new SvelteSet<string>();
 	let initialized = false;
-	let selectedFile: TreeNode | null = $state(null);
+	let selectedPath = $state<string | null>(null);
+
+	function findNode(nodes: TreeNode[], path: string): TreeNode | null {
+		for (const n of nodes) {
+			if (n.fullPath === path) return n;
+			const found = findNode(n.children, path);
+			if (found) return found;
+		}
+		return null;
+	}
+
+	const selectedFile = $derived(selectedPath ? findNode(tree, selectedPath) : null);
+
+	// Track dirty (unsaved) content per path
+	let dirtyContent = $state<Record<string, string>>({});
+	let saving = $state(false);
+	let saveError = $state<string | null>(null);
+	let savedPath = $state<string | null>(null);
 
 	$effect(() => {
 		if (!initialized && tree.length > 0) {
@@ -74,6 +94,51 @@
 	function toggleDir(path: string) {
 		if (expandedDirs.has(path)) expandedDirs.delete(path);
 		else expandedDirs.add(path);
+	}
+
+	// Current editor content: dirty version if exists, else DB version
+	const editorContent = $derived(
+		selectedFile
+			? (dirtyContent[selectedFile.fullPath] ?? selectedFile.content ?? '')
+			: ''
+	);
+
+	const isDirty = $derived(
+		selectedFile != null &&
+		selectedFile.fullPath in dirtyContent &&
+		dirtyContent[selectedFile.fullPath] !== (selectedFile.content ?? '')
+	);
+
+	function onEditorChange(content: string) {
+		if (!selectedFile) return;
+		dirtyContent = { ...dirtyContent, [selectedFile.fullPath]: content };
+	}
+
+	async function saveFile(content: string) {
+		if (!selectedFile) return;
+		saving = true;
+		saveError = null;
+		savedPath = null;
+
+		const form = new FormData();
+		form.set('path', selectedFile.fullPath);
+		form.set('content', content);
+
+		const res = await fetch('?/save', { method: 'POST', body: form });
+		const result = await res.json();
+		await applyAction(result);
+
+		if (result.type === 'failure') {
+			saveError = result.data?.error ?? 'Save failed';
+		} else {
+			const path = selectedFile.fullPath;
+			const { [path]: _, ...rest } = dirtyContent;
+			dirtyContent = rest;
+			savedPath = path;
+			setTimeout(() => { savedPath = null; }, 2000);
+			await invalidateAll();
+		}
+		saving = false;
 	}
 
 	function extIcon(name: string): string {
@@ -123,8 +188,39 @@
 			{#if selectedFile}
 				<div class="file-content-header">
 					<span class="file-content-path font-mono">{selectedFile.fullPath}</span>
+					<div class="file-actions">
+						{#if saveError}
+							<span class="save-error font-mono">{saveError}</span>
+						{:else if savedPath === selectedFile.fullPath}
+							<span class="save-ok font-mono">saved</span>
+						{:else if isDirty}
+							<span class="save-hint font-mono">unsaved</span>
+						{/if}
+						<button
+							class="save-btn font-mono"
+							class:dirty={isDirty}
+							disabled={saving || !isDirty}
+							onclick={() => saveFile(dirtyContent[selectedFile!.fullPath])}
+						>
+							{#if saving}
+								<span class="spinner"></span>
+							{:else}
+								<Icon icon="tabler:device-floppy" width={12} height={12} />
+							{/if}
+							<span>Save</span>
+						</button>
+					</div>
 				</div>
-				<pre class="file-content-body font-mono">{selectedFile.content}</pre>
+				<div class="editor-wrap">
+					{#key selectedFile.fullPath}
+						<CodeEditor
+							path={selectedFile.fullPath}
+							content={editorContent}
+							onsave={saveFile}
+							onchange={onEditorChange}
+						/>
+					{/key}
+				</div>
 			{:else}
 				<div class="file-content-empty">
 					<Icon icon="tabler:file-search" width={28} height={28} />
@@ -157,11 +253,15 @@
 			<button
 				class="tree-node tree-file"
 				class:selected={selectedFile?.fullPath === node.fullPath}
+				class:dirty={node.fullPath in dirtyContent && dirtyContent[node.fullPath] !== (node.content ?? '')}
 				style="padding-left: {0.6 + depth * 1.1}rem"
-				onclick={() => { selectedFile = node; }}
+				onclick={() => { selectedPath = node.fullPath; }}
 			>
 				<Icon icon={extIcon(node.name)} width={12} height={12} class="tree-icon" />
 				<span class="tree-name">{node.name}</span>
+				{#if node.fullPath in dirtyContent && dirtyContent[node.fullPath] !== (node.content ?? '')}
+					<span class="dirty-dot"></span>
+				{/if}
 			</button>
 		{/if}
 	{/each}
@@ -281,6 +381,15 @@
 		flex: 1;
 	}
 
+	.dirty-dot {
+		width: 5px;
+		height: 5px;
+		border-radius: 50%;
+		background: var(--primary);
+		flex-shrink: 0;
+		opacity: 0.7;
+	}
+
 	:global(.tree-icon) { flex-shrink: 0; opacity: 0.7; }
 	:global(.tree-icon-dir) { color: var(--primary); opacity: 0.75; }
 
@@ -294,27 +403,93 @@
 
 	.file-content-header {
 		flex-shrink: 0;
-		padding: 0.55rem 1rem;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0.45rem 0.75rem 0.45rem 1rem;
 		border-bottom: 1px solid var(--border);
 		background: var(--card);
+		gap: 0.75rem;
 	}
 
 	.file-content-path {
 		font-size: 0.68rem;
 		color: var(--muted-foreground);
 		letter-spacing: 0.01em;
+		flex: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
-	.file-content-body {
-		flex: 1;
-		overflow: auto;
-		margin: 0;
-		padding: 1rem 1.25rem;
-		font-size: 0.76rem;
-		line-height: 1.65;
+	.file-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-shrink: 0;
+	}
+
+	.save-hint {
+		font-size: 0.62rem;
+		color: var(--muted-foreground);
+		opacity: 0.55;
+		letter-spacing: 0.04em;
+	}
+
+	.save-ok {
+		font-size: 0.62rem;
+		color: var(--primary);
+		opacity: 0.8;
+		letter-spacing: 0.04em;
+	}
+
+	.save-error {
+		font-size: 0.62rem;
+		color: var(--destructive);
+		letter-spacing: 0.02em;
+	}
+
+	.save-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.28rem 0.65rem;
+		font-size: 0.65rem;
+		border-radius: 0.3rem;
+		border: 1px solid var(--border);
+		color: var(--muted-foreground);
+		transition: background 150ms ease, color 150ms ease, border-color 150ms ease;
+	}
+
+	.save-btn.dirty {
+		border-color: color-mix(in oklch, var(--primary) 40%, var(--border));
 		color: var(--foreground);
-		white-space: pre;
-		tab-size: 4;
+	}
+
+	.save-btn.dirty:hover {
+		background: color-mix(in oklch, var(--primary) 10%, transparent);
+		color: var(--primary);
+		border-color: color-mix(in oklch, var(--primary) 60%, var(--border));
+	}
+
+	.save-btn:disabled {
+		opacity: 0.35;
+		cursor: not-allowed;
+	}
+
+	.spinner {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		border: 1.5px solid currentColor;
+		border-right-color: transparent;
+		animation: spin 0.7s linear infinite;
+	}
+	@keyframes spin { to { transform: rotate(360deg); } }
+
+	.editor-wrap {
+		flex: 1;
+		overflow: hidden;
 	}
 
 	.file-content-empty {

@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import asyncpg
@@ -5,20 +8,37 @@ import asyncpg
 from src.fleet.app.agents import AgentService
 from src.fleet.app.sandbox import SandboxService
 
+if TYPE_CHECKING:
+    from src.integrations.app import IntegrationsApp
+
 
 class FleetApp:
     """Facade for the fleet domain — all fleet use-cases in one place."""
 
-    def __init__(self, agents: AgentService, sandbox: SandboxService) -> None:
+    def __init__(
+        self,
+        agents: AgentService,
+        sandbox: SandboxService,
+        integrations: IntegrationsApp,
+    ) -> None:
         self._agents = agents
         self._sandbox = sandbox
+        self._integrations = integrations
 
     # --- Agents ---
 
     async def create_agent(
         self, user_id: UUID, name: str, image: str, is_admin: bool = False
     ) -> asyncpg.Record:
-        return await self._agents.create(user_id, name, image, is_admin)
+        record = await self._agents.create(user_id, name, image, is_admin)
+        # Auto-attach the user's default LLM provider so every new agent
+        # has a working model out of the box. Skip for the Admin agent
+        # (bootstrapped separately with its own env setup).
+        if not is_admin:
+            llm_env = await self._integrations.find_llm_provider(user_id)
+            if llm_env:
+                await self._integrations.attach_env(record["id"], llm_env["id"])
+        return record
 
     async def find_agent(self, agent_id: UUID) -> asyncpg.Record | None:
         return await self._agents.find_by_id(agent_id)

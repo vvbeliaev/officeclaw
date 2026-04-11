@@ -45,6 +45,9 @@ class IntegrationsService:
     async def delete_env(self, env_id: UUID) -> None:
         await self._envs.delete(env_id)
 
+    async def find_llm_provider(self, user_id: UUID) -> asyncpg.Record | None:
+        return await self._envs.find_llm_provider_by_user(user_id)
+
     # --- Channel ---
 
     async def create_channel(self, user_id: UUID, type_: str, config: dict) -> asyncpg.Record:

@@ -32,10 +32,16 @@
 		};
 	}
 
-	type Channel = { id: string; type: string; createdAt: Date; attached: boolean; takenBy: string | null };
-	type Skill   = { id: string; name: string; attached: boolean };
-	type Env     = { id: string; name: string; attached: boolean };
-	type Mcp     = { id: string; name: string; type: string; attached: boolean };
+	type Channel     = { id: string; type: string; createdAt: Date; attached: boolean; takenBy: string | null };
+	type Skill       = { id: string; name: string; attached: boolean };
+	type Env         = { id: string; name: string; category: string | null; attached: boolean };
+	type LlmProvider = { id: string; name: string; attached: boolean };
+	type Mcp         = { id: string; name: string; type: string; attached: boolean };
+
+	const activeLlm = $derived(
+		(data.llmProviders as LlmProvider[]).find((p) => p.attached) ?? null
+	);
+	let switchingLlm = $state(false);
 
 	const CHANNEL_META: Record<string, { label: string; icon: string }> = {
 		telegram:  { label: 'Telegram',  icon: 'tabler:brand-telegram' },
@@ -189,6 +195,43 @@
 					{/each}
 					{#if (data.mcps as Mcp[]).length === 0}
 						<p class="conn-empty font-mono">No MCP servers in workspace</p>
+					{/if}
+				</div>
+
+				<!-- LLM Provider -->
+				<div class="conn-block">
+					<div class="conn-block-head">
+						<Icon icon="tabler:brain" width={13} height={13} />
+						<span class="conn-block-title font-mono">llm provider</span>
+						{#if activeLlm}
+							<span class="conn-block-count font-mono">{activeLlm.name}</span>
+						{/if}
+					</div>
+					{#if (data.llmProviders as LlmProvider[]).length === 0}
+						<p class="conn-empty font-mono">No LLM providers — add one in Workspace → Environments</p>
+					{:else}
+						{#each data.llmProviders as LlmProvider[] as provider (provider.id)}
+							<form method="POST" action="?/switchLlm" use:enhance={connEnhance(`llm:${provider.id}`)}>
+								<input type="hidden" name="env_id" value={provider.id} />
+								<input type="hidden" name="old_env_id" value={activeLlm?.id ?? ''} />
+								<button
+									class="conn-available conn-llm-row"
+									class:conn-llm-active={provider.attached}
+									type="submit"
+									disabled={provider.attached || !!pending[`llm:${provider.id}`]}
+								>
+									<span class="conn-llm-indicator" class:conn-llm-indicator--on={provider.attached}></span>
+									<span class="conn-available-name">{provider.name}</span>
+									{#if provider.attached}
+										<span class="conn-row-badge font-mono">active</span>
+									{:else if pending[`llm:${provider.id}`]}
+										<span class="spinner spinner--sm"></span>
+									{:else}
+										<span class="conn-row-badge conn-row-badge--dim font-mono">switch</span>
+									{/if}
+								</button>
+							</form>
+						{/each}
 					{/if}
 				</div>
 
@@ -794,6 +837,31 @@
 	:global(.conn-channel-icon) {
 		flex-shrink: 0;
 		color: var(--muted-foreground);
+	}
+
+	/* LLM provider row */
+	.conn-llm-row {
+		cursor: pointer;
+	}
+	.conn-llm-active {
+		background: color-mix(in oklch, var(--primary) 6%, transparent);
+		color: var(--foreground);
+		cursor: default;
+	}
+	.conn-llm-indicator {
+		width: 7px;
+		height: 7px;
+		border-radius: 9999px;
+		background: color-mix(in oklch, var(--muted-foreground) 40%, transparent);
+		flex-shrink: 0;
+		transition: background 150ms ease;
+	}
+	.conn-llm-indicator--on {
+		background: color-mix(in oklch, var(--primary) 80%, transparent);
+		box-shadow: 0 0 5px color-mix(in oklch, var(--primary) 40%, transparent);
+	}
+	.conn-row-badge--dim {
+		opacity: 0.45;
 	}
 
 	.conn-empty {

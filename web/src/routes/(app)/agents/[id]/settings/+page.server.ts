@@ -39,36 +39,36 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		attachedMcpRows,
 		channelAssignments
 	] = await Promise.all([
-		db.select({ id: userChannels.id, type: userChannels.type, createdAt: userChannels.createdAt })
+		db
+			.select({ id: userChannels.id, type: userChannels.type, createdAt: userChannels.createdAt })
 			.from(userChannels)
 			.where(eq(userChannels.userId, userId)),
-		db.select({ id: skills.id, name: skills.name })
-			.from(skills)
-			.where(eq(skills.userId, userId)),
-		db.select({ id: userEnvs.id, name: userEnvs.name })
+		db.select({ id: skills.id, name: skills.name }).from(skills).where(eq(skills.userId, userId)),
+		db
+			.select({ id: userEnvs.id, name: userEnvs.name, category: userEnvs.category })
 			.from(userEnvs)
 			.where(eq(userEnvs.userId, userId)),
-		db.select({ id: userMcp.id, name: userMcp.name, type: userMcp.type })
+		db
+			.select({ id: userMcp.id, name: userMcp.name, type: userMcp.type })
 			.from(userMcp)
 			.where(eq(userMcp.userId, userId)),
-		db.select({ channelId: agentChannels.channelId })
+		db
+			.select({ channelId: agentChannels.channelId })
 			.from(agentChannels)
 			.where(eq(agentChannels.agentId, params.id)),
-		db.select({ skillId: agentSkills.skillId })
+		db
+			.select({ skillId: agentSkills.skillId })
 			.from(agentSkills)
 			.where(eq(agentSkills.agentId, params.id)),
-		db.select({ envId: agentEnvs.envId })
-			.from(agentEnvs)
-			.where(eq(agentEnvs.agentId, params.id)),
-		db.select({ mcpId: agentMcp.mcpId })
-			.from(agentMcp)
-			.where(eq(agentMcp.agentId, params.id)),
+		db.select({ envId: agentEnvs.envId }).from(agentEnvs).where(eq(agentEnvs.agentId, params.id)),
+		db.select({ mcpId: agentMcp.mcpId }).from(agentMcp).where(eq(agentMcp.agentId, params.id)),
 		// All channel assignments across this user's agents — to detect channels taken by others
-		db.select({
-			channelId: agentChannels.channelId,
-			agentId: agentChannels.agentId,
-			agentName: agents.name
-		})
+		db
+			.select({
+				channelId: agentChannels.channelId,
+				agentId: agentChannels.agentId,
+				agentName: agents.name
+			})
 			.from(agentChannels)
 			.innerJoin(agents, eq(agents.id, agentChannels.agentId))
 			.where(eq(agents.userId, userId))
@@ -90,7 +90,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			};
 		}),
 		skills: allSkills.map((s) => ({ ...s, attached: attachedSkillIds.has(s.id) })),
-		envs: allEnvs.map((e) => ({ ...e, attached: attachedEnvIds.has(e.id) })),
+		envs: allEnvs
+			.filter((e) => e.category !== 'llm-provider')
+			.map((e) => ({ ...e, attached: attachedEnvIds.has(e.id) })),
+		llmProviders: allEnvs
+			.filter((e) => e.category === 'llm-provider')
+			.map((e) => ({ ...e, attached: attachedEnvIds.has(e.id) })),
 		mcps: allMcps.map((m) => ({ ...m, attached: attachedMcpIds.has(m.id) }))
 	};
 };
@@ -198,6 +203,20 @@ export const actions: Actions = {
 		const envId = form.get('env_id')?.toString();
 		if (!envId) return fail(400, { error: 'env_id required' });
 		await fetch(`${API_URL}/agents/${params.id}/envs/${envId}`, { method: 'DELETE' });
+		return {};
+	},
+
+	// Swap active LLM provider: detach old (if any), attach new
+	switchLlm: async ({ params, request, locals }) => {
+		if (!locals.session) error(401, 'Unauthorized');
+		const form = await request.formData();
+		const newEnvId = form.get('env_id')?.toString();
+		const oldEnvId = form.get('old_env_id')?.toString();
+		if (!newEnvId) return fail(400, { error: 'env_id required' });
+		if (oldEnvId && oldEnvId !== newEnvId) {
+			await fetch(`${API_URL}/agents/${params.id}/envs/${oldEnvId}`, { method: 'DELETE' });
+		}
+		await fetch(`${API_URL}/agents/${params.id}/envs/${newEnvId}`, { method: 'POST' });
 		return {};
 	},
 

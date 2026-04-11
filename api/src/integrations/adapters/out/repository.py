@@ -26,6 +26,16 @@ class EnvRepo:
             "SELECT id, user_id, name, category, created_at FROM user_envs WHERE user_id = $1", user_id
         )
 
+    async def find_llm_provider_by_user(self, user_id: UUID) -> asyncpg.Record | None:
+        """Return the first llm-provider env for the user (prefers 'default-llm')."""
+        return await self._conn.fetchrow(
+            "SELECT id, user_id, name, category, created_at FROM user_envs"
+            " WHERE user_id = $1 AND category = 'llm-provider'"
+            " ORDER BY (name = 'default-llm') DESC, created_at ASC"
+            " LIMIT 1",
+            user_id,
+        )
+
     async def get_decrypted_values(self, env_id: UUID) -> dict:
         record = await self._conn.fetchrow(
             "SELECT values_encrypted FROM user_envs WHERE id = $1", env_id
