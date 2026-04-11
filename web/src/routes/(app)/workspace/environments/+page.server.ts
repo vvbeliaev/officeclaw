@@ -6,7 +6,12 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
 	const envs = await db
-		.select({ id: userEnvs.id, name: userEnvs.name, createdAt: userEnvs.createdAt })
+		.select({
+			id: userEnvs.id,
+			name: userEnvs.name,
+			category: userEnvs.category,
+			createdAt: userEnvs.createdAt
+		})
 		.from(userEnvs)
 		.where(eq(userEnvs.userId, userId))
 		.orderBy(desc(userEnvs.createdAt));

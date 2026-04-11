@@ -7,17 +7,20 @@ class EnvCreate(BaseModel):
     user_id: UUID
     name: str
     values: dict  # written, never read back
+    category: str | None = None  # 'system' | 'llm-provider' | None
 
 
 class EnvUpdate(BaseModel):
     name: str | None = None
     values: dict | None = None  # replaces encrypted blob when provided
+    category: str | None = None
 
 
 class EnvOut(BaseModel):
     id: UUID
     user_id: UUID
     name: str
+    category: str | None = None
     created_at: datetime
     # values intentionally omitted
 

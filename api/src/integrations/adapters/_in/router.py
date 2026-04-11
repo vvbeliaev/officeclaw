@@ -26,7 +26,7 @@ async def create_env(
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> EnvOut:
     try:
-        record = await deps.create_env(body.user_id, body.name, body.values)
+        record = await deps.create_env(body.user_id, body.name, body.values, body.category)
     except asyncpg.UniqueViolationError:
         raise HTTPException(409, "Env name already exists for this user")
     return EnvOut(**dict(record))
@@ -51,7 +51,7 @@ async def update_env(
 ) -> EnvOut:
     if not await deps.find_env(env_id):
         raise HTTPException(404, "Env not found")
-    record = await deps.update_env(env_id, name=body.name, values=body.values)
+    record = await deps.update_env(env_id, name=body.name, values=body.values, category=body.category)
     return EnvOut(**dict(record))
 
 

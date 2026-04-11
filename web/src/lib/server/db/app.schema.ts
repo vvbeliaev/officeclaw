@@ -81,6 +81,7 @@ export const userEnvs = pgTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		name: text().notNull(),
+		category: text(), // null | 'system' | 'llm-provider'
 		// values_encrypted (bytea) excluded — encrypted by Python, never read in web
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},

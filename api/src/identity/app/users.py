@@ -103,7 +103,7 @@ class UserService:
         await self._users.set_token(user_id, token)
 
         env_record = await self._integrations.create_env(
-            user_id, "officeclaw", {"OFFICECLAW_TOKEN": token}
+            user_id, "officeclaw", {"OFFICECLAW_TOKEN": token}, category="system"
         )
 
         # Seed the default-llm env from server settings so every new user
@@ -118,6 +118,7 @@ class UserService:
                 "OFFICECLAW_LLM_BASE_URL": settings.default_llm_base_url,
                 "OFFICECLAW_LLM_MODEL": settings.default_llm_model,
             },
+            category="llm-provider",
         )
 
         agent_record = await self._fleet.create_agent(

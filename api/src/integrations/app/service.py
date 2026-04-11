@@ -25,8 +25,8 @@ class IntegrationsService:
 
     # --- Env ---
 
-    async def create_env(self, user_id: UUID, name: str, values: dict) -> asyncpg.Record:
-        return await self._envs.create(user_id, name, values)
+    async def create_env(self, user_id: UUID, name: str, values: dict, category: str | None = None) -> asyncpg.Record:
+        return await self._envs.create(user_id, name, values, category)
 
     async def find_env(self, env_id: UUID) -> asyncpg.Record | None:
         return await self._envs.find_by_id(env_id)
@@ -38,9 +38,9 @@ class IntegrationsService:
         return await self._envs.get_decrypted_values(env_id)
 
     async def update_env(
-        self, env_id: UUID, name: str | None = None, values: dict | None = None
+        self, env_id: UUID, name: str | None = None, values: dict | None = None, category: str | None = None
     ) -> asyncpg.Record | None:
-        return await self._envs.update(env_id, name=name, values=values)
+        return await self._envs.update(env_id, name=name, values=values, category=category)
 
     async def delete_env(self, env_id: UUID) -> None:
         await self._envs.delete(env_id)

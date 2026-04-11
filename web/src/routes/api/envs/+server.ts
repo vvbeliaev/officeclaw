@@ -11,11 +11,12 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!name) error(400, 'Name is required');
 
 	const values: Record<string, string> = body.values ?? {};
+	const category: string | null = body.category ?? null;
 
 	const upstream = await fetch(`${API_URL}/envs`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ user_id: locals.user!.id, name, values })
+		body: JSON.stringify({ user_id: locals.user!.id, name, values, category })
 	});
 
 	if (!upstream.ok) {
