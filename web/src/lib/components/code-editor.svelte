@@ -121,7 +121,8 @@
 		}
 	});
 
-	// Replace content when a different file is selected
+	// Replace content when the content prop changes (e.g. switching files or
+	// applying a remote update).
 	$effect(() => {
 		if (view && content !== undefined) {
 			const current = view.state.doc.toString();

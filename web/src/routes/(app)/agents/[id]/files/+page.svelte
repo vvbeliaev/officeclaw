@@ -53,7 +53,16 @@
 		return sortNodes(root);
 	}
 
-	const tree = $derived(buildTree(data.files ?? []));
+	// In Svelte 5 + SvelteKit, property access on a prop inside `$derived`
+	// (e.g. `$derived(data.files)`) does not reliably create a reactive
+	// subscription after `invalidateAll()`. `$effect`, on the other hand,
+	// tracks property reads correctly, so we explicitly mirror `data.files`
+	// into local `$state` and derive the tree from that.
+	let files = $state<FileEntry[]>([]);
+	$effect(() => {
+		files = data.files ?? [];
+	});
+	const tree = $derived(buildTree(files));
 
 	const expandedDirs = new SvelteSet<string>();
 	let initialized = false;
@@ -72,20 +81,12 @@
 
 	// Track dirty (unsaved) content per path
 	let dirtyContent = $state<Record<string, string>>({});
-	// Local override: the last content we successfully saved. Used as a trusted
-	// fallback in case invalidateAll() doesn't propagate updated DB content
-	// back into `data.files` reactively.
+	// Safety net: last successfully saved content per path. Used as a trusted
+	// fallback in case the reactive chain lags behind the real DB state.
 	let savedContent = $state<Record<string, string>>({});
 	let saving = $state(false);
 	let saveError = $state<string | null>(null);
 	let savedPath = $state<string | null>(null);
-
-	$inspect(
-		'data.files count',
-		data.files?.length,
-		data.files?.map((f) => f.path + ':' + f.content.length)
-	);
-	$inspect('selectedFile', selectedPath, selectedFile?.content?.length);
 
 	$effect(() => {
 		if (!initialized && tree.length > 0) {
@@ -107,8 +108,8 @@
 		else expandedDirs.add(path);
 	}
 
-	// Current editor content: dirty version if exists, else the last-saved
-	// override (if any), else the DB version from the load function.
+	// Current editor content: prefer unsaved dirty edits, then the last-saved
+	// override, then whatever the load function last produced.
 	const editorContent = $derived(
 		selectedFile
 			? (dirtyContent[selectedFile.fullPath] ??
@@ -128,8 +129,9 @@
 			dirtyContent[selectedFile.fullPath] !== effectiveDbContent
 	);
 
-	// When the DB catches up with our locally-saved override, drop the override
-	// so future loads win.
+	// Drop the saved-content override once the DB catches up (the reactive
+	// chain sometimes does land eventually), so future loads become the
+	// authoritative source again.
 	$effect(() => {
 		if (!selectedFile) return;
 		const path = selectedFile.fullPath;
@@ -165,11 +167,10 @@
 			return;
 		}
 
-		// 1. Record the override so editorContent has a trusted source
-		//    even if invalidateAll() ends up noop-ing.
+		// Remember the saved content as a trusted fallback.
 		savedContent = { ...savedContent, [path]: content };
 
-		// 2. Clear the dirty entry for this file.
+		// Clear the dirty entry for this file.
 		const nextDirty = { ...dirtyContent };
 		delete nextDirty[path];
 		dirtyContent = nextDirty;
@@ -179,10 +180,9 @@
 			savedPath = null;
 		}, 2000);
 
-		// 3. Best-effort refresh from DB; the override keeps us correct
-		//    regardless of the outcome.
+		// Best-effort refresh from DB; the override keeps us correct even if
+		// the reactive chain from data.files lags.
 		await invalidateAll();
-		console.log('[saveFile] after invalidateAll, data.files=', data.files);
 		saving = false;
 	}
 
