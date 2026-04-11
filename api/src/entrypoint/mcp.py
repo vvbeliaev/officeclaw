@@ -228,7 +228,21 @@ async def create_agent(
 async def update_agent_file(
     context: Context, agent_id: str, path: str, content: str
 ) -> dict:
-    """Upsert a workspace file for an agent."""
+    """Upsert a workspace file for an agent.
+
+    Special runtime files (exact paths, recognised by nanobot):
+      SOUL.md       — agent identity, personality, persistent goals
+      AGENTS.md     — sub-agents this agent can spawn and delegate to
+      HEARTBEAT.md  — scheduled / recurring tasks the agent runs autonomously
+      TOOLS.md      — tool configuration and usage guidance
+      USER.md       — description of the agent's owner (who they are, context)
+
+    If the user has attached a user_template of the matching type to this agent,
+    that template content is prepended automatically at sandbox start — write
+    only the agent-specific additions here, not the shared base.
+
+    For any other file pass a relative path (e.g. 'notes/ideas.md').
+    """
     await _require_user(context)
     _assert_ready()
     assert _fleet is not None

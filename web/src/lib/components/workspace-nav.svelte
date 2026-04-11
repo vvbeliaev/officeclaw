@@ -9,6 +9,7 @@
 			channels: number;
 			mcp: number;
 			knowledge: number;
+			prompts: number;
 		};
 	};
 
@@ -19,7 +20,8 @@
 		{ href: '/workspace/environments', label: 'Environments', icon: 'oc:configure', count: counts.envs },
 		{ href: '/workspace/channels', label: 'Channels', icon: 'oc:log', count: counts.channels },
 		{ href: '/workspace/mcp', label: 'MCP Servers', icon: 'oc:memory', count: counts.mcp },
-		{ href: '/workspace/knowledge', label: 'Knowledge', icon: 'oc:memory', count: counts.knowledge }
+		{ href: '/workspace/knowledge', label: 'Knowledge', icon: 'oc:memory', count: counts.knowledge },
+		{ href: '/prompts', label: 'Prompts', icon: 'tabler:file-text', count: counts.prompts }
 	]);
 
 	function isActive(href: string): boolean {

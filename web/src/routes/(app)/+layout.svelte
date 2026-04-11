@@ -241,10 +241,16 @@
 					<p class="user-email">{data.user?.email ?? ''}</p>
 				</div>
 			</div>
-			<button class="signout" onclick={signOut}>
-				<Icon icon="tabler:logout" width={12} height={12} />
-				Sign out
-			</button>
+			<div class="footer-actions">
+				<a href="/profile" class="profile-link">
+					<Icon icon="tabler:user" width={12} height={12} />
+					Profile
+				</a>
+				<button class="signout" onclick={signOut}>
+					<Icon icon="tabler:logout" width={12} height={12} />
+					Sign out
+				</button>
+			</div>
 		</footer>
 	</aside>
 
@@ -546,8 +552,14 @@
 		text-overflow: ellipsis;
 	}
 
+	.footer-actions {
+		display: flex;
+		gap: 0.2rem;
+	}
+
+	.profile-link,
 	.signout {
-		width: 100%;
+		flex: 1;
 		display: flex;
 		align-items: center;
 		gap: 0.45rem;
@@ -555,11 +567,13 @@
 		font-size: 0.68rem;
 		border-radius: 0.25rem;
 		color: color-mix(in oklch, var(--sidebar-foreground) 45%, transparent);
+		text-decoration: none;
 		transition:
 			color 150ms ease,
 			background 150ms ease;
 	}
 
+	.profile-link:hover,
 	.signout:hover {
 		color: var(--sidebar-foreground);
 		background: var(--sidebar-accent);

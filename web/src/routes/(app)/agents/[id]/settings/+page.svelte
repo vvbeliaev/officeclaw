@@ -67,6 +67,7 @@
 	type Env         = { id: string; name: string; category: string | null; attached: boolean };
 	type LlmProvider = { id: string; name: string; attached: boolean };
 	type Mcp         = { id: string; name: string; type: string; attached: boolean };
+	type Template    = { id: string; name: string; templateType: string; attached: boolean };
 
 	const activeLlm = $derived(
 		(data.llmProviders as LlmProvider[]).find((p) => p.attached) ?? null
@@ -454,6 +455,54 @@
 					{/each}
 					{#if (data.channels as Channel[]).length === 0}
 						<p class="conn-empty font-mono">No channels in workspace</p>
+					{/if}
+				</div>
+			</section>
+
+			<!-- ── Prompts / templates ──────────────────────── -->
+			<section class="section">
+				<header class="section-head">
+					<span class="section-title font-mono">prompts</span>
+				</header>
+
+				<div class="conn-block">
+					<div class="conn-block-head">
+						<Icon icon="tabler:file-text" width={13} height={13} />
+						<span class="conn-block-title font-mono">templates</span>
+						<span class="conn-block-count font-mono">{(data.templates as Template[]).filter(t => t.attached).length}</span>
+					</div>
+					{#each (data.templates as Template[]).filter(t => t.attached) as tpl (tpl.id)}
+						<div class="conn-row">
+							<span class="conn-row-name">{tpl.name}</span>
+							<span class="conn-row-badge font-mono">{tpl.templateType}</span>
+							<form method="POST" action="?/detachTemplate" use:enhance={connEnhance(`detach:tpl:${tpl.id}`)}>
+								<input type="hidden" name="template_id" value={tpl.id} />
+								<button class="conn-detach" type="submit" disabled={!!pending[`detach:tpl:${tpl.id}`]} title="Detach">
+									{#if pending[`detach:tpl:${tpl.id}`]}
+										<span class="spinner spinner--sm"></span>
+									{:else}
+										<Icon icon="tabler:x" width={11} height={11} />
+									{/if}
+								</button>
+							</form>
+						</div>
+					{/each}
+					{#each (data.templates as Template[]).filter(t => !t.attached) as tpl (tpl.id)}
+						<form method="POST" action="?/attachTemplate" use:enhance={connEnhance(`attach:tpl:${tpl.id}`)}>
+							<input type="hidden" name="template_id" value={tpl.id} />
+							<button class="conn-available" type="submit" disabled={!!pending[`attach:tpl:${tpl.id}`]}>
+								<span class="conn-available-name">{tpl.name}</span>
+								<span class="conn-row-badge font-mono">{tpl.templateType}</span>
+								{#if pending[`attach:tpl:${tpl.id}`]}
+									<span class="spinner spinner--sm"></span>
+								{:else}
+									<Icon icon="tabler:plus" width={11} height={11} class="conn-available-icon" />
+								{/if}
+							</button>
+						</form>
+					{/each}
+					{#if (data.templates as Template[]).length === 0}
+						<p class="conn-empty font-mono">No templates in library — <a href="/prompts" class="conn-link">create one</a></p>
 					{/if}
 				</div>
 			</section>
@@ -947,6 +996,16 @@
 		color: var(--muted-foreground);
 		opacity: 0.5;
 		letter-spacing: 0.04em;
+	}
+
+	.conn-link {
+		color: var(--primary);
+		text-decoration: none;
+	}
+
+	.conn-link:hover {
+		text-decoration: underline;
+		text-underline-offset: 3px;
 	}
 
 	.conn-error {

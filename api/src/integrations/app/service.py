@@ -7,6 +7,7 @@ from src.integrations.adapters.out.repository import (
     EnvRepo,
     LinkRepo,
     UserMcpRepo,
+    UserTemplateRepo,
 )
 
 
@@ -17,11 +18,13 @@ class IntegrationsService:
         channel_repo: ChannelRepo,
         link_repo: LinkRepo,
         mcp_repo: UserMcpRepo,
+        template_repo: UserTemplateRepo,
     ) -> None:
         self._envs = env_repo
         self._channels = channel_repo
         self._links = link_repo
         self._mcp = mcp_repo
+        self._templates = template_repo
 
     # --- Env ---
 
@@ -125,3 +128,37 @@ class IntegrationsService:
 
     async def get_all_decrypted_mcp(self, agent_id: UUID) -> list[dict]:
         return await self._links.list_mcps_decrypted(agent_id)
+
+    # --- Templates ---
+
+    async def create_template(
+        self, user_id: UUID, name: str, template_type: str, content: str
+    ) -> asyncpg.Record:
+        return await self._templates.create(user_id, name, template_type, content)
+
+    async def find_template(self, template_id: UUID) -> asyncpg.Record | None:
+        return await self._templates.find_by_id(template_id)
+
+    async def list_templates(self, user_id: UUID) -> list[asyncpg.Record]:
+        return await self._templates.list_by_user(user_id)
+
+    async def update_template(
+        self, template_id: UUID, name: str | None = None, content: str | None = None
+    ) -> asyncpg.Record | None:
+        return await self._templates.update(template_id, name=name, content=content)
+
+    async def delete_template(self, template_id: UUID) -> None:
+        await self._templates.delete(template_id)
+
+    # --- Links: templates ---
+
+    async def attach_template(
+        self, agent_id: UUID, template_id: UUID, template_type: str
+    ) -> None:
+        await self._links.attach_template(agent_id, template_id, template_type)
+
+    async def detach_template(self, agent_id: UUID, template_id: UUID) -> None:
+        await self._links.detach_template(agent_id, template_id)
+
+    async def list_agent_templates(self, agent_id: UUID) -> list[asyncpg.Record]:
+        return await self._links.list_templates(agent_id)

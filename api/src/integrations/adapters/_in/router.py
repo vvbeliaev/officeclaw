@@ -8,11 +8,13 @@ from src.integrations.core.schema import (
     ChannelCreate, ChannelOut,
     EnvCreate, EnvOut, EnvUpdate, EnvValuesOut,
     McpCreate, McpOut,
+    TemplateCreate, TemplateOut, TemplateUpdate,
 )
 
 envs_router = APIRouter()
 channels_router = APIRouter()
 mcp_router = APIRouter()
+templates_router = APIRouter()
 links_router = APIRouter(prefix="/agents/{agent_id}")
 
 
@@ -106,6 +108,37 @@ async def delete_mcp(
     await deps.delete_mcp(mcp_id)
 
 
+@templates_router.post("", response_model=TemplateOut, status_code=201)
+async def create_template(
+    body: TemplateCreate,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> TemplateOut:
+    record = await deps.create_template(body.user_id, body.name, body.template_type, body.content)
+    return TemplateOut(**dict(record))
+
+
+@templates_router.patch("/{template_id}", response_model=TemplateOut)
+async def update_template(
+    template_id: UUID,
+    body: TemplateUpdate,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> TemplateOut:
+    record = await deps.update_template(template_id, name=body.name, content=body.content)
+    if not record:
+        raise HTTPException(404, "Template not found")
+    return TemplateOut(**dict(record))
+
+
+@templates_router.delete("/{template_id}", status_code=204)
+async def delete_template(
+    template_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> None:
+    if not await deps.find_template(template_id):
+        raise HTTPException(404, "Template not found")
+    await deps.delete_template(template_id)
+
+
 @links_router.post("/skills/{skill_id}", status_code=204)
 async def attach_skill(
     agent_id: UUID, skill_id: UUID,
@@ -171,3 +204,22 @@ async def detach_mcp(
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> None:
     await deps.detach_mcp(agent_id, mcp_id)
+
+
+@links_router.post("/templates/{template_id}", status_code=204)
+async def attach_template(
+    agent_id: UUID, template_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> None:
+    template = await deps.find_template(template_id)
+    if not template:
+        raise HTTPException(404, "Template not found")
+    await deps.attach_template(agent_id, template_id, template["template_type"])
+
+
+@links_router.delete("/templates/{template_id}", status_code=204)
+async def detach_template(
+    agent_id: UUID, template_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> None:
+    await deps.detach_template(agent_id, template_id)

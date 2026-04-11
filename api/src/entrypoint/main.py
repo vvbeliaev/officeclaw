@@ -17,6 +17,7 @@ from src.integrations.adapters._in.router import (
     envs_router,
     channels_router,
     mcp_router,
+    templates_router,
     links_router,
 )
 from src.library.adapters._in.router import router as skills_router
@@ -64,6 +65,7 @@ def create_app() -> FastAPI:
     app.include_router(envs_router, prefix="/envs", tags=["envs"])
     app.include_router(channels_router, prefix="/channels", tags=["channels"])
     app.include_router(mcp_router, prefix="/user-mcp", tags=["mcp"])
+    app.include_router(templates_router, prefix="/templates", tags=["templates"])
     app.include_router(links_router, tags=["links"])
 
     uploads_dir = Path("uploads")

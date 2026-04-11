@@ -71,6 +71,7 @@ CREATE TABLE agents (
     image        TEXT         NOT NULL DEFAULT 'localhost:5005/officeclaw/agent:latest',
     is_admin     BOOLEAN      NOT NULL DEFAULT FALSE,
     gateway_port INTEGER,
+    avatar_url   TEXT,
     created_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -106,6 +107,7 @@ CREATE TABLE user_envs (
     user_id          UUID        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     name             TEXT        NOT NULL,
     values_encrypted BYTEA       NOT NULL,
+    category         TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(user_id, name)
 );
@@ -126,6 +128,16 @@ CREATE TABLE user_mcp (
     config_encrypted BYTEA       NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(user_id, name)
+);
+
+CREATE TABLE user_templates (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id       UUID        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    name          TEXT        NOT NULL,
+    template_type TEXT        NOT NULL CHECK (template_type IN ('user','soul','agents','heartbeat','tools')),
+    content       TEXT        NOT NULL DEFAULT '',
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE agent_skills (
@@ -151,4 +163,14 @@ CREATE TABLE agent_mcp (
     agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
     mcp_id   UUID NOT NULL REFERENCES user_mcp(id) ON DELETE CASCADE,
     PRIMARY KEY (agent_id, mcp_id)
+);
+
+-- One template per type per agent (enforced via UNIQUE constraint on template_type).
+-- ON CONFLICT (agent_id, template_type) DO UPDATE replaces the previous attachment.
+CREATE TABLE agent_user_templates (
+    agent_id          UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    user_template_id  UUID NOT NULL REFERENCES user_templates(id) ON DELETE CASCADE,
+    template_type     TEXT NOT NULL CHECK (template_type IN ('user','soul','agents','heartbeat','tools')),
+    PRIMARY KEY (agent_id, user_template_id),
+    UNIQUE (agent_id, template_type)
 );

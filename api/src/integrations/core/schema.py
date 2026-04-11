@@ -57,3 +57,25 @@ class McpOut(BaseModel):
     type: str
     created_at: datetime
     # config intentionally omitted
+
+
+class TemplateCreate(BaseModel):
+    user_id: UUID
+    name: str
+    template_type: str  # 'user' | 'soul' | 'agents' | 'heartbeat' | 'tools'
+    content: str = ''
+
+
+class TemplateUpdate(BaseModel):
+    name: str | None = None
+    content: str | None = None
+
+
+class TemplateOut(BaseModel):
+    id: UUID
+    user_id: UUID
+    name: str
+    template_type: str
+    content: str
+    created_at: datetime
+    updated_at: datetime

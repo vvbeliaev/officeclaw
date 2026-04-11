@@ -6,12 +6,14 @@ import {
 	skills,
 	userEnvs,
 	userMcp,
+	userTemplates,
 	agentChannels,
 	agentSkills,
 	agentEnvs,
-	agentMcp
+	agentMcp,
+	agentUserTemplates
 } from '$lib/server/db/app.schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:8000';
@@ -33,10 +35,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		allSkills,
 		allEnvs,
 		allMcps,
+		allTemplates,
 		attachedChannelRows,
 		attachedSkillRows,
 		attachedEnvRows,
 		attachedMcpRows,
+		attachedTemplateRows,
 		channelAssignments
 	] = await Promise.all([
 		db
@@ -53,6 +57,15 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			.from(userMcp)
 			.where(eq(userMcp.userId, userId)),
 		db
+			.select({
+				id: userTemplates.id,
+				name: userTemplates.name,
+				templateType: userTemplates.templateType
+			})
+			.from(userTemplates)
+			.where(eq(userTemplates.userId, userId))
+			.orderBy(userTemplates.templateType, userTemplates.createdAt),
+		db
 			.select({ channelId: agentChannels.channelId })
 			.from(agentChannels)
 			.where(eq(agentChannels.agentId, params.id)),
@@ -62,6 +75,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			.where(eq(agentSkills.agentId, params.id)),
 		db.select({ envId: agentEnvs.envId }).from(agentEnvs).where(eq(agentEnvs.agentId, params.id)),
 		db.select({ mcpId: agentMcp.mcpId }).from(agentMcp).where(eq(agentMcp.agentId, params.id)),
+		db
+			.select({
+				userTemplateId: agentUserTemplates.userTemplateId,
+				templateType: agentUserTemplates.templateType
+			})
+			.from(agentUserTemplates)
+			.where(eq(agentUserTemplates.agentId, params.id)),
 		// All channel assignments across this user's agents — to detect channels taken by others
 		db
 			.select({
@@ -78,6 +98,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const attachedSkillIds = new Set(attachedSkillRows.map((r) => r.skillId));
 	const attachedEnvIds = new Set(attachedEnvRows.map((r) => r.envId));
 	const attachedMcpIds = new Set(attachedMcpRows.map((r) => r.mcpId));
+	const attachedTemplateIds = new Set(attachedTemplateRows.map((r) => r.userTemplateId));
 
 	return {
 		agent,
@@ -96,7 +117,8 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		llmProviders: allEnvs
 			.filter((e) => e.category === 'llm-provider')
 			.map((e) => ({ ...e, attached: attachedEnvIds.has(e.id) })),
-		mcps: allMcps.map((m) => ({ ...m, attached: attachedMcpIds.has(m.id) }))
+		mcps: allMcps.map((m) => ({ ...m, attached: attachedMcpIds.has(m.id) })),
+		templates: allTemplates.map((t) => ({ ...t, attached: attachedTemplateIds.has(t.id) }))
 	};
 };
 
@@ -260,6 +282,24 @@ export const actions: Actions = {
 		const mcpId = form.get('mcp_id')?.toString();
 		if (!mcpId) return fail(400, { error: 'mcp_id required' });
 		await fetch(`${API_URL}/agents/${params.id}/mcp/${mcpId}`, { method: 'DELETE' });
+		return {};
+	},
+
+	attachTemplate: async ({ params, request, locals }) => {
+		if (!locals.session) error(401, 'Unauthorized');
+		const form = await request.formData();
+		const templateId = form.get('template_id')?.toString();
+		if (!templateId) return fail(400, { error: 'template_id required' });
+		await fetch(`${API_URL}/agents/${params.id}/templates/${templateId}`, { method: 'POST' });
+		return {};
+	},
+
+	detachTemplate: async ({ params, request, locals }) => {
+		if (!locals.session) error(401, 'Unauthorized');
+		const form = await request.formData();
+		const templateId = form.get('template_id')?.toString();
+		if (!templateId) return fail(400, { error: 'template_id required' });
+		await fetch(`${API_URL}/agents/${params.id}/templates/${templateId}`, { method: 'DELETE' });
 		return {};
 	}
 };

@@ -114,6 +114,35 @@ export const userMcp = pgTable(
 	(t) => [unique('user_mcp_user_id_name_key').on(t.userId, t.name)]
 );
 
+export const userTemplates = pgTable('user_templates', {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	userId: uuid('user_id')
+		.notNull()
+		.references(() => user.id, { onDelete: 'cascade' }),
+	name: text().notNull(),
+	templateType: text('template_type').notNull(), // 'user'|'soul'|'agents'|'heartbeat'|'tools'
+	content: text().default('').notNull(),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const agentUserTemplates = pgTable(
+	'agent_user_templates',
+	{
+		agentId: uuid('agent_id')
+			.notNull()
+			.references(() => agents.id, { onDelete: 'cascade' }),
+		userTemplateId: uuid('user_template_id')
+			.notNull()
+			.references(() => userTemplates.id, { onDelete: 'cascade' }),
+		templateType: text('template_type').notNull()
+	},
+	(t) => [
+		primaryKey({ columns: [t.agentId, t.userTemplateId] }),
+		unique('agent_user_templates_agent_id_template_type_key').on(t.agentId, t.templateType)
+	]
+);
+
 export const agentMcp = pgTable(
 	'agent_mcp',
 	{
@@ -176,7 +205,8 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
 	skills: many(agentSkills),
 	envs: many(agentEnvs),
 	channels: many(agentChannels),
-	mcp: many(agentMcp)
+	mcp: many(agentMcp),
+	templates: many(agentUserTemplates)
 }));
 
 export const agentFilesRelations = relations(agentFiles, ({ one }) => ({
@@ -216,4 +246,17 @@ export const userChannelsRelations = relations(userChannels, ({ one }) => ({
 export const userMcpRelations = relations(userMcp, ({ one, many }) => ({
 	user: one(user, { fields: [userMcp.userId], references: [user.id] }),
 	agents: many(agentMcp)
+}));
+
+export const userTemplatesRelations = relations(userTemplates, ({ one, many }) => ({
+	user: one(user, { fields: [userTemplates.userId], references: [user.id] }),
+	agents: many(agentUserTemplates)
+}));
+
+export const agentUserTemplatesRelations = relations(agentUserTemplates, ({ one }) => ({
+	agent: one(agents, { fields: [agentUserTemplates.agentId], references: [agents.id] }),
+	template: one(userTemplates, {
+		fields: [agentUserTemplates.userTemplateId],
+		references: [userTemplates.id]
+	})
 }));

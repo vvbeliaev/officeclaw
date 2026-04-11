@@ -25,6 +25,17 @@ logger = logging.getLogger(__name__)
 # env vars; see _build_config_json below.
 _FALLBACK_MODEL = "${OFFICECLAW_LLM_MODEL}"
 
+# Maps template_type to the nanobot runtime filename it controls.
+# When a user_template of a given type is attached to an agent, its content
+# is prepended to the corresponding agent file (separated by "---").
+_RUNTIME_FILES: dict[str, str] = {
+    "user":      "USER.md",
+    "soul":      "SOUL.md",
+    "agents":    "AGENTS.md",
+    "heartbeat": "HEARTBEAT.md",
+    "tools":     "TOOLS.md",
+}
+
 
 async def build_vm_payload(
     agent_id: UUID,
@@ -32,10 +43,36 @@ async def build_vm_payload(
     integrations: IntegrationsApp,
     skills: LibraryApp,
 ) -> dict:
-    # 1. Agent workspace files
+    # 1. Agent workspace files — split runtime files from regular files
     files: list[dict] = []
+    agent_runtime: dict[str, str] = {}  # path → content for the 5 runtime file types
+    runtime_paths = set(_RUNTIME_FILES.values())
+
     for rec in await agents.list_files(agent_id):
-        files.append({"path": rec["path"], "content": rec["content"]})
+        if rec["path"] in runtime_paths:
+            agent_runtime[rec["path"]] = rec["content"]
+        else:
+            files.append({"path": rec["path"], "content": rec["content"]})
+
+    # 1b. Attached user_templates → prepend to the matching runtime file.
+    #     template content + "\n---\n" + agent override (either part may be absent).
+    attached_templates = await integrations.list_agent_templates(agent_id)
+    template_by_type: dict[str, str] = {
+        t["template_type"]: t["content"] for t in attached_templates
+    }
+
+    for ttype, path in _RUNTIME_FILES.items():
+        tpl = template_by_type.get(ttype)
+        override = agent_runtime.get(path)
+        if tpl and override:
+            content = tpl + "\n---\n" + override
+        elif tpl:
+            content = tpl
+        elif override:
+            content = override
+        else:
+            continue
+        files.append({"path": path, "content": content})
 
     # 2. Linked skill files → skills/<name>/
     for skill_rec in await integrations.list_agent_skills(agent_id):
