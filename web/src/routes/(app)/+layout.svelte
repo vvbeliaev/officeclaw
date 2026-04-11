@@ -146,6 +146,7 @@
 								name={agent.name}
 								status={agent.status as AgentStatus}
 								isAdmin={agent.isAdmin}
+								avatarUrl={agent.avatarUrl}
 								active={activeAgentId === agent.id}
 							/>
 						{/each}

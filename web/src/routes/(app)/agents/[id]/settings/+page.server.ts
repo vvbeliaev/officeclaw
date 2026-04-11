@@ -123,6 +123,31 @@ export const actions: Actions = {
 		return { success: true };
 	},
 
+	uploadAvatar: async ({ params, request, locals }) => {
+		if (!locals.session) error(401, 'Unauthorized');
+
+		const form = await request.formData();
+		const file = form.get('avatar');
+		if (!file || !(file instanceof File) || !file.size) {
+			return fail(400, { avatarError: 'No file selected' });
+		}
+
+		const body = new FormData();
+		body.append('file', file);
+
+		const upstream = await fetch(`${API_URL}/agents/${params.id}/avatar`, {
+			method: 'POST',
+			body
+		});
+
+		if (!upstream.ok) {
+			const text = await upstream.text();
+			return fail(upstream.status, { avatarError: text || 'Upload failed' });
+		}
+
+		return { avatarSuccess: true };
+	},
+
 	delete: async ({ params, locals }) => {
 		if (!locals.session) error(401, 'Unauthorized');
 

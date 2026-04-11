@@ -4,11 +4,12 @@
 	type Props = {
 		name: string;
 		isAdmin?: boolean;
+		avatarUrl?: string | null;
 		size?: number;
 		class?: string;
 	};
 
-	let { name, isAdmin = false, size = 36, class: className = '' }: Props = $props();
+	let { name, isAdmin = false, avatarUrl = null, size = 36, class: className = '' }: Props = $props();
 
 	// Deterministic hue from name — stable per-agent tint.
 	function hashHue(input: string): number {
@@ -52,13 +53,15 @@
 	style="
 		width: {size}px;
 		height: {size}px;
-		background: {bg};
+		background: {avatarUrl ? 'transparent' : bg};
 		color: {fg};
 		box-shadow: inset 0 0 0 1px {ring};
 		font-size: {Math.round(size * 0.4)}px;
 	"
 >
-	{#if isAdmin}
+	{#if avatarUrl}
+		<img src={avatarUrl} alt={name} class="avatar-img" />
+	{:else if isAdmin}
 		<Icon icon="oc:claw" width={Math.round(size * 0.5)} height={Math.round(size * 0.5)} />
 	{:else}
 		<span class="italic leading-none tracking-tight">{initials}</span>
@@ -74,6 +77,14 @@
 		flex-shrink: 0;
 		position: relative;
 		font-weight: 400;
+		overflow: hidden;
+	}
+
+	.avatar-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+		border-radius: 9999px;
 	}
 
 	:global(.dark) .agent-avatar {

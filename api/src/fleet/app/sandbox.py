@@ -27,15 +27,7 @@ def _sandbox_workdir(agent_id: UUID) -> Path:
     """
     root = Path(get_settings().sandbox_workdir).expanduser().resolve()
     return root / str(agent_id)
-_MUTABLE_PATHS = (
-    "SOUL.md",
-    "USER.md",
-    "memory/MEMORY.md",
-    "memory/history.jsonl",
-    "memory/.cursor",
-    "memory/.dream_cursor",
-    "cron/jobs.json",
-)
+_SYNC_EXCLUDE_TOP = {"config.json", "skills", ".git", ".gitignore", ".traces"}
 _DEFAULT_CPUS = "1"
 _DEFAULT_MEMORY = "512"  # MiB
 _GATEWAY_READY_TIMEOUT = 15  # seconds to wait for nanobot gateway to be ready
@@ -158,12 +150,19 @@ async def _is_sandbox_alive(name: str) -> bool:
 
 
 def _read_workspace_files(workdir: Path) -> list[dict]:
-    """Read all mutable workspace files that currently exist on disk."""
+    """Recursively read all workspace files, excluding generated/managed dirs."""
     result = []
-    for rel_path in _MUTABLE_PATHS:
-        full_path = workdir / rel_path
-        if full_path.exists():
-            result.append({"path": rel_path, "content": full_path.read_text()})
+    for path in sorted(workdir.rglob("*")):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(workdir)
+        if rel.parts[0] in _SYNC_EXCLUDE_TOP:
+            continue
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, PermissionError):
+            continue
+        result.append({"path": str(rel), "content": content})
     return result
 
 

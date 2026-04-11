@@ -10,10 +10,11 @@
 		name: string;
 		status: AgentStatus;
 		isAdmin: boolean;
+		avatarUrl?: string | null;
 		active: boolean;
 	};
 
-	let { id, name, status, isAdmin, active }: Props = $props();
+	let { id, name, status, isAdmin, avatarUrl = null, active }: Props = $props();
 
 	const statusClass = $derived(
 		{
@@ -40,7 +41,7 @@
 >
 	<span class="rail" aria-hidden="true"></span>
 
-	<AgentAvatar {name} {isAdmin} size={34} />
+	<AgentAvatar {name} {isAdmin} {avatarUrl} size={34} />
 
 	<div class="meta">
 		<div class="name-row">

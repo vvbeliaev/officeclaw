@@ -1,8 +1,10 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import asyncpg
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from src.shared.config import get_settings
 import src.fleet.di as fleet_di
@@ -63,6 +65,10 @@ def create_app() -> FastAPI:
     app.include_router(channels_router, prefix="/channels", tags=["channels"])
     app.include_router(mcp_router, prefix="/user-mcp", tags=["mcp"])
     app.include_router(links_router, tags=["links"])
+
+    uploads_dir = Path("uploads")
+    uploads_dir.mkdir(exist_ok=True)
+    app.mount("/static", StaticFiles(directory=uploads_dir), name="static")
 
     app.mount("/mcp", mcp.http_app())
 

@@ -139,7 +139,7 @@
 	<!-- ── Header ─────────────────────────────────────────────── -->
 	<header class="chat-header">
 		<div class="header-left">
-			<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={30} />
+			<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={30} />
 			<div class="header-meta">
 				<h1 class="agent-name font-display">{data.agent.name}</h1>
 				<p class="agent-sub">
@@ -209,7 +209,7 @@
 			<!-- ── Offline / transitional state ─────────────── -->
 			<div class="offline-state">
 				<div class="offline-inner">
-					<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={68} />
+					<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={68} />
 
 					<h2 class="offline-title font-display">
 						{#if phase === 'idle'}
@@ -292,7 +292,7 @@
 					{:else}
 						<article class="msg agent-msg">
 							<div class="agent-avatar-col">
-								<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={22} />
+								<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={22} />
 							</div>
 							<div class="agent-body">
 								<div class="agent-name-tag font-display">{data.agent.name}</div>
@@ -305,7 +305,7 @@
 				{#if chat.status === 'submitted' && chat.messages.at(-1)?.role === 'user'}
 					<article class="msg agent-msg">
 						<div class="agent-avatar-col">
-							<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={22} />
+							<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={22} />
 						</div>
 						<div class="agent-body">
 							<div class="agent-name-tag font-display">{data.agent.name}</div>

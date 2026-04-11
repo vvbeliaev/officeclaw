@@ -32,6 +32,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/officeclaw:/tmp/officeclaw
+      - ./api/uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy

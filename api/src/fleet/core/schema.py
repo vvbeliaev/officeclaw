@@ -17,6 +17,7 @@ class AgentUpdate(BaseModel):
     name: str | None = None
     status: AgentStatus | None = None
     sandbox_id: str | None = None
+    avatar_url: str | None = None
 
 
 class AgentOut(BaseModel):
@@ -28,6 +29,7 @@ class AgentOut(BaseModel):
     gateway_port: int | None
     image: str
     is_admin: bool
+    avatar_url: str | None
     created_at: datetime
     updated_at: datetime
 

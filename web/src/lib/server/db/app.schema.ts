@@ -30,6 +30,7 @@ export const agents = pgTable('agents', {
 	sandboxId: text('sandbox_id'),
 	image: text().notNull(),
 	isAdmin: boolean('is_admin').default(false).notNull(),
+	avatarUrl: text('avatar_url'),
 	gatewayPort: integer('gateway_port'),
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()

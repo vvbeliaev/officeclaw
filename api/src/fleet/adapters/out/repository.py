@@ -2,7 +2,9 @@ from uuid import UUID
 import asyncpg
 
 
-_ALLOWED_UPDATE_FIELDS = frozenset({"name", "status", "sandbox_id", "gateway_port"})
+_ALLOWED_UPDATE_FIELDS = frozenset(
+    {"name", "status", "sandbox_id", "gateway_port", "avatar_url"}
+)
 
 
 class AgentRepo:
@@ -29,9 +31,7 @@ class AgentRepo:
         )
 
     async def list_running(self) -> list[asyncpg.Record]:
-        return await self._conn.fetch(
-            "SELECT * FROM agents WHERE status = 'running'"
-        )
+        return await self._conn.fetch("SELECT * FROM agents WHERE status = 'running'")
 
     async def update(self, agent_id: UUID, **fields) -> asyncpg.Record | None:
         unknown = set(fields) - _ALLOWED_UPDATE_FIELDS

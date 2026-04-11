@@ -8,6 +8,36 @@
 	let { data, form } = $props();
 
 	let nameValue = $derived(data.agent.name);
+	let avatarOverride = $state<string | null>(null);
+	const avatarPreview = $derived(avatarOverride ?? data.agent.avatarUrl ?? null);
+	let avatarUploading = $state(false);
+	let avatarFileInput = $state<HTMLInputElement | null>(null);
+	let isDragging = $state(false);
+
+	async function uploadFile(file: File) {
+		avatarOverride = URL.createObjectURL(file);
+		avatarUploading = true;
+		const body = new FormData();
+		body.append('avatar', file);
+		await fetch(`?/uploadAvatar`, { method: 'POST', body });
+		await invalidateAll();
+		avatarOverride = null;
+		avatarUploading = false;
+	}
+
+	async function handleAvatarChange(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+		await uploadFile(file);
+	}
+
+	async function handleDrop(e: DragEvent) {
+		isDragging = false;
+		const file = e.dataTransfer?.files?.[0];
+		if (!file || !file.type.startsWith('image/')) return;
+		await uploadFile(file);
+	}
 	let confirmDelete = $state(false);
 	let saving = $state(false);
 	let deleting = $state(false);
@@ -63,7 +93,7 @@
 				<span>Back</span>
 			</a>
 			<div class="header-divider"></div>
-			<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={28} />
+			<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={28} />
 			<h1 class="agent-name font-display">{data.agent.name}</h1>
 		</div>
 		<span class="settings-label font-mono">settings</span>
@@ -103,6 +133,53 @@
 							required
 						/>
 						<p class="field-hint">How this agent appears in your fleet.</p>
+					</div>
+
+					<div class="field">
+						<span class="field-label font-mono">Avatar</span>
+						<div class="avatar-zone-wrap">
+							<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+							<div
+								class="avatar-dropzone"
+								class:uploading={avatarUploading}
+								class:dragging={isDragging}
+								role="button"
+								tabindex="0"
+								aria-label="Upload avatar"
+								onclick={() => avatarFileInput?.click()}
+								onkeydown={(e) => e.key === 'Enter' && avatarFileInput?.click()}
+								ondragover={(e) => { e.preventDefault(); isDragging = true; }}
+								ondragleave={() => { isDragging = false; }}
+								ondrop={(e) => { e.preventDefault(); handleDrop(e); }}
+							>
+								<div class="avatar-dropzone-preview">
+									{#if avatarPreview}
+										<img src={avatarPreview} alt="avatar" class="avatar-dropzone-img" />
+									{:else}
+										<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} size={88} />
+									{/if}
+								</div>
+								<div class="avatar-dropzone-overlay">
+									{#if avatarUploading}
+										<div class="upload-spinner-ring"></div>
+									{:else}
+										<Icon icon="tabler:camera" width={18} height={18} />
+										<span class="upload-hint font-mono">{isDragging ? 'drop here' : 'change'}</span>
+									{/if}
+								</div>
+								<svg class="avatar-dropzone-ring" viewBox="0 0 100 100" aria-hidden="true">
+									<circle cx="50" cy="50" r="47" />
+								</svg>
+							</div>
+						</div>
+						<p class="field-hint avatar-hint">JPG, PNG, WebP or GIF — drop or click to change.</p>
+						<input
+							bind:this={avatarFileInput}
+							type="file"
+							accept="image/jpeg,image/png,image/webp,image/gif"
+							class="avatar-file-input"
+							onchange={handleAvatarChange}
+						/>
 					</div>
 
 					{#if form?.error}
@@ -929,5 +1006,137 @@
 		to {
 			transform: rotate(360deg);
 		}
+	}
+
+	/* ── Avatar dropzone ──────────────────────────────────── */
+	.avatar-zone-wrap {
+		display: flex;
+		justify-content: flex-start;
+		padding: 0.25rem 0;
+	}
+
+	.avatar-dropzone {
+		position: relative;
+		width: 96px;
+		height: 96px;
+		border-radius: 9999px;
+		cursor: pointer;
+		outline: none;
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	/* inner image/avatar area — inset 4px to leave room for the SVG ring */
+	.avatar-dropzone-preview {
+		position: absolute;
+		inset: 4px;
+		border-radius: 9999px;
+		overflow: hidden;
+		background: var(--card);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.avatar-dropzone-img {
+		width: 100%;
+		height: 100%;
+		object-fit: cover;
+	}
+
+	/* SVG ring */
+	.avatar-dropzone-ring {
+		position: absolute;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+		overflow: visible;
+	}
+
+	.avatar-dropzone-ring circle {
+		fill: none;
+		stroke: var(--border);
+		stroke-width: 1.5;
+		/* circumference ≈ 295 for r=47 */
+		stroke-dasharray: 6 5;
+		transition:
+			stroke 220ms ease,
+			stroke-dasharray 300ms ease,
+			stroke-width 220ms ease;
+	}
+
+	.avatar-dropzone:hover .avatar-dropzone-ring circle,
+	.avatar-dropzone:focus-visible .avatar-dropzone-ring circle {
+		stroke: color-mix(in oklch, var(--primary) 75%, var(--border));
+		stroke-dasharray: 295 0;
+		stroke-width: 1.5;
+	}
+
+	.avatar-dropzone.dragging .avatar-dropzone-ring circle {
+		stroke: var(--primary);
+		stroke-dasharray: 295 0;
+		stroke-width: 2;
+	}
+
+	.avatar-dropzone.uploading .avatar-dropzone-ring circle {
+		stroke: var(--primary);
+		stroke-dasharray: 148 147;
+		stroke-width: 1.5;
+		animation: ring-orbit 1.1s linear infinite;
+	}
+
+	@keyframes ring-orbit {
+		to { stroke-dashoffset: -295; }
+	}
+
+	/* hover / drag / uploading overlay */
+	.avatar-dropzone-overlay {
+		position: absolute;
+		inset: 4px;
+		border-radius: 9999px;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 0.28rem;
+		color: transparent;
+		background: oklch(0 0 0 / 0);
+		transition:
+			background 200ms ease,
+			color 200ms ease;
+		pointer-events: none;
+	}
+
+	.avatar-dropzone:hover .avatar-dropzone-overlay,
+	.avatar-dropzone:focus-visible .avatar-dropzone-overlay,
+	.avatar-dropzone.dragging .avatar-dropzone-overlay,
+	.avatar-dropzone.uploading .avatar-dropzone-overlay {
+		background: oklch(0 0 0 / 0.52);
+		color: oklch(1 0 0 / 0.9);
+	}
+
+	.upload-hint {
+		font-size: 0.5rem;
+		text-transform: uppercase;
+		letter-spacing: 0.14em;
+		line-height: 1;
+	}
+
+	.upload-spinner-ring {
+		width: 22px;
+		height: 22px;
+		border-radius: 9999px;
+		border: 2px solid oklch(1 0 0 / 0.25);
+		border-top-color: oklch(1 0 0 / 0.9);
+		animation: spin 0.75s linear infinite;
+	}
+
+	.avatar-hint {
+		margin-top: 0.15rem;
+	}
+
+	.avatar-file-input {
+		display: none;
 	}
 </style>
