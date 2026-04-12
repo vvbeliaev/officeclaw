@@ -1,7 +1,44 @@
-"""Agent tools — fleet overview and agent creation."""
+"""Agent tools — fleet overview, agent inspection, and agent creation."""
+
+from uuid import UUID
 
 import src.entrypoint.mcp as _pkg
 from fastmcp.server.context import Context
+
+
+@_pkg.mcp.tool()
+async def get_agent(context: Context, agent_id: str) -> dict:
+    """Inspect a single agent — metadata, all workspace files, and every
+    attached resource (skills, envs, channels, MCP servers, templates)."""
+    await _pkg._require_user(context)
+    _pkg._assert_ready()
+    assert _pkg._fleet is not None
+    assert _pkg._integrations is not None
+    record = await _pkg._fleet.find_agent(UUID(agent_id))
+    if not record:
+        raise ValueError(f"Agent {agent_id} not found")
+    files = await _pkg._fleet.list_files(UUID(agent_id))
+    skills = await _pkg._integrations.list_agent_skills(UUID(agent_id))
+    envs = await _pkg._integrations.list_agent_envs(UUID(agent_id))
+    channels = await _pkg._integrations.list_agent_channels(UUID(agent_id))
+    mcps = await _pkg._integrations.list_agent_mcps(UUID(agent_id))
+    templates = await _pkg._integrations.list_agent_templates(UUID(agent_id))
+    return {
+        "id": str(record["id"]),
+        "name": record["name"],
+        "status": record["status"],
+        "is_admin": record["is_admin"],
+        "image": record["image"],
+        "files": [{"path": f["path"], "content": f["content"]} for f in files],
+        "skills": [{"id": str(s["id"]), "name": s["name"]} for s in skills],
+        "envs": [{"id": str(e["id"]), "name": e["name"]} for e in envs],
+        "channels": [{"id": str(c["id"]), "type": c["type"]} for c in channels],
+        "mcp_servers": [{"id": str(m["id"]), "name": m["name"]} for m in mcps],
+        "templates": [
+            {"id": str(t["id"]), "name": t["name"], "template_type": t["template_type"]}
+            for t in templates
+        ],
+    }
 
 
 @_pkg.mcp.tool()

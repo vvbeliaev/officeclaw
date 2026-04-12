@@ -1,0 +1,22 @@
+from uuid import UUID
+
+import asyncpg
+
+from src.integrations.adapters.out.mcp_repo import UserMcpRepo
+
+
+class McpService:
+    def __init__(self, repo: UserMcpRepo) -> None:
+        self._repo = repo
+
+    async def create(self, user_id: UUID, name: str, type_: str, config: dict) -> asyncpg.Record:
+        return await self._repo.create(user_id, name, type_, config)
+
+    async def find(self, mcp_id: UUID) -> asyncpg.Record | None:
+        return await self._repo.find_by_id(mcp_id)
+
+    async def list(self, user_id: UUID) -> list[asyncpg.Record]:
+        return await self._repo.list_by_user(user_id)
+
+    async def delete(self, mcp_id: UUID) -> None:
+        await self._repo.delete(mcp_id)

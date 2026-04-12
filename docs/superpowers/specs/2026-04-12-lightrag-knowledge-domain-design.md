@@ -71,9 +71,9 @@ class LightRAGStore:
         self._embed_func = embed_func
         self._pg_config = pg_config
 
-    def _get(self, user_id: UUID) -> LightRAG:
+    async def _get_or_create(self, user_id: UUID) -> LightRAG:
         if user_id not in self._instances:
-            self._instances[user_id] = LightRAG(
+            rag = LightRAG(
                 working_dir="data/kg",
                 workspace=str(user_id),         # per-user isolation
                 llm_model_func=self._llm_func,
@@ -84,6 +84,8 @@ class LightRAGStore:
                 doc_status_storage="PGDocStatusStorage",
                 # pg connection string injected via env
             )
+            await rag.initialize()              # required: sets up storage connections
+            self._instances[user_id] = rag
         return self._instances[user_id]
 ```
 
@@ -238,6 +240,23 @@ Uses existing `DATABASE_URL` for Postgres KV/vector/doc-status storage.
 ```
 
 Web UI (`web/`) adds a graph visualization page using this endpoint. Library choice (Sigma.js, D3, Cytoscape) is a frontend decision — not part of this spec.
+
+---
+
+## Implementation Notes
+
+### LightRAG Library vs lightrag-server
+
+This design uses **LightRAG as a Python library**, not `lightrag-server`. The distinction matters:
+
+- `lightrag-server` has a `LIGHTRAG-WORKSPACE` HTTP header — this is scaffolding for a future per-request workspace feature, currently only wired to `/health`. It does **not** enable multi-tenant operation in a single server process.
+- The **LightRAG library** `workspace` parameter works correctly at construction time: it controls the subdirectory prefix for file backends and the `workspace` column for Postgres backends. This is what we use.
+
+Per-user isolation is achieved by instantiating one `LightRAG(workspace=str(user_id))` per user. `lightrag-server` is never run — the library is embedded directly in `api/`.
+
+### Async Initialization
+
+Every `LightRAG` instance must have `await rag.initialize()` called before first use. The `LightRAGStore._get_or_create()` method handles this lazily on first access per user.
 
 ---
 
