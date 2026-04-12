@@ -17,7 +17,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	// (nanobot server.py: session_key = f"api:{session_id}").
 	const sessionId = params.id;
 	const nanobot = createOpenAICompatible({
-		name: 'gpt-4o-mini',
+		name: 'google/gemma-4-31b-it',
 		baseURL: `${API_URL}/agents/${params.id}/v1`,
 		headers: { Authorization: 'Bearer not-required' },
 		fetch: async (url, init) => {
@@ -27,7 +27,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	});
 
 	const result = streamText({
-		model: nanobot('gpt-4o-mini'),
+		model: nanobot('google/gemma-4-31b-it'),
 		messages: await convertToModelMessages(body.messages)
 	});
 

@@ -67,7 +67,7 @@ RUN curl -fsSL https://github.com/duckdb/duckdb/releases/latest/download/duckdb_
     && chmod +x /usr/local/bin/duckdb
 
 # ── Python packages (system-wide via uv) ──────────────────────────────────────
-RUN uv pip install --system \
+RUN uv pip install --system --break-system-packages \
     httpx pydantic requests \
     csvkit \
     git+https://github.com/vvbeliaev/nanobot.git@officeclaw
