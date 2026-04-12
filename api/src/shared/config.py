@@ -45,6 +45,17 @@ class Settings(BaseSettings):
     default_llm_base_url: str = ""
     default_llm_model: str = "gpt-4o-mini"
 
+    # Knowledge graph (LightRAG) — LLM for entity extraction at ingest
+    knowledge_llm_api_key: str = ""
+    knowledge_llm_base_url: str = "https://api.openai.com/v1"
+    knowledge_llm_model: str = "gpt-4o-mini"
+
+    # Knowledge graph — embedding model for vector storage
+    knowledge_embed_api_key: str = ""
+    knowledge_embed_base_url: str = "https://api.openai.com/v1"
+    knowledge_embed_model: str = "text-embedding-3-small"
+    knowledge_embed_dim: int = 1536
+
     model_config = SettingsConfigDict(
         env_file=_ENV_PATH, env_file_encoding="utf-8", extra="ignore"
     )

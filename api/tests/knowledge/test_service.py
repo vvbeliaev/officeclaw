@@ -57,3 +57,56 @@ async def test_store_caches_instances(mock_settings):
     assert rag1 is rag2
     assert MockRAG.call_count == 1
     mock_rag.initialize.assert_awaited_once()
+
+
+from src.knowledge.app.service import KnowledgeService
+from src.shared.config import Settings
+
+
+@pytest.mark.asyncio
+async def test_service_ingest_delegates():
+    store = AsyncMock()
+    service = KnowledgeService(store)
+    user_id = uuid4()
+
+    await service.ingest(user_id, "some findings", {"source": "agent-a"})
+
+    store.ingest.assert_awaited_once_with(
+        user_id, "some findings", {"source": "agent-a"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_service_query_delegates():
+    store = AsyncMock()
+    store.query.return_value = "answer text"
+    service = KnowledgeService(store)
+    user_id = uuid4()
+
+    result = await service.query(user_id, "what is X?", "hybrid")
+
+    store.query.assert_awaited_once_with(user_id, "what is X?", "hybrid")
+    assert result == "answer text"
+
+
+@pytest.mark.asyncio
+async def test_service_get_graph_delegates():
+    store = AsyncMock()
+    store.get_graph.return_value = {"nodes": [], "edges": []}
+    service = KnowledgeService(store)
+    user_id = uuid4()
+
+    result = await service.get_graph(user_id)
+
+    store.get_graph.assert_awaited_once_with(user_id)
+    assert result == {"nodes": [], "edges": []}
+
+
+def test_knowledge_settings_defaults():
+    s = Settings(
+        database_url="postgresql://u:p@localhost/db",
+        encryption_key="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    )
+    assert s.knowledge_llm_model == "gpt-4o-mini"
+    assert s.knowledge_embed_dim == 1536
+    assert s.knowledge_embed_model == "text-embedding-3-small"
