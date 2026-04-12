@@ -33,6 +33,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/officeclaw:/tmp/officeclaw
       - ./api/uploads:/app/uploads
+      - kg_data:/app/data/kg
     depends_on:
       db:
         condition: service_healthy
@@ -46,3 +47,6 @@ services:
     depends_on:
       - api
     restart: unless-stopped
+
+volumes:
+  kg_data:
