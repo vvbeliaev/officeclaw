@@ -30,6 +30,24 @@ List the files in this skill and what each one does.
 
 
 @_pkg.mcp.tool()
+async def get_skill(context: Context, skill_id: str) -> dict:
+    """Inspect a skill — metadata and all files with their content."""
+    await _pkg._require_user(context)
+    _pkg._assert_ready()
+    assert _pkg._library is not None
+    record = await _pkg._library.find_by_id(UUID(skill_id))
+    if not record:
+        raise ValueError(f"Skill {skill_id} not found")
+    files = await _pkg._library.list_files(UUID(skill_id))
+    return {
+        "id": str(record["id"]),
+        "name": record["name"],
+        "description": record["description"],
+        "files": [{"path": f["path"], "content": f["content"]} for f in files],
+    }
+
+
+@_pkg.mcp.tool()
 async def list_skills(context: Context) -> list[dict]:
     """List all skills in the user's library."""
     user_id = await _pkg._require_user(context)

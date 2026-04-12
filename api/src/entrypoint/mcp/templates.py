@@ -9,6 +9,23 @@ _TEMPLATE_TYPES = ("user", "soul", "agents", "heartbeat", "tools")
 
 
 @_pkg.mcp.tool()
+async def get_template(context: Context, template_id: str) -> dict:
+    """Inspect a template — returns full content."""
+    await _pkg._require_user(context)
+    _pkg._assert_ready()
+    assert _pkg._integrations is not None
+    record = await _pkg._integrations.find_template(UUID(template_id))
+    if not record:
+        raise ValueError(f"Template {template_id} not found")
+    return {
+        "id": str(record["id"]),
+        "name": record["name"],
+        "template_type": record["template_type"],
+        "content": record["content"],
+    }
+
+
+@_pkg.mcp.tool()
 async def list_templates(context: Context) -> list[dict]:
     """List all user templates."""
     user_id = await _pkg._require_user(context)
