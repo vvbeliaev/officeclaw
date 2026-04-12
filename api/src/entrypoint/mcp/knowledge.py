@@ -12,7 +12,7 @@ async def mcp_ingest_knowledge(
     knowledge: KnowledgeApp, user_id: UUID, text: str, metadata: dict
 ) -> dict:
     await knowledge.ingest(user_id, text, metadata)
-    return {"status": "queued"}
+    return {"status": "ingested"}
 
 
 async def mcp_query_knowledge(
@@ -31,7 +31,7 @@ async def ingest_knowledge(
     """Ingest text into the shared knowledge graph.
 
     Use this when you have findings, research results, or facts worth preserving
-    for the fleet. Indexing happens asynchronously — the tool returns immediately.
+    for the fleet. Indexing may take several seconds depending on document size — the tool blocks until complete.
 
     metadata_json: optional JSON string e.g. {"source": "web", "topic": "AI"}.
     """

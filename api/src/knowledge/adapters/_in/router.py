@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile, File
@@ -6,6 +7,7 @@ from src.knowledge.app import KnowledgeApp
 from src.knowledge.core.schema import GraphData, IngestTextRequest, QueryRequest, QueryResponse
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def get_knowledge(request: Request) -> KnowledgeApp:
@@ -26,6 +28,15 @@ async def get_knowledge_user_id(request: Request) -> UUID:
     return record["id"]
 
 
+async def _ingest_with_logging(
+    knowledge: KnowledgeApp, user_id: UUID, text: str, metadata: dict
+) -> None:
+    try:
+        await knowledge.ingest(user_id, text, metadata)
+    except Exception:
+        logger.exception("Background ingest failed for user %s", user_id)
+
+
 @router.post("/ingest/text", status_code=202)
 async def ingest_text(
     body: IngestTextRequest,
@@ -34,7 +45,7 @@ async def ingest_text(
     user_id: UUID = Depends(get_knowledge_user_id),
 ) -> dict:
     """Ingest raw text into the knowledge graph. Indexing runs in the background."""
-    background_tasks.add_task(knowledge.ingest, user_id, body.text, body.metadata)
+    background_tasks.add_task(_ingest_with_logging, knowledge, user_id, body.text, body.metadata)
     return {"status": "queued"}
 
 
@@ -50,7 +61,7 @@ async def ingest_file(
     if file.content_type not in allowed:
         raise HTTPException(415, f"Unsupported file type: {file.content_type}")
     content = (await file.read()).decode("utf-8", errors="replace")
-    background_tasks.add_task(knowledge.ingest, user_id, content, {"filename": file.filename})
+    background_tasks.add_task(_ingest_with_logging, knowledge, user_id, content, {"filename": file.filename})
     return {"status": "queued", "filename": file.filename}
 
 

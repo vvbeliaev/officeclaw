@@ -1,4 +1,7 @@
+from typing import Literal
 from pydantic import BaseModel
+
+QueryMode = Literal["local", "global", "hybrid", "naive", "mix", "bypass"]
 
 
 class IngestTextRequest(BaseModel):
@@ -8,7 +11,7 @@ class IngestTextRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     query: str
-    mode: str = "hybrid"  # local | global | hybrid | naive
+    mode: QueryMode = "hybrid"
 
 
 class QueryResponse(BaseModel):

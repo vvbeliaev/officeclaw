@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -26,61 +27,69 @@ class LightRAGStore:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._instances: dict[UUID, LightRAG] = {}
+        self._locks: dict[UUID, asyncio.Lock] = {}
         self._pg = _parse_pg_params(settings.database_url)
 
+    def _get_lock(self, user_id: UUID) -> asyncio.Lock:
+        if user_id not in self._locks:
+            self._locks[user_id] = asyncio.Lock()
+        return self._locks[user_id]
+
     async def _get_or_create(self, user_id: UUID) -> LightRAG:
-        if user_id not in self._instances:
-            s = self._settings
-            pg = self._pg
+        if user_id in self._instances:
+            return self._instances[user_id]
+        async with self._get_lock(user_id):
+            if user_id not in self._instances:  # double-checked locking
+                s = self._settings
+                pg = self._pg
 
-            async def llm_func(
-                prompt: str,
-                system_prompt: str | None = None,
-                history_messages: list = [],
-                **kwargs,
-            ) -> str:
-                return await openai_complete_if_cache(
-                    model=s.knowledge_llm_model,
-                    prompt=prompt,
-                    system_prompt=system_prompt,
-                    history_messages=history_messages,
-                    api_key=s.knowledge_llm_api_key,
-                    base_url=s.knowledge_llm_base_url,
+                async def llm_func(
+                    prompt: str,
+                    system_prompt: str | None = None,
+                    history_messages: list | None = None,
                     **kwargs,
+                ) -> str:
+                    return await openai_complete_if_cache(
+                        model=s.knowledge_llm_model,
+                        prompt=prompt,
+                        system_prompt=system_prompt,
+                        history_messages=history_messages or [],
+                        api_key=s.knowledge_llm_api_key,
+                        base_url=s.knowledge_llm_base_url,
+                        **kwargs,
+                    )
+
+                async def embed_func(texts: list[str]) -> list[list[float]]:
+                    return await openai_embed(
+                        texts,
+                        model=s.knowledge_embed_model,
+                        api_key=s.knowledge_embed_api_key,
+                        base_url=s.knowledge_embed_base_url,
+                    )
+
+                rag = LightRAG(
+                    working_dir="data/kg",
+                    workspace=str(user_id),
+                    llm_model_func=llm_func,
+                    embedding_func=EmbeddingFunc(
+                        embedding_dim=s.knowledge_embed_dim,
+                        max_token_size=8192,
+                        func=embed_func,
+                    ),
+                    kv_storage="PGKVStorage",
+                    vector_storage="PGVectorStorage",
+                    graph_storage="NetworkXStorage",
+                    doc_status_storage="PGDocStatusStorage",
+                    addon_params={
+                        "host": pg["host"],
+                        "port": int(pg["port"]),
+                        "user": pg["user"],
+                        "password": pg["password"],
+                        "database": pg["database"],
+                    },
                 )
-
-            async def embed_func(texts: list[str]) -> list[list[float]]:
-                return await openai_embed(
-                    texts,
-                    model=s.knowledge_embed_model,
-                    api_key=s.knowledge_embed_api_key,
-                    base_url=s.knowledge_embed_base_url,
-                )
-
-            rag = LightRAG(
-                working_dir="data/kg",
-                workspace=str(user_id),
-                llm_model_func=llm_func,
-                embedding_func=EmbeddingFunc(
-                    embedding_dim=s.knowledge_embed_dim,
-                    max_token_size=8192,
-                    func=embed_func,
-                ),
-                kv_storage="PGKVStorage",
-                vector_storage="PGVectorStorage",
-                graph_storage="NetworkXStorage",
-                doc_status_storage="PGDocStatusStorage",
-                addon_params={
-                    "host": pg["host"],
-                    "port": int(pg["port"]),
-                    "user": pg["user"],
-                    "password": pg["password"],
-                    "database": pg["database"],
-                },
-            )
-            await rag.initialize()
-            self._instances[user_id] = rag
-
+                await rag.initialize()
+                self._instances[user_id] = rag
         return self._instances[user_id]
 
     async def ingest(self, user_id: UUID, text: str, metadata: dict) -> None:
@@ -94,17 +103,6 @@ class LightRAGStore:
 
     async def get_graph(self, user_id: UUID) -> dict:
         rag = await self._get_or_create(user_id)
-        nx_graph = rag.chunk_entity_relation_graph._graph
-        nodes = [
-            {"id": node_id, **{k: str(v) for k, v in data.items()}}
-            for node_id, data in nx_graph.nodes(data=True)
-        ]
-        edges = [
-            {
-                "source": src,
-                "target": tgt,
-                **{k: str(v) for k, v in data.items()},
-            }
-            for src, tgt, data in nx_graph.edges(data=True)
-        ]
-        return {"nodes": nodes, "edges": edges}
+        nodes = await rag.chunk_entity_relation_graph.get_all_nodes()
+        edges = await rag.chunk_entity_relation_graph.get_all_edges()
+        return {"nodes": nodes or [], "edges": edges or []}
