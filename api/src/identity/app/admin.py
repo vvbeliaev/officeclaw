@@ -56,21 +56,37 @@ _TOOLS_MD = """
 
 ## officeclaw MCP
 
-Fleet management tools. Nanobot exposes them with the prefix `mcp_officeclaw_`:
+Fleet configuration tools. Nanobot exposes them with the prefix `mcp_officeclaw_`:
 
-- `mcp_officeclaw_list_agents` — list all your agents
-- `mcp_officeclaw_get_fleet_status` — agents list + idle/running/error counts
+### Agents
+- `mcp_officeclaw_get_fleet_status` — list all agents with idle/running/error counts
 - `mcp_officeclaw_create_agent(name, image?)` — create a new agent
-- `mcp_officeclaw_start_agent(agent_id)` — start an agent sandbox
-- `mcp_officeclaw_stop_agent(agent_id)` — stop a running agent
-- `mcp_officeclaw_delete_agent(agent_id)` — permanently delete an agent
-- `mcp_officeclaw_update_agent_file(agent_id, path, content)` — write a workspace file
+
+### Skills
 - `mcp_officeclaw_list_skills` — list skills in your library
-- `mcp_officeclaw_create_skill(name, description?)` — create a new skill
+- `mcp_officeclaw_create_skill(name, description?)` — create a new skill (auto-creates SKILL.md)
+- `mcp_officeclaw_add_skill_file(skill_id, path, content)` — add or update a file in a skill
 - `mcp_officeclaw_attach_skill(agent_id, skill_id)` — attach skill to agent
-- `mcp_officeclaw_list_envs` — list env configs
-- `mcp_officeclaw_create_env(name, values_json)` — create env (values_json is a JSON string of key/value pairs)
+
+### Env configs
+- `mcp_officeclaw_list_envs` — list env configs (values never returned)
+- `mcp_officeclaw_create_env(name, values_json)` — create env (values_json is a JSON object string)
+- `mcp_officeclaw_attach_env(agent_id, env_id)` — attach env config to agent
+
+### Channels
 - `mcp_officeclaw_list_channels` — list channel integrations
+- `mcp_officeclaw_create_channel(channel_type, config_json)` — create channel (telegram/discord/whatsapp)
+- `mcp_officeclaw_attach_channel(agent_id, channel_id)` — attach channel to agent
+
+### MCP servers
+- `mcp_officeclaw_list_mcp_servers` — list user MCP server configs
+- `mcp_officeclaw_create_mcp_server(name, server_type, config_json)` — create MCP server (http/stdio)
+- `mcp_officeclaw_attach_mcp_server(agent_id, mcp_id)` — attach MCP server to agent
+
+### Templates
+- `mcp_officeclaw_list_templates` — list user templates
+- `mcp_officeclaw_create_template(name, template_type, content)` — create template (soul/agents/heartbeat/tools/user)
+- `mcp_officeclaw_attach_template(agent_id, template_id)` — attach template to agent
 """
 
 
