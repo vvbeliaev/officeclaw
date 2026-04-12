@@ -11,6 +11,7 @@ import src.fleet.di as fleet_di
 import src.identity.di as identity_di
 import src.library.di as library_di
 import src.integrations.di as integrations_di
+import src.knowledge.di as knowledge_di
 from src.fleet.adapters._in.router import router as agents_router
 from src.identity.adapters._in.router import router as users_router
 from src.integrations.adapters._in.router import (
@@ -21,6 +22,7 @@ from src.integrations.adapters._in.router import (
     links_router,
 )
 from src.library.adapters._in.router import router as skills_router
+from src.knowledge.adapters._in.router import router as knowledge_router
 
 from .mcp import mcp, setup as mcp_setup
 
@@ -38,12 +40,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     library = library_di.build(pool)
     fleet, watcher = fleet_di.build(pool, integrations, library)
     identity = identity_di.build(pool, fleet, integrations)
+    knowledge = knowledge_di.build(settings)
 
     app.state.pool = pool
     app.state.fleet = fleet
     app.state.identity = identity
     app.state.library = library
     app.state.integrations = integrations
+    app.state.knowledge = knowledge
 
     mcp_setup(
         pool=pool,
@@ -51,6 +55,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         identity=identity,
         library=library,
         integrations=integrations,
+        knowledge=knowledge,
     )
 
     watcher.start()
@@ -74,6 +79,7 @@ def create_app() -> FastAPI:
     app.include_router(mcp_router, prefix="/user-mcp", tags=["mcp"])
     app.include_router(templates_router, prefix="/templates", tags=["templates"])
     app.include_router(links_router, tags=["links"])
+    app.include_router(knowledge_router, prefix="/knowledge", tags=["knowledge"])
 
     uploads_dir = Path("uploads")
     uploads_dir.mkdir(exist_ok=True)
