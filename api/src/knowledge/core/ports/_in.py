@@ -1,0 +1,9 @@
+"""Inbound port — what the app layer offers to in-adapters."""
+from typing import Protocol
+from uuid import UUID
+
+
+class IKnowledgeApp(Protocol):
+    async def ingest(self, user_id: UUID, text: str, metadata: dict) -> None: ...
+    async def query(self, user_id: UUID, query: str, mode: str) -> str: ...
+    async def get_graph(self, user_id: UUID) -> dict: ...

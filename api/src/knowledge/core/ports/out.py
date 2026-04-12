@@ -1,0 +1,9 @@
+"""Outbound port — what the app layer requires from storage."""
+from typing import Protocol
+from uuid import UUID
+
+
+class IKnowledgeStore(Protocol):
+    async def ingest(self, user_id: UUID, text: str, metadata: dict) -> None: ...
+    async def query(self, user_id: UUID, query: str, mode: str) -> str: ...
+    async def get_graph(self, user_id: UUID) -> dict: ...
