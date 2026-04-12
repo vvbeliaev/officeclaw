@@ -56,16 +56,21 @@ _TOOLS_MD = """
 
 ## officeclaw MCP
 
-Fleet management tool. Use it to:
-- List agents: `list_agents`
-- Create an agent: `create_agent(name, image?)`
-- Start/stop an agent: `start_agent(agent_id)`, `stop_agent(agent_id)`
-- Update files: `update_agent_file(agent_id, path, content)`
-- Delete an agent: `delete_agent(agent_id)`
-- Skills: `list_skills`, `create_skill(name, description?)`, `attach_skill(agent_id, skill_id)`
-- Envs: `list_envs`, `create_env(name, values_json)`
-- Channels: `list_channels`
-- Fleet status: `get_fleet_status`
+Fleet management tools. Nanobot exposes them with the prefix `mcp_officeclaw_`:
+
+- `mcp_officeclaw_list_agents` — list all your agents
+- `mcp_officeclaw_get_fleet_status` — agents list + idle/running/error counts
+- `mcp_officeclaw_create_agent(name, image?)` — create a new agent
+- `mcp_officeclaw_start_agent(agent_id)` — start an agent sandbox
+- `mcp_officeclaw_stop_agent(agent_id)` — stop a running agent
+- `mcp_officeclaw_delete_agent(agent_id)` — permanently delete an agent
+- `mcp_officeclaw_update_agent_file(agent_id, path, content)` — write a workspace file
+- `mcp_officeclaw_list_skills` — list skills in your library
+- `mcp_officeclaw_create_skill(name, description?)` — create a new skill
+- `mcp_officeclaw_attach_skill(agent_id, skill_id)` — attach skill to agent
+- `mcp_officeclaw_list_envs` — list env configs
+- `mcp_officeclaw_create_env(name, values_json)` — create env (values_json is a JSON string of key/value pairs)
+- `mcp_officeclaw_list_channels` — list channel integrations
 """
 
 

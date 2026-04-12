@@ -186,7 +186,7 @@ async def _build_config_json(
     # MCP URL is injected at VM-start time (not burned in at bootstrap) so that
     # the correct hostname is always used — e.g. host.docker.internal for local
     # Docker dev vs a real hostname in production.
-    extra_env["OFFICECLAW_MCP_URL"] = f"{settings.mcp_base_url}/mcp"
+    extra_env["OFFICECLAW_MCP_URL"] = f"{settings.mcp_base_url}/mcp/"
 
     # MCP servers
     mcp_servers: dict = {}

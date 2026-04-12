@@ -35,7 +35,7 @@ _SYNC_EXCLUDE_TOP = {
 }
 _DEFAULT_CPUS = "1"
 _DEFAULT_MEMORY = "512"  # MiB
-_GATEWAY_READY_TIMEOUT = 15  # seconds to wait for nanobot gateway to be ready
+_GATEWAY_READY_TIMEOUT = 60  # seconds to wait for nanobot gateway to be ready
 _GATEWAY_READY_INTERVAL = 0.5
 
 
