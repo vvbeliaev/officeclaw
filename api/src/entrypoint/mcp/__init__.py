@@ -23,6 +23,7 @@ from fastmcp.server.context import Context
 from src.fleet.app import FleetApp
 from src.identity.app import IdentityApp
 from src.integrations.app import IntegrationsApp
+from src.knowledge.app import KnowledgeApp
 from src.library.app import LibraryApp
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ _fleet: FleetApp | None = None
 _identity: IdentityApp | None = None
 _library: LibraryApp | None = None
 _integrations: IntegrationsApp | None = None
+_knowledge: KnowledgeApp | None = None
 
 
 def setup(
@@ -42,13 +44,15 @@ def setup(
     identity: IdentityApp,
     library: LibraryApp,
     integrations: IntegrationsApp,
+    knowledge: KnowledgeApp,
 ) -> None:
-    global _pool, _fleet, _identity, _library, _integrations
+    global _pool, _fleet, _identity, _library, _integrations, _knowledge
     _pool = pool
     _fleet = fleet
     _identity = identity
     _library = library
     _integrations = integrations
+    _knowledge = knowledge
 
 
 def _assert_ready() -> None:
@@ -72,4 +76,4 @@ async def _require_user(context: Context) -> UUID:
 
 
 # Import tool modules last to trigger @mcp.tool() registration
-from . import agents, channels, envs, mcp_servers, skills, templates  # noqa: E402, F401
+from . import agents, channels, envs, knowledge, mcp_servers, skills, templates  # noqa: E402, F401
