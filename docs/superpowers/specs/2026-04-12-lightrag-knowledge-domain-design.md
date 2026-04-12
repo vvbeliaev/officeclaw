@@ -95,12 +95,12 @@ class LightRAGStore:
 
 ### Mixed Backend
 
-| Layer | Backend | Location |
-|-------|---------|----------|
-| KV (text chunks, entity cache) | `PGKVStorage` | Postgres — `lightrag_kv_store` |
-| Vector (embeddings) | `PGVectorStorage` | Postgres — `lightrag_vector_store` (pgvector) |
-| Graph (entities + relations) | `NetworkXStorage` | File — `data/kg/{user_id}/graph_chunk_entity_relation.graphml` |
-| Doc status | `PGDocStatusStorage` | Postgres — `lightrag_doc_status` |
+| Layer                          | Backend              | Location                                                       |
+| ------------------------------ | -------------------- | -------------------------------------------------------------- |
+| KV (text chunks, entity cache) | `PGKVStorage`        | Postgres — `lightrag_kv_store`                                 |
+| Vector (embeddings)            | `PGVectorStorage`    | Postgres — `lightrag_vector_store` (pgvector)                  |
+| Graph (entities + relations)   | `NetworkXStorage`    | File — `data/kg/{user_id}/graph_chunk_entity_relation.graphml` |
+| Doc status                     | `PGDocStatusStorage` | Postgres — `lightrag_doc_status`                               |
 
 ### Why This Combination
 
@@ -114,6 +114,7 @@ class LightRAGStore:
 LightRAG auto-creates its tables on first `initialize()` call. Tables are prefixed `lightrag_*` to avoid collision with OfficeClaw app tables. The `workspace` column provides per-user isolation.
 
 Add to `001_initial_schema.sql` (already have pgvector image, just needs the extension):
+
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 -- lightrag_* tables are created by LightRAG on first use
@@ -207,6 +208,7 @@ LightRAG manages its own Postgres connections (separate from the asyncpg pool). 
 ## LLM Configuration
 
 LightRAG requires two functions at construction time:
+
 - `llm_model_func` — for entity extraction at ingest time
 - `embedding_func` — for vector embeddings
 
@@ -218,12 +220,12 @@ This means ingest calls cost LLM tokens. Each document ingest = entity extractio
 
 ## Env Variables
 
-| Service | Key | Purpose |
-|---------|-----|---------|
-| api | `KNOWLEDGE_LLM_API_KEY` | LLM API key for entity extraction |
-| api | `KNOWLEDGE_LLM_MODEL` | Model name (e.g. `google/gemma-4-31b-it`) |
-| api | `KNOWLEDGE_EMBED_MODEL` | Embedding model name |
-| api | `KNOWLEDGE_EMBED_API_KEY` | Embedding API key (may differ from LLM) |
+| Service | Key                       | Purpose                                   |
+| ------- | ------------------------- | ----------------------------------------- |
+| api     | `KNOWLEDGE_LLM_API_KEY`   | LLM API key for entity extraction         |
+| api     | `KNOWLEDGE_LLM_MODEL`     | Model name (e.g. `google/gemma-4-31b-it`) |
+| api     | `KNOWLEDGE_EMBED_MODEL`   | Embedding model name                      |
+| api     | `KNOWLEDGE_EMBED_API_KEY` | Embedding API key (may differ from LLM)   |
 
 Uses existing `DATABASE_URL` for Postgres KV/vector/doc-status storage.
 
@@ -232,10 +234,15 @@ Uses existing `DATABASE_URL` for Postgres KV/vector/doc-status storage.
 ## Visualization
 
 `GET /knowledge/graph` returns:
+
 ```json
 {
-  "nodes": [{"id": "Entity Name", "type": "PERSON|ORG|...", "description": "..."}],
-  "edges": [{"source": "A", "target": "B", "label": "WORKS_FOR", "weight": 1.0}]
+  "nodes": [
+    { "id": "Entity Name", "type": "PERSON|ORG|...", "description": "..." }
+  ],
+  "edges": [
+    { "source": "A", "target": "B", "label": "WORKS_FOR", "weight": 1.0 }
+  ]
 }
 ```
 

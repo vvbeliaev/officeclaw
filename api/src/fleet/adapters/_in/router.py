@@ -177,5 +177,10 @@ async def upsert_file(
     body: AgentFileIn,
     fleet: FleetApp = Depends(get_fleet),
 ) -> AgentFileOut:
+    agent = await fleet.find_agent(agent_id)
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+    if agent["status"] == "running":
+        raise HTTPException(409, "Cannot edit files while agent is running — stop the agent first")
     record = await fleet.upsert_file(agent_id, body.path, body.content)
     return AgentFileOut(**dict(record))

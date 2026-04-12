@@ -13,15 +13,17 @@
 	type Props = {
 		path: string;
 		content: string;
+		readOnly?: boolean;
 		onsave?: (content: string) => void;
 		onchange?: (content: string) => void;
 	};
 
-	let { path, content, onsave, onchange }: Props = $props();
+	let { path, content, readOnly = false, onsave, onchange }: Props = $props();
 
 	let container: HTMLDivElement;
 	let view: EditorView | null = null;
 	let langCompartment = new Compartment();
+	let readOnlyCompartment = new Compartment();
 
 	function getLang(p: string) {
 		const ext = p.split('.').at(-1) ?? '';
@@ -101,6 +103,7 @@
 					bracketMatching(),
 					syntaxHighlighting(defaultHighlightStyle),
 					langCompartment.of(getLang(path)),
+					readOnlyCompartment.of(EditorState.readOnly.of(readOnly)),
 					keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
 					saveKeymap,
 					changeListener,
@@ -121,6 +124,15 @@
 		}
 	});
 
+	// Toggle read-only when prop changes
+	$effect(() => {
+		if (view) {
+			view.dispatch({
+				effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(readOnly))
+			});
+		}
+	});
+
 	// Replace content when the content prop changes (e.g. switching files or
 	// applying a remote update).
 	$effect(() => {
@@ -135,12 +147,16 @@
 	});
 </script>
 
-<div class="editor-wrap" bind:this={container}></div>
+<div class="editor-wrap" class:readonly={readOnly} bind:this={container}></div>
 
 <style>
 	.editor-wrap {
 		height: 100%;
 		overflow: hidden;
+	}
+
+	.editor-wrap.readonly :global(.cm-cursor) {
+		display: none !important;
 	}
 
 	/* syntax token colours — use CSS vars so they respect dark/light */

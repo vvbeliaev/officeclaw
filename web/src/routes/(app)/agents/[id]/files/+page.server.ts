@@ -41,8 +41,14 @@ export const actions: Actions = {
 		});
 
 		if (!res.ok) {
-			const text = await res.text();
-			return fail(res.status, { error: text || 'Failed to save' });
+			let errMsg = 'Failed to save';
+			try {
+				const data = await res.json();
+				errMsg = data.detail ?? errMsg;
+			} catch {
+				errMsg = (await res.text()) || errMsg;
+			}
+			return fail(res.status, { error: errMsg });
 		}
 
 		return { saved: path };

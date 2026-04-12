@@ -64,6 +64,8 @@
 	});
 	const tree = $derived(buildTree(files));
 
+	const isRunning = $derived(data.agent.status === 'running');
+
 	const expandedDirs = new SvelteSet<string>();
 	let initialized = false;
 	let selectedPath = $state<string | null>(null);
@@ -124,7 +126,8 @@
 	);
 
 	const isDirty = $derived(
-		selectedFile != null &&
+		!isRunning &&
+			selectedFile != null &&
 			selectedFile.fullPath in dirtyContent &&
 			dirtyContent[selectedFile.fullPath] !== effectiveDbContent
 	);
@@ -143,12 +146,12 @@
 	});
 
 	function onEditorChange(content: string) {
-		if (!selectedFile) return;
+		if (!selectedFile || isRunning) return;
 		dirtyContent = { ...dirtyContent, [selectedFile.fullPath]: content };
 	}
 
 	async function saveFile(content: string) {
-		if (!selectedFile) return;
+		if (!selectedFile || isRunning) return;
 		const path = selectedFile.fullPath;
 		saving = true;
 		saveError = null;
@@ -205,7 +208,7 @@
 </script>
 
 <div class="files-shell">
-	<!-- ── Header ──────────────────────────────────────────────── -->
+	<!-- ── Header ──────────────────────────────────────────────────── -->
 	<header class="files-header">
 		<div class="header-left">
 			<a href={resolve(`/agents/${data.agent.id}`)} class="back-btn" aria-label="Back to chat">
@@ -219,8 +222,21 @@
 		<span class="files-label font-mono">files</span>
 	</header>
 
-	<!-- ── Body ────────────────────────────────────────────────── -->
-	<div class="files-body">
+	<!-- ── Live Banner ──────────────────────────────────────────────── -->
+	{#if isRunning}
+		<div class="live-banner">
+			<div class="live-left">
+				<span class="live-pulse"></span>
+				<span class="live-badge font-mono">LIVE</span>
+				<span class="live-sep"></span>
+				<span class="live-msg font-mono">snapshot · syncs every 5 min</span>
+			</div>
+			<span class="live-hint font-mono">stop agent to edit</span>
+		</div>
+	{/if}
+
+	<!-- ── Body ────────────────────────────────────────────────────── -->
+	<div class="files-body" class:is-running={isRunning}>
 		<aside class="file-tree">
 			{#if tree.length === 0}
 				<p class="tree-empty font-mono">no files yet</p>
@@ -234,26 +250,33 @@
 				<div class="file-content-header">
 					<span class="file-content-path font-mono">{selectedFile.fullPath}</span>
 					<div class="file-actions">
-						{#if saveError}
+						{#if isRunning}
+							<span class="readonly-badge font-mono">
+								<Icon icon="tabler:lock" width={10} height={10} />
+								<span>read-only</span>
+							</span>
+						{:else if saveError}
 							<span class="save-error font-mono">{saveError}</span>
 						{:else if savedPath === selectedFile.fullPath}
 							<span class="save-ok font-mono">saved</span>
 						{:else if isDirty}
 							<span class="save-hint font-mono">unsaved</span>
 						{/if}
-						<button
-							class="save-btn font-mono"
-							class:dirty={isDirty}
-							disabled={saving || !isDirty}
-							onclick={() => saveFile(dirtyContent[selectedFile!.fullPath])}
-						>
-							{#if saving}
-								<span class="spinner"></span>
-							{:else}
-								<Icon icon="tabler:device-floppy" width={12} height={12} />
-							{/if}
-							<span>Save</span>
-						</button>
+						{#if !isRunning}
+							<button
+								class="save-btn font-mono"
+								class:dirty={isDirty}
+								disabled={saving || !isDirty}
+								onclick={() => saveFile(dirtyContent[selectedFile!.fullPath])}
+							>
+								{#if saving}
+									<span class="spinner"></span>
+								{:else}
+									<Icon icon="tabler:device-floppy" width={12} height={12} />
+								{/if}
+								<span>Save</span>
+							</button>
+						{/if}
 					</div>
 				</div>
 				<div class="editor-wrap">
@@ -261,6 +284,7 @@
 						<CodeEditor
 							path={selectedFile.fullPath}
 							content={editorContent}
+							readOnly={isRunning}
 							onsave={saveFile}
 							onchange={onEditorChange}
 						/>
@@ -299,7 +323,8 @@
 			<button
 				class="tree-node tree-file"
 				class:selected={selectedFile?.fullPath === node.fullPath}
-				class:dirty={node.fullPath in dirtyContent &&
+				class:dirty={!isRunning &&
+					node.fullPath in dirtyContent &&
 					dirtyContent[node.fullPath] !== (node.content ?? '')}
 				style="padding-left: {0.6 + depth * 1.1}rem"
 				onclick={() => {
@@ -308,7 +333,7 @@
 			>
 				<Icon icon={extIcon(node.name)} width={12} height={12} class="tree-icon" />
 				<span class="tree-name">{node.name}</span>
-				{#if node.fullPath in dirtyContent && dirtyContent[node.fullPath] !== (node.content ?? '')}
+				{#if !isRunning && node.fullPath in dirtyContent && dirtyContent[node.fullPath] !== (node.content ?? '')}
 					<span class="dirty-dot"></span>
 				{/if}
 			</button>
@@ -381,6 +406,66 @@
 		opacity: 0.55;
 	}
 
+	/* ── Live Banner ───────────────────────────────────────── */
+	.live-banner {
+		flex-shrink: 0;
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 0 1.25rem;
+		height: 30px;
+		background: color-mix(in oklch, #f59e0b 6%, var(--background));
+		border-bottom: 1px solid color-mix(in oklch, #f59e0b 20%, var(--border));
+		border-left: 2px solid #f59e0b;
+	}
+
+	.live-left {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+	}
+
+	.live-pulse {
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: #f59e0b;
+		flex-shrink: 0;
+		animation: live-pulse 2.4s ease-in-out infinite;
+	}
+
+	@keyframes live-pulse {
+		0%, 100% { opacity: 1; transform: scale(1); }
+		50% { opacity: 0.35; transform: scale(0.75); }
+	}
+
+	.live-badge {
+		font-size: 0.58rem;
+		letter-spacing: 0.14em;
+		color: #f59e0b;
+		font-weight: 700;
+	}
+
+	.live-sep {
+		width: 1px;
+		height: 10px;
+		background: color-mix(in oklch, #f59e0b 30%, var(--border));
+	}
+
+	.live-msg {
+		font-size: 0.62rem;
+		letter-spacing: 0.02em;
+		color: var(--muted-foreground);
+		opacity: 0.65;
+	}
+
+	.live-hint {
+		font-size: 0.6rem;
+		letter-spacing: 0.04em;
+		color: var(--muted-foreground);
+		opacity: 0.45;
+	}
+
 	/* ── Body ──────────────────────────────────────────────── */
 	.files-body {
 		flex: 1;
@@ -425,7 +510,13 @@
 		background: var(--muted);
 	}
 
-	.tree-file.selected {
+	/* In live mode, selected file gets amber tint instead of primary */
+	.files-body.is-running .tree-file.selected {
+		background: color-mix(in oklch, #f59e0b 10%, transparent);
+		color: color-mix(in oklch, #f59e0b 80%, var(--foreground));
+	}
+
+	.files-body:not(.is-running) .tree-file.selected {
 		background: color-mix(in oklch, var(--primary) 10%, transparent);
 		color: var(--primary);
 	}
@@ -473,6 +564,12 @@
 		gap: 0.75rem;
 	}
 
+	/* Amber-tinted header in live mode */
+	.files-body.is-running .file-content-header {
+		background: color-mix(in oklch, #f59e0b 3%, var(--card));
+		border-bottom-color: color-mix(in oklch, #f59e0b 15%, var(--border));
+	}
+
 	.file-content-path {
 		font-size: 0.68rem;
 		color: var(--muted-foreground);
@@ -488,6 +585,16 @@
 		align-items: center;
 		gap: 0.5rem;
 		flex-shrink: 0;
+	}
+
+	.readonly-badge {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.6rem;
+		letter-spacing: 0.06em;
+		color: #f59e0b;
+		opacity: 0.75;
 	}
 
 	.save-hint {
