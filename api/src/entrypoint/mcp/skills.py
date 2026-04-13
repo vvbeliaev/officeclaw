@@ -29,7 +29,7 @@ List the files in this skill and what each one does.
 """
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def get_skill(context: Context, skill_id: str) -> dict:
     """Inspect a skill — metadata and all files with their content."""
     await _pkg._require_user(context)
@@ -47,7 +47,7 @@ async def get_skill(context: Context, skill_id: str) -> dict:
     }
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def list_skills(context: Context) -> list[dict]:
     """List all skills in the user's library."""
     user_id = await _pkg._require_user(context)
@@ -60,7 +60,7 @@ async def list_skills(context: Context) -> list[dict]:
     ]
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def create_skill(context: Context, name: str, description: str = "") -> dict:
     """Create a new skill in the user's library.
 
@@ -80,7 +80,7 @@ async def create_skill(context: Context, name: str, description: str = "") -> di
     return {"id": str(skill_id), "name": record["name"]}
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def add_skill_file(
     context: Context, skill_id: str, path: str, content: str
 ) -> dict:
@@ -97,7 +97,7 @@ async def add_skill_file(
     return {"skill_id": skill_id, "path": record["path"]}
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def attach_skill(context: Context, agent_id: str, skill_id: str) -> dict:
     """Attach a skill to an agent."""
     await _pkg._require_user(context)

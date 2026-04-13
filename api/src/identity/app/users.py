@@ -130,10 +130,10 @@ class UserService:
         await self._fleet.upsert_file(agent_id, "AGENTS.md", _AGENTS_MD)
         await self._fleet.upsert_file(agent_id, "TOOLS.md", _TOOLS_MD)
 
-        mcp_url = f"{settings.mcp_base_url}/mcp"
+        mcp_url = f"{settings.mcp_base_url}/mcp/admin"
         mcp_record = await self._integrations.create_mcp(
             user_id,
-            "officeclaw",
+            "officeclaw-admin",
             "http",
             {
                 "url": mcp_url,

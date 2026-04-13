@@ -8,7 +8,7 @@ from fastmcp.server.context import Context
 _TEMPLATE_TYPES = ("user", "soul", "agents", "heartbeat", "tools")
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def get_template(context: Context, template_id: str) -> dict:
     """Inspect a template — returns full content."""
     await _pkg._require_user(context)
@@ -25,7 +25,7 @@ async def get_template(context: Context, template_id: str) -> dict:
     }
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def list_templates(context: Context) -> list[dict]:
     """List all user templates."""
     user_id = await _pkg._require_user(context)
@@ -38,7 +38,7 @@ async def list_templates(context: Context) -> list[dict]:
     ]
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def create_template(
     context: Context, name: str, template_type: str, content: str
 ) -> dict:
@@ -66,7 +66,7 @@ async def create_template(
     }
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def attach_template(context: Context, agent_id: str, template_id: str) -> dict:
     """Attach a user template to an agent.
 

@@ -1,6 +1,11 @@
 <script lang="ts">
+	import KnowledgeGraph from '$lib/components/knowledge-graph.svelte';
+
+	type PageTab = 'ingest' | 'query' | 'graph';
 	type InputMode = 'text' | 'file';
 	type QueryMode = 'hybrid' | 'local' | 'global' | 'naive';
+
+	let activeTab = $state<PageTab>('ingest');
 
 	type LogEntry = {
 		id: number;
@@ -149,8 +154,29 @@
 		</p>
 	</header>
 
+	<!-- ── Tab bar ─────────────────────────────────────── -->
+	<div class="tab-bar">
+		<button class="tab" class:active={activeTab === 'ingest'} onclick={() => (activeTab = 'ingest')}>
+			ingest
+		</button>
+		<button class="tab" class:active={activeTab === 'query'} onclick={() => (activeTab = 'query')}>
+			query
+		</button>
+		<button class="tab" class:active={activeTab === 'graph'} onclick={() => (activeTab = 'graph')}>
+			graph
+		</button>
+	</div>
+
+	<!-- ── Graph tab ────────────────────────────────────── -->
+	{#if activeTab === 'graph'}
+		<KnowledgeGraph />
+	{/if}
+
+	<!-- ── Ingest + Query tabs ───────────────────────────── -->
+	{#if activeTab !== 'graph'}
 	<div class="body">
 		<!-- ── Ingest panel ──────────────────────────────────── -->
+		{#if activeTab === 'ingest'}
 		<section class="panel">
 			<div class="panel-head">
 				<span class="panel-label font-mono">ingest</span>
@@ -261,10 +287,10 @@
 				</div>
 			{/if}
 		</section>
-
-		<div class="divider"></div>
+		{/if}
 
 		<!-- ── Query panel ───────────────────────────────────── -->
+		{#if activeTab === 'query'}
 		<section class="panel">
 			<div class="panel-head">
 				<span class="panel-label font-mono">query</span>
@@ -313,7 +339,9 @@
 				<p class="q-empty font-mono">results will appear here.</p>
 			{/if}
 		</section>
+		{/if}
 	</div>
+	{/if}
 </div>
 
 <style>
@@ -321,7 +349,37 @@
 		flex: 1;
 		display: flex;
 		flex-direction: column;
-		overflow-y: auto;
+		overflow: hidden;
+	}
+
+	/* ── Tab bar ───────────────────────────────────────────── */
+	.tab-bar {
+		display: flex;
+		gap: 0;
+		border-bottom: 1px solid var(--border);
+		padding: 0 3rem;
+		flex-shrink: 0;
+	}
+
+	.tab {
+		font-family: var(--font-mono, monospace);
+		font-size: 0.62rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		padding: 0.6rem 1rem;
+		color: color-mix(in oklch, var(--foreground) 35%, transparent);
+		border-bottom: 2px solid transparent;
+		margin-bottom: -1px;
+		transition: color 120ms ease, border-color 120ms ease;
+	}
+
+	.tab:hover {
+		color: color-mix(in oklch, var(--foreground) 70%, transparent);
+	}
+
+	.tab.active {
+		color: var(--foreground);
+		border-bottom-color: var(--foreground);
 	}
 
 	/* ── Header ────────────────────────────────────────────── */
@@ -359,6 +417,7 @@
 		display: flex;
 		flex-direction: column;
 		padding: 2rem 3rem;
+		overflow-y: auto;
 		gap: 0;
 		max-width: 860px;
 	}
@@ -634,12 +693,6 @@
 		flex: 1;
 	}
 
-	/* ── Divider ─────────────────────────────────────────────── */
-	.divider {
-		height: 1px;
-		background: var(--border);
-		margin-bottom: 2rem;
-	}
 
 	/* ── Query panel ─────────────────────────────────────────── */
 	.query-row {

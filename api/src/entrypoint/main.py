@@ -24,11 +24,12 @@ from src.integrations.adapters._in.router import (
 from src.library.adapters._in.router import router as skills_router
 from src.knowledge.adapters._in.router import router as knowledge_router
 
-from .mcp import mcp, setup as mcp_setup
+from .mcp import admin_mcp, knowledge_mcp, setup as mcp_setup
 
-# Build the FastMCP ASGI app once at module level so its lifespan
+# Build FastMCP ASGI apps once at module level so their lifespans
 # can be wired into the FastAPI lifespan below.
-_mcp_asgi_app = mcp.http_app(path="/")
+_admin_mcp_asgi = admin_mcp.http_app(path="/")
+_knowledge_mcp_asgi = knowledge_mcp.http_app(path="/")
 
 
 @asynccontextmanager
@@ -61,9 +62,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     watcher.start()
 
     # FastAPI mount() does not propagate sub-app lifespans, so we must
-    # explicitly run the FastMCP session-manager lifespan here.
-    async with _mcp_asgi_app.lifespan(_mcp_asgi_app):
-        yield
+    # explicitly run both FastMCP session-manager lifespans here.
+    async with _admin_mcp_asgi.lifespan(_admin_mcp_asgi):
+        async with _knowledge_mcp_asgi.lifespan(_knowledge_mcp_asgi):
+            yield
 
     await watcher.stop()
     await pool.close()
@@ -85,7 +87,8 @@ def create_app() -> FastAPI:
     uploads_dir.mkdir(exist_ok=True)
     app.mount("/static", StaticFiles(directory=uploads_dir), name="static")
 
-    app.mount("/mcp", _mcp_asgi_app)
+    app.mount("/mcp/admin", _admin_mcp_asgi)
+    app.mount("/mcp/knowledge", _knowledge_mcp_asgi)
 
     return app
 

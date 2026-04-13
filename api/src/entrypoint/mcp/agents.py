@@ -6,7 +6,7 @@ import src.entrypoint.mcp as _pkg
 from fastmcp.server.context import Context
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def get_agent(context: Context, agent_id: str) -> dict:
     """Inspect a single agent — metadata, all workspace files, and every
     attached resource (skills, envs, channels, MCP servers, templates)."""
@@ -41,7 +41,7 @@ async def get_agent(context: Context, agent_id: str) -> dict:
     }
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def get_fleet_status(context: Context) -> dict:
     """Return all agents with a status summary (idle/running/error counts)."""
     user_id = await _pkg._require_user(context)
@@ -64,7 +64,7 @@ async def get_fleet_status(context: Context) -> dict:
     return {"agents": agents, "summary": summary}
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def create_agent(
     context: Context,
     name: str,

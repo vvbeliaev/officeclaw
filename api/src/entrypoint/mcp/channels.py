@@ -7,7 +7,7 @@ import src.entrypoint.mcp as _pkg
 from fastmcp.server.context import Context
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def list_channels(context: Context) -> list[dict]:
     """List all channel integrations (config never returned)."""
     user_id = await _pkg._require_user(context)
@@ -17,7 +17,7 @@ async def list_channels(context: Context) -> list[dict]:
     return [{"id": str(r["id"]), "name": r["name"], "type": r["type"]} for r in records]
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def create_channel(
     context: Context, channel_type: str, config_json: str, name: str = ""
 ) -> dict:
@@ -44,7 +44,7 @@ async def create_channel(
     return {"id": str(record["id"]), "name": record["name"], "type": record["type"]}
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def attach_channel(context: Context, agent_id: str, channel_id: str) -> dict:
     """Attach a channel integration to an agent."""
     await _pkg._require_user(context)

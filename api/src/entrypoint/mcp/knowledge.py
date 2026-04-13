@@ -22,7 +22,7 @@ async def mcp_query_knowledge(
     return {"answer": answer}
 
 
-@_pkg.mcp.tool()
+@_pkg.knowledge_mcp.tool()
 async def ingest_knowledge(
     context: Context,
     text: str,
@@ -45,7 +45,7 @@ async def ingest_knowledge(
     return await mcp_ingest_knowledge(_pkg._knowledge, user_id, text, metadata)
 
 
-@_pkg.mcp.tool()
+@_pkg.knowledge_mcp.tool()
 async def query_knowledge(
     context: Context,
     query: str,

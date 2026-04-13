@@ -7,7 +7,7 @@ import src.entrypoint.mcp as _pkg
 from fastmcp.server.context import Context
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def list_mcp_servers(context: Context) -> list[dict]:
     """List all MCP server configs for the authenticated user."""
     user_id = await _pkg._require_user(context)
@@ -17,7 +17,7 @@ async def list_mcp_servers(context: Context) -> list[dict]:
     return [{"id": str(r["id"]), "name": r["name"], "type": r["type"]} for r in records]
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def create_mcp_server(
     context: Context, name: str, server_type: str, config_json: str
 ) -> dict:
@@ -41,7 +41,7 @@ async def create_mcp_server(
     return {"id": str(record["id"]), "name": record["name"], "type": record["type"]}
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def attach_mcp_server(context: Context, agent_id: str, mcp_id: str) -> dict:
     """Attach an MCP server config to an agent."""
     await _pkg._require_user(context)

@@ -1,16 +1,21 @@
 """
-OfficeClaw MCP server — fleet configuration tools for the Admin agent.
+OfficeClaw MCP servers — two endpoints sharing the same app state.
 
-Mounted at /mcp in the FastAPI app. All tools are scoped to the authenticated
-user via OFFICECLAW_TOKEN bearer auth.
+  /mcp/admin     — fleet management tools (Admin agent only)
+  /mcp/knowledge — knowledge graph tools (all agents)
 
-Tool modules:
+All tools are scoped to the authenticated user via OFFICECLAW_TOKEN bearer auth.
+
+Tool modules (admin):
   agents      — fleet overview, create agent
   skills      — skill library + attach to agent
   envs        — env configs + attach to agent
   channels    — channel integrations + attach to agent
   mcp_servers — user MCP server configs + attach to agent
   templates   — user templates + attach to agent
+
+Tool modules (knowledge):
+  knowledge   — ingest_knowledge, query_knowledge
 """
 
 import logging
@@ -28,7 +33,8 @@ from src.library.app import LibraryApp
 
 logger = logging.getLogger(__name__)
 
-mcp = FastMCP("OfficeClaw")
+admin_mcp = FastMCP("OfficeClaw-Admin")
+knowledge_mcp = FastMCP("OfficeClaw-Knowledge")
 
 _pool: asyncpg.Pool | None = None
 _fleet: FleetApp | None = None
@@ -75,5 +81,5 @@ async def _require_user(context: Context) -> UUID:
     return record["id"]
 
 
-# Import tool modules last to trigger @mcp.tool() registration
+# Import tool modules last to trigger @admin_mcp.tool() / @knowledge_mcp.tool() registration
 from . import agents, channels, envs, knowledge, mcp_servers, skills, templates  # noqa: E402, F401

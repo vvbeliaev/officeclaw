@@ -7,7 +7,7 @@ import src.entrypoint.mcp as _pkg
 from fastmcp.server.context import Context
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def list_envs(context: Context) -> list[dict]:
     """List all env configs for the authenticated user (values never returned)."""
     user_id = await _pkg._require_user(context)
@@ -17,7 +17,7 @@ async def list_envs(context: Context) -> list[dict]:
     return [{"id": str(r["id"]), "name": r["name"]} for r in records]
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def create_env(context: Context, name: str, values_json: str) -> dict:
     """Create a named env config.
 
@@ -37,7 +37,7 @@ async def create_env(context: Context, name: str, values_json: str) -> dict:
     return {"id": str(record["id"]), "name": record["name"]}
 
 
-@_pkg.mcp.tool()
+@_pkg.admin_mcp.tool()
 async def attach_env(context: Context, agent_id: str, env_id: str) -> dict:
     """Attach an env config to an agent."""
     await _pkg._require_user(context)
