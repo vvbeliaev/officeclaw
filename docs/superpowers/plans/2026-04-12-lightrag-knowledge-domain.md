@@ -13,6 +13,7 @@
 ## File Map
 
 **Create:**
+
 - `api/src/knowledge/__init__.py`
 - `api/src/knowledge/core/__init__.py`
 - `api/src/knowledge/core/schema.py`
@@ -32,11 +33,12 @@
 - `api/tests/knowledge/test_service.py`
 
 **Modify:**
+
 - `api/pyproject.toml` — add `lightrag-hku`, `openai`
 - `api/src/shared/config.py` — add `knowledge_*` settings
 - `api/migrations/versions/001_initial_schema.sql` — add `vector` extension
 - `api/src/entrypoint/main.py` — mount knowledge domain
-- `api/src/entrypoint/mcp.py` — add `ingest_knowledge`, `query_knowledge` tools
+- `api/src/entrypoint/mcp/knowledge.py` — add `ingest_knowledge`, `query_knowledge` tools
 - `compose.local.yml` — add `kg_data` volume
 
 ---
@@ -44,6 +46,7 @@
 ## Task 1: Add Dependencies
 
 **Files:**
+
 - Modify: `api/pyproject.toml`
 
 - [ ] **Step 1: Add lightrag-hku and openai to pyproject.toml**
@@ -85,6 +88,7 @@ git commit -m "chore: add lightrag-hku and openai dependencies"
 ## Task 2: pgvector Extension in Migration
 
 **Files:**
+
 - Modify: `api/migrations/versions/001_initial_schema.sql`
 
 PGVectorStorage requires the `vector` extension. The `pgvector/pgvector:pg18` image has it available but it must be explicitly enabled.
@@ -118,6 +122,7 @@ git commit -m "feat(knowledge): enable pgvector extension in migration"
 ## Task 3: Knowledge Core — Schema and Ports
 
 **Files:**
+
 - Create: `api/src/knowledge/__init__.py`
 - Create: `api/src/knowledge/core/__init__.py`
 - Create: `api/src/knowledge/core/schema.py`
@@ -130,6 +135,7 @@ git commit -m "feat(knowledge): enable pgvector extension in migration"
 Create `api/tests/__init__.py` (empty), `api/tests/knowledge/__init__.py` (empty), then:
 
 `api/tests/knowledge/test_service.py`:
+
 ```python
 import pytest
 from uuid import UUID
@@ -178,6 +184,7 @@ Expected: `ImportError` — `src.knowledge.core.schema` not found.
 - [ ] **Step 4: Create schema**
 
 `api/src/knowledge/core/schema.py`:
+
 ```python
 from pydantic import BaseModel
 
@@ -217,6 +224,7 @@ class GraphData(BaseModel):
 - [ ] **Step 5: Create ports**
 
 `api/src/knowledge/core/ports/_in.py`:
+
 ```python
 """Inbound port — what the app layer offers to in-adapters."""
 from typing import Protocol
@@ -230,6 +238,7 @@ class IKnowledgeApp(Protocol):
 ```
 
 `api/src/knowledge/core/ports/out.py`:
+
 ```python
 """Outbound port — what the app layer requires from storage."""
 from typing import Protocol
@@ -262,6 +271,7 @@ git commit -m "feat(knowledge): add core schema and ports"
 ## Task 4: LightRAGStore — Outbound Adapter
 
 **Files:**
+
 - Create: `api/src/knowledge/adapters/out/lightrag_store.py`
 
 This adapter wraps LightRAG as a library. One `LightRAG` instance per user, lazily created and cached. Each instance uses `workspace=str(user_id)` — this controls the subdirectory for NetworkX files (`data/kg/{user_id}/`) and the `workspace` column in PG tables.
@@ -319,6 +329,7 @@ Expected: `ImportError` — `LightRAGStore` not found.
 - [ ] **Step 3: Implement LightRAGStore**
 
 `api/src/knowledge/adapters/out/lightrag_store.py`:
+
 ```python
 from __future__ import annotations
 
@@ -454,6 +465,7 @@ git commit -m "feat(knowledge): add LightRAGStore outbound adapter"
 ## Task 5: App Layer — KnowledgeService and KnowledgeApp
 
 **Files:**
+
 - Create: `api/src/knowledge/app/service.py`
 - Create: `api/src/knowledge/app/__init__.py`
 
@@ -515,6 +527,7 @@ Expected: `ImportError` — `KnowledgeService` not found.
 - [ ] **Step 3: Implement KnowledgeService**
 
 `api/src/knowledge/app/service.py`:
+
 ```python
 from uuid import UUID
 
@@ -536,6 +549,7 @@ class KnowledgeService:
 ```
 
 `api/src/knowledge/app/__init__.py`:
+
 ```python
 from src.knowledge.app.service import KnowledgeService as KnowledgeApp
 
@@ -562,6 +576,7 @@ git commit -m "feat(knowledge): add KnowledgeService app layer"
 ## Task 6: Config — Knowledge Settings
 
 **Files:**
+
 - Modify: `api/src/shared/config.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -628,6 +643,7 @@ git commit -m "feat(knowledge): add knowledge LLM/embed settings to config"
 ## Task 7: REST Router
 
 **Files:**
+
 - Create: `api/src/knowledge/adapters/_in/router.py`
 
 - [ ] **Step 1: Write the failing test**
@@ -700,6 +716,7 @@ Expected: `ImportError` — router not found.
 - [ ] **Step 3: Implement router**
 
 `api/src/knowledge/adapters/_in/router.py`:
+
 ```python
 from uuid import UUID
 
@@ -801,12 +818,14 @@ git commit -m "feat(knowledge): add REST router for ingest and query"
 ## Task 8: DI and main.py Integration
 
 **Files:**
+
 - Create: `api/src/knowledge/di.py`
 - Modify: `api/src/entrypoint/main.py`
 
 - [ ] **Step 1: Create di.py**
 
 `api/src/knowledge/di.py`:
+
 ```python
 from src.knowledge.adapters.out.lightrag_store import LightRAGStore
 from src.knowledge.app import KnowledgeApp
@@ -841,6 +860,7 @@ Add the router in `create_app`:
 ```
 
 The full updated `lifespan` block:
+
 ```python
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -897,6 +917,7 @@ git commit -m "feat(knowledge): wire knowledge domain into app lifespan"
 ## Task 9: MCP Tools
 
 **Files:**
+
 - Modify: `api/src/entrypoint/mcp.py`
 
 - [ ] **Step 1: Update setup() signature**
@@ -1016,6 +1037,7 @@ git commit -m "feat(knowledge): add ingest_knowledge and query_knowledge MCP too
 ## Task 10: Volume in compose.local.yml
 
 **Files:**
+
 - Modify: `compose.local.yml`
 
 - [ ] **Step 1: Add kg_data volume**
@@ -1163,9 +1185,9 @@ curl http://localhost:8000/knowledge/graph \
 
 ## Known Risks
 
-| Risk | Mitigation |
-|------|-----------|
-| `addon_params` is not the correct LightRAG API for PG connection config | Check LightRAG PGKVStorage source — may use `POSTGRES_*` env vars instead. Fallback: set env vars in `di.py` via `os.environ` before constructing `LightRAGStore` |
-| `rag.chunk_entity_relation_graph._graph` is a private attribute | If it changes, inspect `rag.chunk_entity_relation_graph` for a public `export()` or `to_dict()` method |
-| `openai_complete_if_cache` / `openai_embed` import path changes between lightrag-hku versions | Check `lightrag.llm` submodule after install. Alternative: use `openai.AsyncOpenAI` directly |
-| Ingest is slow (LLM calls per document) | Expected. Agents should be selective. Background task means no HTTP timeout risk |
+| Risk                                                                                          | Mitigation                                                                                                                                                        |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `addon_params` is not the correct LightRAG API for PG connection config                       | Check LightRAG PGKVStorage source — may use `POSTGRES_*` env vars instead. Fallback: set env vars in `di.py` via `os.environ` before constructing `LightRAGStore` |
+| `rag.chunk_entity_relation_graph._graph` is a private attribute                               | If it changes, inspect `rag.chunk_entity_relation_graph` for a public `export()` or `to_dict()` method                                                            |
+| `openai_complete_if_cache` / `openai_embed` import path changes between lightrag-hku versions | Check `lightrag.llm` submodule after install. Alternative: use `openai.AsyncOpenAI` directly                                                                      |
+| Ingest is slow (LLM calls per document)                                                       | Expected. Agents should be selective. Background task means no HTTP timeout risk                                                                                  |

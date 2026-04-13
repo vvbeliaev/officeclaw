@@ -14,12 +14,12 @@ async def list_channels(context: Context) -> list[dict]:
     _pkg._assert_ready()
     assert _pkg._integrations is not None
     records = await _pkg._integrations.list_channels(user_id)
-    return [{"id": str(r["id"]), "type": r["type"]} for r in records]
+    return [{"id": str(r["id"]), "name": r["name"], "type": r["type"]} for r in records]
 
 
 @_pkg.mcp.tool()
 async def create_channel(
-    context: Context, channel_type: str, config_json: str
+    context: Context, channel_type: str, config_json: str, name: str = ""
 ) -> dict:
     """Create a channel integration.
 
@@ -28,6 +28,7 @@ async def create_channel(
       telegram: {"token": "123:ABC...", "allow_from": ["*"]}
       discord:  {"token": "..."}
       whatsapp: {"bridge_url": "ws://localhost:3001", "bridge_token": "..."}
+    name: human-readable label for this channel (defaults to channel_type if omitted)
     """
     user_id = await _pkg._require_user(context)
     _pkg._assert_ready()
@@ -38,8 +39,9 @@ async def create_channel(
         raise ValueError(f"config_json is not valid JSON: {exc}") from exc
     if not isinstance(config, dict):
         raise ValueError("config_json must be a JSON object")
-    record = await _pkg._integrations.create_channel(user_id, channel_type, config)
-    return {"id": str(record["id"]), "type": record["type"]}
+    effective_name = name.strip() or channel_type
+    record = await _pkg._integrations.create_channel(user_id, effective_name, channel_type, config)
+    return {"id": str(record["id"]), "name": record["name"], "type": record["type"]}
 
 
 @_pkg.mcp.tool()

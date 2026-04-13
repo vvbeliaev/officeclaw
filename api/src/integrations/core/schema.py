@@ -31,6 +31,7 @@ class EnvValuesOut(BaseModel):
 
 class ChannelCreate(BaseModel):
     user_id: UUID
+    name: str
     type: str
     config: dict  # written, never returned
 
@@ -38,6 +39,7 @@ class ChannelCreate(BaseModel):
 class ChannelOut(BaseModel):
     id: UUID
     user_id: UUID
+    name: str
     type: str
     created_at: datetime
     # config intentionally omitted

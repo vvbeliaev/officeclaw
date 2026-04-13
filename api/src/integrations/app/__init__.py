@@ -51,8 +51,8 @@ class IntegrationsApp:
 
     # --- Channel ---
 
-    async def create_channel(self, user_id: UUID, type_: str, config: dict) -> asyncpg.Record:
-        return await self._channels.create(user_id, type_, config)
+    async def create_channel(self, user_id: UUID, name: str, type_: str, config: dict) -> asyncpg.Record:
+        return await self._channels.create(user_id, name, type_, config)
 
     async def find_channel(self, channel_id: UUID) -> asyncpg.Record | None:
         return await self._channels.find(channel_id)

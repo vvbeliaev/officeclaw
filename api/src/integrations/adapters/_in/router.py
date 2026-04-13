@@ -72,7 +72,7 @@ async def create_channel(
     body: ChannelCreate,
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> ChannelOut:
-    record = await deps.create_channel(body.user_id, body.type, body.config)
+    record = await deps.create_channel(body.user_id, body.name, body.type, body.config)
     return ChannelOut(**dict(record))
 
 

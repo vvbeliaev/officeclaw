@@ -4,7 +4,7 @@
 
 	let { data } = $props();
 
-	const channels = $derived(data.channels as { id: string; type: string; createdAt: Date }[]);
+	const channels = $derived(data.channels as { id: string; name: string; type: string; createdAt: Date }[]);
 
 	type ChannelType = 'telegram' | 'discord' | 'whatsapp';
 	const CHANNEL_META: Record<ChannelType, { label: string; icon: string; color: string }> = {
@@ -18,6 +18,7 @@
 	let addStep: 'pick' | ChannelType = $state('pick');
 	let chSaving = $state(false);
 	let chError: string | null = $state(null);
+	let chName = $state('');
 
 	// Telegram
 	let tgToken = $state('');
@@ -40,6 +41,7 @@
 		addOpen = true;
 		addStep = 'pick';
 		chError = null;
+		chName = '';
 		tgToken = ''; tgAllowMode = 'all'; tgAllowIds = ''; tgStreaming = true;
 		dcToken = ''; dcAllowMode = 'all'; dcAllowIds = '';
 		waUrl = 'ws://localhost:3001'; waToken = ''; waAllowMode = 'all'; waAllowIds = '';
@@ -57,6 +59,7 @@
 
 	async function saveChannel() {
 		chError = null;
+		if (!chName.trim()) { chError = 'Channel name is required'; return; }
 		let type: ChannelType;
 		let config: Record<string, unknown>;
 
@@ -91,7 +94,7 @@
 			const res = await fetch('/api/channels', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ type, config })
+				body: JSON.stringify({ name: chName.trim(), type, config })
 			});
 			if (!res.ok) { chError = await res.text(); return; }
 			addOpen = false;
@@ -176,6 +179,11 @@
 					</div>
 
 					<div class="field">
+						<label class="field-label font-mono" for="ch-name-tg">Channel Name</label>
+						<input id="ch-name-tg" class="field-input font-mono" type="text" bind:value={chName} placeholder="e.g. Support Bot" spellcheck="false" />
+					</div>
+
+					<div class="field">
 						<label class="field-label font-mono" for="tg-token">Bot Token</label>
 						<input id="tg-token" class="field-input font-mono" type="password" bind:value={tgToken} placeholder="123456789:ABC..." spellcheck="false" autocomplete="new-password" />
 						<p class="field-hint font-mono">Get from <span class="code">@BotFather</span> → /newbot</p>
@@ -207,6 +215,11 @@
 					</div>
 
 					<div class="field">
+						<label class="field-label font-mono" for="ch-name-dc">Channel Name</label>
+						<input id="ch-name-dc" class="field-input font-mono" type="text" bind:value={chName} placeholder="e.g. Dev Server" spellcheck="false" />
+					</div>
+
+					<div class="field">
 						<label class="field-label font-mono" for="dc-token">Bot Token</label>
 						<input id="dc-token" class="field-input font-mono" type="password" bind:value={dcToken} placeholder="MTxxxxxxx.Gyyyyy.zzzzzzz" spellcheck="false" autocomplete="new-password" />
 						<p class="field-hint font-mono">Discord Developer Portal → Your App → Bot → Reset Token</p>
@@ -229,6 +242,11 @@
 					<div class="form-header" style="--c: {meta.color}">
 						<span class="form-plat-icon"><Icon icon={meta.icon} width={16} height={16} /></span>
 						<span class="form-title font-mono">Connect WhatsApp</span>
+					</div>
+
+					<div class="field">
+						<label class="field-label font-mono" for="ch-name-wa">Channel Name</label>
+						<input id="ch-name-wa" class="field-input font-mono" type="text" bind:value={chName} placeholder="e.g. Customer Support" spellcheck="false" />
 					</div>
 
 					<div class="field">
@@ -303,7 +321,7 @@
 							<span class="ch-icon" style={meta ? `color:${meta.color};` : ''}>
 								<Icon icon={meta?.icon ?? 'tabler:plug'} width={15} height={15} />
 							</span>
-							<span class="ch-name font-mono">{meta?.label ?? ch.type}</span>
+							<span class="ch-name font-mono">{ch.name}</span>
 							<span class="ch-date font-mono">{relDate(ch.createdAt)}</span>
 							<button
 								class="ch-del font-mono"
@@ -315,7 +333,7 @@
 						{#if deleteId === ch.id}
 							<div class="danger-panel">
 								<p class="delete-msg font-mono">
-									Remove this <strong>{meta?.label ?? ch.type}</strong> channel? Agents using it will lose access.
+									Remove <strong>{ch.name}</strong>? Agents using it will lose access.
 								</p>
 								{#if deleteError}<p class="form-error font-mono">{deleteError}</p>{/if}
 								<div class="form-actions">

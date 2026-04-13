@@ -9,8 +9,8 @@ class ChannelService:
     def __init__(self, repo: ChannelRepo) -> None:
         self._repo = repo
 
-    async def create(self, user_id: UUID, type_: str, config: dict) -> asyncpg.Record:
-        return await self._repo.create(user_id, type_, config)
+    async def create(self, user_id: UUID, name: str, type_: str, config: dict) -> asyncpg.Record:
+        return await self._repo.create(user_id, name, type_, config)
 
     async def find(self, channel_id: UUID) -> asyncpg.Record | None:
         return await self._repo.find_by_id(channel_id)

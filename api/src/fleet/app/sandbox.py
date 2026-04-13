@@ -27,11 +27,21 @@ def _sandbox_workdir(agent_id: UUID) -> Path:
     """
     root = Path(get_settings().sandbox_workdir).expanduser().resolve()
     return root / str(agent_id)
+
+
 _SYNC_EXCLUDE_TOP = {
-    "config.json", "skills", ".git", ".gitignore", ".traces",
+    "config.json",
+    "skills",
+    ".git",
+    ".gitignore",
+    ".traces",
     # Runtime files are assembled fresh on every start (templates + user override).
     # Never sync them back — the workspace copy is merged/ephemeral.
-    "SOUL.md", "AGENTS.md", "HEARTBEAT.md", "TOOLS.md", "USER.md",
+    "SOUL.md",
+    "AGENTS.md",
+    "HEARTBEAT.md",
+    "TOOLS.md",
+    "USER.md",
 }
 _DEFAULT_CPUS = "1"
 _DEFAULT_MEMORY = "512"  # MiB
@@ -45,26 +55,39 @@ def _run_cmd(
     runner = get_settings().sandbox_runner
     if runner == "docker":
         cmd = [
-            "docker", "run",
-            "--name", name,
+            "docker",
+            "run",
+            "--name",
+            name,
             "--detach",
-            "--volume", f"{workdir}:/workspace",
-            "--cpus", _DEFAULT_CPUS,
-            "--memory", f"{_DEFAULT_MEMORY}m",  # Docker expects "512m"
-            "-p", f"{gateway_port}:18790",
+            "--volume",
+            f"{workdir}:/workspace",
+            "--cpus",
+            _DEFAULT_CPUS,
+            "--memory",
+            f"{_DEFAULT_MEMORY}m",  # Docker expects "512m"
+            "-p",
+            f"{gateway_port}:18790",
         ]
         for k, v in env.items():
             cmd += ["-e", f"{k}={v}"]
         cmd.append(image)
     else:
         cmd = [
-            "msb", "run", image,
-            "--name", name,
+            "msb",
+            "run",
+            image,
+            "--name",
+            name,
             "--detach",
-            "--volume", f"{workdir}:/workspace",
-            "--cpus", _DEFAULT_CPUS,
-            "--memory", _DEFAULT_MEMORY,  # msb expects plain integer
-            "-p", f"{gateway_port}:18790",
+            "--volume",
+            f"{workdir}:/workspace",
+            "--cpus",
+            _DEFAULT_CPUS,
+            "--memory",
+            _DEFAULT_MEMORY,  # msb expects plain integer
+            "-p",
+            f"{gateway_port}:18790",
         ]
         for k, v in env.items():
             cmd += ["-e", f"{k}={v}"]
@@ -217,7 +240,9 @@ class SandboxService:
 
     async def start(self, agent_id: UUID) -> str:
         """Build VM payload, write workspace, launch msb sandbox. Returns sandbox_id."""
-        payload = await build_vm_payload(agent_id, self._agents, self._integrations, self._skills)
+        payload = await build_vm_payload(
+            agent_id, self._agents, self._integrations, self._skills
+        )
 
         workdir = _sandbox_workdir(agent_id)
         tmp_workdir = workdir.parent / f".tmp-{agent_id}"
@@ -303,7 +328,9 @@ class SandboxService:
             if synced:
                 await self._agents.bulk_upsert_files(agent_id, synced)
         except Exception:
-            _log.exception("Failed to sync workspace files for agent %s during stop", agent_id)
+            _log.exception(
+                "Failed to sync workspace files for agent %s during stop", agent_id
+            )
 
         proc = await asyncio.create_subprocess_exec(
             *_rm_cmd(sandbox_name),
@@ -315,7 +342,9 @@ class SandboxService:
         if workdir.exists():
             shutil.rmtree(workdir, ignore_errors=True)
 
-        await self._agents.update(agent_id, status="idle", sandbox_id=None, gateway_port=None)
+        await self._agents.update(
+            agent_id, status="idle", sandbox_id=None, gateway_port=None
+        )
 
     async def _sync_agent_files(self, agent_id: UUID) -> None:
         """Read mutable workspace files from disk and upsert into Postgres."""
@@ -334,7 +363,9 @@ class SandboxService:
             if await _is_sandbox_alive(sandbox_name):
                 continue
             agent_id: UUID = agent["id"]
-            _log.warning("Sandbox %s is dead; marking agent %s as error", sandbox_name, agent_id)
+            _log.warning(
+                "Sandbox %s is dead; marking agent %s as error", sandbox_name, agent_id
+            )
             try:
                 await self._sync_agent_files(agent_id)
             except Exception:
@@ -343,7 +374,9 @@ class SandboxService:
             workdir = _sandbox_workdir(agent_id)
             if workdir.exists():
                 shutil.rmtree(workdir, ignore_errors=True)
-            await self._agents.update(agent_id, status="error", sandbox_id=None, gateway_port=None)
+            await self._agents.update(
+                agent_id, status="error", sandbox_id=None, gateway_port=None
+            )
 
     async def sync_all(self) -> None:
         """One-shot pass: persist mutable workspace files for all running agents."""
@@ -353,4 +386,3 @@ class SandboxService:
                 await self._sync_agent_files(agent["id"])
             except Exception:
                 _log.exception("Failed to sync files for agent %s", agent["id"])
-

@@ -94,6 +94,7 @@ export const userChannels = pgTable('user_channels', {
 	userId: uuid('user_id')
 		.notNull()
 		.references(() => user.id, { onDelete: 'cascade' }),
+	name: text().notNull(),
 	type: text().notNull(),
 	// config_encrypted (bytea) excluded — encrypted by Python, never read in web
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()

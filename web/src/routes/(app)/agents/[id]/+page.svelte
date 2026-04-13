@@ -6,6 +6,7 @@
 	import AgentAvatar from '$lib/components/agent-avatar.svelte';
 	import Markdown from '$lib/components/markdown.svelte';
 	import { Icon } from '$lib/icons';
+	import { resolve } from '$app/paths';
 
 	let { data } = $props();
 
@@ -14,9 +15,7 @@
 	let phaseOverride: LifecyclePhase | null = $state(null);
 	let lifecycleError: string | null = $state(null);
 
-	const phase: LifecyclePhase = $derived(
-		phaseOverride ?? (data.agent.status as LifecyclePhase)
-	);
+	const phase: LifecyclePhase = $derived(phaseOverride ?? (data.agent.status as LifecyclePhase));
 
 	// Once the server catches up with our optimistic override, drop it.
 	$effect(() => {
@@ -57,6 +56,16 @@
 		tick().then(() => {
 			if (scroller) scroller.scrollTop = scroller.scrollHeight;
 		});
+	});
+
+	// After admin responds, re-fetch layout data so the sidebar reflects any new agents.
+	let prevStatus = $state<string>('ready');
+	$effect(() => {
+		const cur = chat.status;
+		if (data.agent.isAdmin && prevStatus === 'streaming' && cur === 'ready') {
+			invalidateAll();
+		}
+		prevStatus = cur;
 	});
 
 	async function send() {
@@ -139,7 +148,12 @@
 	<!-- ── Header ─────────────────────────────────────────────── -->
 	<header class="chat-header">
 		<div class="header-left">
-			<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={30} />
+			<AgentAvatar
+				name={data.agent.name}
+				isAdmin={data.agent.isAdmin}
+				avatarUrl={data.agent.avatarUrl}
+				size={30}
+			/>
 			<div class="header-meta">
 				<h1 class="agent-name font-display">{data.agent.name}</h1>
 				<p class="agent-sub">
@@ -178,11 +192,19 @@
 				</button>
 			{/if}
 			<div class="header-divider"></div>
-			<a class="header-btn" href="/agents/{data.agent.id}/files" aria-label="Agent files">
+			<a
+				class="header-btn"
+				href={resolve(`/agents/${data.agent.id}/files`)}
+				aria-label="Agent files"
+			>
 				<Icon icon="tabler:folder-open" width={13} height={13} />
 				<span>Files</span>
 			</a>
-			<a class="header-btn" href="/agents/{data.agent.id}/settings" aria-label="Agent settings">
+			<a
+				class="header-btn"
+				href={resolve(`/agents/${data.agent.id}/settings`)}
+				aria-label="Agent settings"
+			>
 				<Icon icon="tabler:settings" width={13} height={13} />
 				<span>Settings</span>
 			</a>
@@ -209,7 +231,12 @@
 			<!-- ── Offline / transitional state ─────────────── -->
 			<div class="offline-state">
 				<div class="offline-inner">
-					<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={68} />
+					<AgentAvatar
+						name={data.agent.name}
+						isAdmin={data.agent.isAdmin}
+						avatarUrl={data.agent.avatarUrl}
+						size={68}
+					/>
 
 					<h2 class="offline-title font-display">
 						{#if phase === 'idle'}
@@ -223,14 +250,14 @@
 
 					<p class="offline-sub">
 						{#if phase === 'idle'}
-							The sandbox VM is cold. Start it to begin chatting — your workspace
-							files, skills, and MCPs will be synced to a fresh container.
+							The sandbox VM is cold. Start it to begin chatting — your workspace files, skills, and
+							MCPs will be synced to a fresh container.
 						{:else if phase === 'starting'}
-							Launching sandbox, syncing workspace, waiting for the nanobot gateway
-							to come online. This usually takes under 15 seconds.
+							Launching sandbox, syncing workspace, waiting for the nanobot gateway to come online.
+							This usually takes under 15 seconds.
 						{:else}
-							The sandbox failed to start. Check the error above and try again,
-							or inspect logs for details.
+							The sandbox failed to start. Check the error above and try again, or inspect logs for
+							details.
 						{/if}
 					</p>
 
@@ -292,7 +319,12 @@
 					{:else}
 						<article class="msg agent-msg">
 							<div class="agent-avatar-col">
-								<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={22} />
+								<AgentAvatar
+									name={data.agent.name}
+									isAdmin={data.agent.isAdmin}
+									avatarUrl={data.agent.avatarUrl}
+									size={22}
+								/>
 							</div>
 							<div class="agent-body">
 								<div class="agent-name-tag font-display">{data.agent.name}</div>
@@ -305,7 +337,12 @@
 				{#if chat.status === 'submitted' && chat.messages.at(-1)?.role === 'user'}
 					<article class="msg agent-msg">
 						<div class="agent-avatar-col">
-							<AgentAvatar name={data.agent.name} isAdmin={data.agent.isAdmin} avatarUrl={data.agent.avatarUrl} size={22} />
+							<AgentAvatar
+								name={data.agent.name}
+								isAdmin={data.agent.isAdmin}
+								avatarUrl={data.agent.avatarUrl}
+								size={22}
+							/>
 						</div>
 						<div class="agent-body">
 							<div class="agent-name-tag font-display">{data.agent.name}</div>
@@ -412,7 +449,9 @@
 
 	.agent-name {
 		font-size: 1rem;
-		font-variation-settings: 'opsz' 24, 'wght' 650;
+		font-variation-settings:
+			'opsz' 24,
+			'wght' 650;
 		line-height: 1;
 		letter-spacing: -0.01em;
 	}
@@ -425,8 +464,12 @@
 		color: var(--muted-foreground);
 	}
 
-	.agent-sub .sep { opacity: 0.4; }
-	.agent-sub .image { opacity: 0.65; }
+	.agent-sub .sep {
+		opacity: 0.4;
+	}
+	.agent-sub .image {
+		opacity: 0.65;
+	}
 
 	.header-actions {
 		display: flex;
@@ -449,7 +492,9 @@
 		font-size: 0.7rem;
 		border-radius: 0.3rem;
 		color: var(--muted-foreground);
-		transition: background 150ms ease, color 150ms ease;
+		transition:
+			background 150ms ease,
+			color 150ms ease;
 	}
 
 	.header-btn:hover:not(:disabled) {
@@ -473,7 +518,11 @@
 		letter-spacing: 0.02em;
 		border-radius: 0.3rem;
 		border: 1px solid transparent;
-		transition: background 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease;
+		transition:
+			background 150ms ease,
+			border-color 150ms ease,
+			color 150ms ease,
+			box-shadow 150ms ease;
 	}
 
 	.lifecycle-btn.start {
@@ -481,7 +530,9 @@
 		color: var(--primary-foreground);
 		box-shadow: 0 0 12px color-mix(in oklch, var(--primary) 28%, transparent);
 	}
-	.lifecycle-btn.start:hover { filter: brightness(1.07); }
+	.lifecycle-btn.start:hover {
+		filter: brightness(1.07);
+	}
 
 	.lifecycle-btn.stop {
 		background: transparent;
@@ -519,10 +570,21 @@
 		border-right-color: transparent;
 		animation: spin 0.75s linear infinite;
 	}
-	.spinner-mono { width: 9px; height: 9px; border-width: 1px; }
-	.send-spinner { width: 13px; height: 13px; }
+	.spinner-mono {
+		width: 9px;
+		height: 9px;
+		border-width: 1px;
+	}
+	.send-spinner {
+		width: 13px;
+		height: 13px;
+	}
 
-	@keyframes spin { to { transform: rotate(360deg); } }
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
 
 	/* ── Lifecycle error banner ───────────────────────────── */
 	.lifecycle-error {
@@ -535,7 +597,10 @@
 		color: var(--destructive);
 	}
 
-	.lifecycle-error-body { flex: 1; min-width: 0; }
+	.lifecycle-error-body {
+		flex: 1;
+		min-width: 0;
+	}
 
 	.lifecycle-error-title {
 		font-size: 0.65rem;
@@ -599,7 +664,9 @@
 
 	.offline-title {
 		font-size: 2.25rem;
-		font-variation-settings: 'opsz' 48, 'wght' 700;
+		font-variation-settings:
+			'opsz' 48,
+			'wght' 700;
 		line-height: 1.08;
 		letter-spacing: -0.015em;
 		margin: 1.75rem 0 0.9rem;
@@ -617,8 +684,13 @@
 	}
 
 	@keyframes dot-fade {
-		0%, 100% { opacity: 0.3; }
-		50% { opacity: 1; }
+		0%,
+		100% {
+			opacity: 0.3;
+		}
+		50% {
+			opacity: 1;
+		}
 	}
 
 	.offline-sub {
@@ -641,11 +713,18 @@
 		letter-spacing: 0.03em;
 		border-radius: 9999px;
 		box-shadow: 0 0 20px color-mix(in oklch, var(--primary) 28%, transparent);
-		transition: filter 150ms ease, transform 150ms ease;
+		transition:
+			filter 150ms ease,
+			transform 150ms ease;
 	}
 
-	.offline-cta:hover { filter: brightness(1.07); transform: translateY(-1px); }
-	.offline-cta:active { transform: translateY(0); }
+	.offline-cta:hover {
+		filter: brightness(1.07);
+		transform: translateY(-1px);
+	}
+	.offline-cta:active {
+		transform: translateY(0);
+	}
 
 	/* ── Boot log ─────────────────────────────────────────── */
 	.boot-log {
@@ -668,12 +747,22 @@
 	}
 
 	@keyframes boot-line-in {
-		from { opacity: 0; transform: translateX(-6px); }
-		to   { opacity: 1; transform: translateX(0); }
+		from {
+			opacity: 0;
+			transform: translateX(-6px);
+		}
+		to {
+			opacity: 1;
+			transform: translateX(0);
+		}
 	}
 
-	.boot-line.active { color: var(--primary); }
-	.boot-line.pending { opacity: 0.35; }
+	.boot-line.active {
+		color: var(--primary);
+	}
+	.boot-line.pending {
+		opacity: 0.35;
+	}
 
 	.tick {
 		font-family: var(--font-mono);
@@ -682,7 +771,9 @@
 		color: var(--status-running);
 	}
 
-	.boot-line.pending .tick { color: var(--muted-foreground); }
+	.boot-line.pending .tick {
+		color: var(--muted-foreground);
+	}
 
 	/* ── Intro ────────────────────────────────────────────── */
 	.intro {
@@ -700,7 +791,9 @@
 
 	.intro-title {
 		font-size: 2.5rem;
-		font-variation-settings: 'opsz' 48, 'wght' 720;
+		font-variation-settings:
+			'opsz' 48,
+			'wght' 720;
 		line-height: 1.05;
 		letter-spacing: -0.015em;
 		margin-bottom: 0.9rem;
@@ -725,8 +818,14 @@
 	}
 
 	@keyframes msg-in {
-		from { opacity: 0; transform: translateY(8px); }
-		to   { opacity: 1; transform: translateY(0); }
+		from {
+			opacity: 0;
+			transform: translateY(8px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
 	}
 
 	.agent-msg {
@@ -746,7 +845,9 @@
 
 	.agent-name-tag {
 		font-size: 0.7rem;
-		font-variation-settings: 'opsz' 12, 'wght' 550;
+		font-variation-settings:
+			'opsz' 12,
+			'wght' 550;
 		color: color-mix(in oklch, var(--primary) 65%, var(--foreground));
 		letter-spacing: 0.01em;
 		margin-bottom: 0.35rem;
@@ -770,12 +871,24 @@
 		opacity: 0.5;
 	}
 
-	.thinking-dots span:nth-child(2) { animation-delay: 0.18s; }
-	.thinking-dots span:nth-child(3) { animation-delay: 0.36s; }
+	.thinking-dots span:nth-child(2) {
+		animation-delay: 0.18s;
+	}
+	.thinking-dots span:nth-child(3) {
+		animation-delay: 0.36s;
+	}
 
 	@keyframes thinking-bounce {
-		0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-		30%           { transform: translateY(-5px); opacity: 1; }
+		0%,
+		60%,
+		100% {
+			transform: translateY(0);
+			opacity: 0.4;
+		}
+		30% {
+			transform: translateY(-5px);
+			opacity: 1;
+		}
 	}
 
 	/* User message */
@@ -832,7 +945,9 @@
 		border: 1px solid var(--border);
 		border-radius: 0.875rem;
 		padding: 0.9rem 1rem 0.7rem 1.1rem;
-		transition: border-color 200ms ease, box-shadow 200ms ease;
+		transition:
+			border-color 200ms ease,
+			box-shadow 200ms ease;
 	}
 
 	.composer:focus-within {
@@ -903,7 +1018,10 @@
 		background: var(--primary);
 		color: var(--primary-foreground);
 		flex-shrink: 0;
-		transition: filter 150ms ease, transform 150ms ease, background 150ms ease;
+		transition:
+			filter 150ms ease,
+			transform 150ms ease,
+			background 150ms ease;
 	}
 
 	.send-btn:hover:not(:disabled) {

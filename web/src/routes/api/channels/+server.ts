@@ -9,13 +9,15 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	const body = await request.json();
 	const type = body.type?.toString().trim();
 	if (!type) error(400, 'Channel type is required');
+	const name = body.name?.toString().trim();
+	if (!name) error(400, 'Channel name is required');
 
 	const config: Record<string, unknown> = body.config ?? {};
 
 	const upstream = await fetch(`${API_URL}/channels`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ user_id: locals.user!.id, type, config })
+		body: JSON.stringify({ user_id: locals.user!.id, name, type, config })
 	});
 
 	if (!upstream.ok) {
