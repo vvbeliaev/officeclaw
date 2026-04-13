@@ -21,6 +21,12 @@ services:
       timeout: 5s
       retries: 5
 
+  docling:
+    image: ghcr.io/docling-project/docling-serve-cpu:latest
+    ports:
+      - "5001:5001"
+    restart: unless-stopped
+
   api:
     build: ./api
     ports:
@@ -29,11 +35,12 @@ services:
     environment:
       SANDBOX_RUNNER: docker
       SANDBOX_GATEWAY_HOST: host.docker.internal
+      DOCLING_URL: http://docling:5001
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp/officeclaw:/tmp/officeclaw
       - ./api/uploads:/app/uploads
-      - kg_data:/app/data/kg
+      - ./api/data/kg:/app/data/kg
     depends_on:
       db:
         condition: service_healthy
@@ -47,6 +54,3 @@ services:
     depends_on:
       - api
     restart: unless-stopped
-
-volumes:
-  kg_data:

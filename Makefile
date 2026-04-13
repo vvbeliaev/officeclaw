@@ -1,7 +1,7 @@
 AGENT_IMAGE ?= localhost:5005/officeclaw/agent:latest
 
 infra:
-	docker compose -f compose.local.yml up -d db registry
+	docker compose -f compose.local.yml up -d db registry docling
 
 dev-api:
 	cd api && uv run uvicorn src.entrypoint.main:app --reload --port 8000
@@ -9,8 +9,8 @@ dev-api:
 dev-web:
 	cd web && pnpm dev
 
-api:
-	docker compose -f compose.local.yml up -d db registry api web
+dev:
+	docker compose -f compose.local.yml up -d db registry docling api web
 
 vm-build:
 	docker build --no-cache -t $(AGENT_IMAGE) ./sandbox/

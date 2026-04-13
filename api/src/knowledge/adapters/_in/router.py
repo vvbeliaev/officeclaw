@@ -37,6 +37,15 @@ async def _ingest_with_logging(
         logger.exception("Background ingest failed for user %s", user_id)
 
 
+async def _ingest_file_with_logging(
+    knowledge: KnowledgeApp, user_id: UUID, content: bytes, content_type: str, filename: str
+) -> None:
+    try:
+        await knowledge.ingest_file(user_id, content, content_type, filename)
+    except Exception:
+        logger.exception("Background file ingest failed for user %s file %s", user_id, filename)
+
+
 @router.post("/ingest/text", status_code=202)
 async def ingest_text(
     body: IngestTextRequest,
@@ -56,12 +65,30 @@ async def ingest_file(
     knowledge: KnowledgeApp = Depends(get_knowledge),
     user_id: UUID = Depends(get_knowledge_user_id),
 ) -> dict:
-    """Upload a file for background ingestion (txt, md, pdf)."""
-    allowed = {"text/plain", "text/markdown", "application/pdf"}
+    """Upload a file for background ingestion. Docling normalises to Markdown before indexing."""
+    allowed = {
+        "text/plain",
+        "text/markdown",
+        "application/pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/html",
+        "image/png",
+        "image/jpeg",
+        "image/webp",
+    }
     if file.content_type not in allowed:
         raise HTTPException(415, f"Unsupported file type: {file.content_type}")
-    content = (await file.read()).decode("utf-8", errors="replace")
-    background_tasks.add_task(_ingest_with_logging, knowledge, user_id, content, {"filename": file.filename})
+    content = await file.read()
+    background_tasks.add_task(
+        _ingest_file_with_logging,
+        knowledge,
+        user_id,
+        content,
+        file.content_type,
+        file.filename or "unknown",
+    )
     return {"status": "queued", "filename": file.filename}
 
 

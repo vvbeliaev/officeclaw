@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -23,12 +24,22 @@ def _parse_pg_params(database_url: str) -> dict:
     }
 
 
+def _export_pg_env(pg: dict) -> None:
+    """Set POSTGRES_* env vars that LightRAG PG backends require."""
+    os.environ.setdefault("POSTGRES_HOST", pg["host"])
+    os.environ.setdefault("POSTGRES_PORT", pg["port"])
+    os.environ.setdefault("POSTGRES_USER", pg["user"])
+    os.environ.setdefault("POSTGRES_PASSWORD", pg["password"])
+    os.environ.setdefault("POSTGRES_DATABASE", pg["database"])
+
+
 class LightRAGStore:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._instances: dict[UUID, LightRAG] = {}
         self._locks: dict[UUID, asyncio.Lock] = {}
         self._pg = _parse_pg_params(settings.database_url)
+        _export_pg_env(self._pg)
 
     def _get_lock(self, user_id: UUID) -> asyncio.Lock:
         if user_id not in self._locks:
@@ -88,7 +99,7 @@ class LightRAGStore:
                         "database": pg["database"],
                     },
                 )
-                await rag.initialize()
+                await rag.initialize_storages()
                 self._instances[user_id] = rag
         return self._instances[user_id]
 

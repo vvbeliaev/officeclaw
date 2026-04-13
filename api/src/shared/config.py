@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     knowledge_embed_model: str = "text-embedding-3-small"
     knowledge_embed_dim: int = 1536
 
+    # Document normalisation — docling-serve base URL
+    docling_url: str = "http://localhost:5001"
+
     model_config = SettingsConfigDict(
         env_file=_ENV_PATH, env_file_encoding="utf-8", extra="ignore"
     )
