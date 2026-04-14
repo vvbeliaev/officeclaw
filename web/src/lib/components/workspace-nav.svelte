@@ -22,8 +22,7 @@
 		{ href: `/w/${workspaceId}/workspace/channels`, label: 'Channels', icon: 'oc:log', count: counts.channels },
 		{ href: `/w/${workspaceId}/workspace/mcp`, label: 'MCP Servers', icon: 'oc:memory', count: counts.mcp },
 		{ href: `/w/${workspaceId}/workspace/knowledge`, label: 'Knowledge', icon: 'oc:memory', count: counts.knowledge },
-		{ href: `/w/${workspaceId}/prompts`, label: 'Prompts', icon: 'tabler:file-text', count: counts.prompts },
-		{ href: `/w/${workspaceId}/workspace/settings`, label: 'Settings', icon: 'tabler:settings', count: null }
+		{ href: `/w/${workspaceId}/prompts`, label: 'Prompts', icon: 'tabler:file-text', count: counts.prompts }
 	]);
 
 	function isActive(href: string): boolean {

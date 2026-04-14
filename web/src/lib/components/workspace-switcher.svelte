@@ -85,19 +85,29 @@
     <div class="popover">
       <ul class="ws-list">
         {#each workspaces as ws (ws.id)}
-          <li>
+          {@const isActive = ws.slug === activeWorkspaceId || ws.id === activeWorkspaceId}
+          <li class="ws-row">
             <button
               class="ws-item font-mono"
-              class:active={ws.slug === activeWorkspaceId || ws.id === activeWorkspaceId}
+              class:active={isActive}
               onclick={() => { goto(`/w/${ws.slug}`); open = false; }}
               type="button"
             >
               <span class="ws-initial sm">{ws.name[0]?.toUpperCase()}</span>
-              {ws.name}
-              {#if ws.id === activeWorkspaceId}
+              <span class="ws-item-name">{ws.name}</span>
+              {#if isActive}
                 <Icon icon="tabler:check" width={11} height={11} class="check" />
               {/if}
             </button>
+            <a
+              href="/w/{ws.slug}/workspace/settings"
+              class="ws-gear"
+              onclick={() => { open = false; }}
+              title="Workspace settings"
+              aria-label="Settings for {ws.name}"
+            >
+              <Icon icon="tabler:settings" width={12} height={12} />
+            </a>
           </li>
         {/each}
       </ul>
@@ -202,11 +212,23 @@
     padding: 0.3rem;
   }
 
+  .ws-row {
+    display: flex;
+    align-items: center;
+    border-radius: 0.25rem;
+    overflow: hidden;
+  }
+
+  .ws-row:hover .ws-gear {
+    opacity: 1;
+  }
+
   .ws-item {
     display: flex;
     align-items: center;
     gap: 0.45rem;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     padding: 0.35rem 0.5rem;
     font-size: 0.72rem;
     border-radius: 0.25rem;
@@ -222,9 +244,37 @@
     color: var(--primary);
   }
 
+  .ws-item-name {
+    flex: 1;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   :global(.check) {
-    margin-left: auto;
+    flex-shrink: 0;
     color: var(--primary);
+  }
+
+  .ws-gear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: 0.2rem;
+    color: color-mix(in oklch, var(--sidebar-foreground) 35%, transparent);
+    opacity: 0;
+    transition: color 120ms ease, background 120ms ease, opacity 120ms ease;
+    margin-right: 0.2rem;
+  }
+
+  .ws-gear:hover {
+    color: var(--sidebar-foreground);
+    background: var(--sidebar-accent);
+    opacity: 1;
   }
 
   .divider {
