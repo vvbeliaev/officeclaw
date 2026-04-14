@@ -7,17 +7,17 @@ class SkillRepo:
     def __init__(self, conn: asyncpg.Pool) -> None:
         self._conn = conn
 
-    async def create(self, user_id: UUID, name: str, description: str) -> asyncpg.Record:
+    async def create(self, workspace_id: UUID, name: str, description: str) -> asyncpg.Record:
         return await self._conn.fetchrow(
-            "INSERT INTO skills (user_id, name, description) VALUES ($1, $2, $3) RETURNING *",
-            user_id, name, description,
+            "INSERT INTO skills (workspace_id, name, description) VALUES ($1, $2, $3) RETURNING *",
+            workspace_id, name, description,
         )
 
     async def find_by_id(self, skill_id: UUID) -> asyncpg.Record | None:
         return await self._conn.fetchrow("SELECT * FROM skills WHERE id = $1", skill_id)
 
-    async def list_by_user(self, user_id: UUID) -> list[asyncpg.Record]:
-        return await self._conn.fetch("SELECT * FROM skills WHERE user_id = $1", user_id)
+    async def list_by_workspace(self, workspace_id: UUID) -> list[asyncpg.Record]:
+        return await self._conn.fetch("SELECT * FROM skills WHERE workspace_id = $1", workspace_id)
 
     async def delete(self, skill_id: UUID) -> None:
         await self._conn.execute("DELETE FROM skills WHERE id = $1", skill_id)

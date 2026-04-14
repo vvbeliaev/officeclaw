@@ -17,7 +17,7 @@ async def create_skill(
     body: SkillCreate,
     library: LibraryApp = Depends(get_library),
 ) -> SkillOut:
-    return SkillOut(**dict(await library.create(body.user_id, body.name, body.description)))
+    return SkillOut(**dict(await library.create(body.workspace_id, body.name, body.description)))
 
 
 @router.delete("/{skill_id}", status_code=204)

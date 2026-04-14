@@ -5,14 +5,14 @@ from pydantic import BaseModel
 
 
 class SkillCreate(BaseModel):
-    user_id: UUID
+    workspace_id: UUID
     name: str
     description: str = ""
 
 
 class SkillOut(BaseModel):
     id: UUID
-    user_id: UUID
+    workspace_id: UUID
     name: str
     description: str
     created_at: datetime
