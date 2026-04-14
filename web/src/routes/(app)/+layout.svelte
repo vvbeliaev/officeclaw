@@ -138,6 +138,7 @@
 		</header>
 
 		<div class="scroll">
+			{#if workspaceId}
 			<!-- Fleet section -->
 			<section class="section">
 				<div class="section-head">
@@ -162,7 +163,7 @@
 						{#each agents as agent (agent.id)}
 							<AgentSidebarCard
 								id={agent.id}
-								workspaceId={workspaceId ?? ''}
+								workspaceId={workspaceId}
 								name={agent.name}
 								status={agent.status as AgentStatus}
 								isAdmin={agent.isAdmin}
@@ -216,10 +217,11 @@
 				<div class="section-head">
 					<span class="section-label font-mono">workspace</span>
 				</div>
-				{#if workspaceId && workspaceCounts}
+				{#if workspaceCounts}
 					<WorkspaceNav {workspaceId} counts={workspaceCounts} />
 				{/if}
 			</section>
+			{/if}
 		</div>
 
 		<!-- Workspace switcher -->

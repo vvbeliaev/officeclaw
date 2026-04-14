@@ -15,6 +15,7 @@
   let newName = $state('');
   let loading = $state(false);
   let nameInput: HTMLInputElement | null = $state(null);
+  let root: HTMLDivElement | null = $state(null);
 
   const active = $derived(workspaces.find((w) => w.id === activeWorkspaceId));
 
@@ -22,6 +23,20 @@
     open = !open;
     if (!open) creating = false;
   }
+
+  function onClickOutside(e: MouseEvent) {
+    if (open && root && !root.contains(e.target as Node)) {
+      open = false;
+      creating = false;
+    }
+  }
+
+  $effect(() => {
+    if (open) {
+      document.addEventListener('mousedown', onClickOutside);
+      return () => document.removeEventListener('mousedown', onClickOutside);
+    }
+  });
 
   function startCreate() {
     creating = true;
@@ -56,7 +71,7 @@
   }
 </script>
 
-<div class="switcher">
+<div class="switcher" bind:this={root}>
   <button class="trigger font-mono" onclick={toggle} type="button">
     <span class="ws-initial">{active?.name?.[0]?.toUpperCase() ?? '?'}</span>
     <span class="ws-name">{active?.name ?? 'workspace'}</span>
