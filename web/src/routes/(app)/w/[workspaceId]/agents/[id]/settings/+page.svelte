@@ -370,19 +370,15 @@
 						{#each (data.envs as Env[]).filter(e => e.attached) as env (env.id)}
 							<div class="chip chip--on">
 								<span class="chip-name">{env.name}</span>
-								{#if env.name === 'officeclaw' && data.agent.isAdmin}
-									<span class="chip-lock"><Icon icon="tabler:lock" width={9} height={9} /></span>
-								{:else}
-									<form method="POST" action="?/detachEnv" use:enhance={connEnhance(`detach:env:${env.id}`)} style="display:contents">
-										<input type="hidden" name="env_id" value={env.id} />
-										<button class="chip-x" type="submit" disabled={!!pending[`detach:env:${env.id}`]} title="Detach">
-											{#if pending[`detach:env:${env.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:x" width={9} height={9} />{/if}
-										</button>
-									</form>
-								{/if}
+								<form method="POST" action="?/detachEnv" use:enhance={connEnhance(`detach:env:${env.id}`)} style="display:contents">
+									<input type="hidden" name="env_id" value={env.id} />
+									<button class="chip-x" type="submit" disabled={!!pending[`detach:env:${env.id}`]} title="Detach">
+										{#if pending[`detach:env:${env.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:x" width={9} height={9} />{/if}
+									</button>
+								</form>
 							</div>
 						{/each}
-						{#each (data.envs as Env[]).filter(e => !e.attached && (data.agent.isAdmin || e.name !== 'officeclaw')) as env (env.id)}
+						{#each (data.envs as Env[]).filter(e => !e.attached) as env (env.id)}
 							<form method="POST" action="?/attachEnv" use:enhance={connEnhance(`attach:env:${env.id}`)} style="display:contents">
 								<input type="hidden" name="env_id" value={env.id} />
 								<button class="chip chip--off" type="submit" disabled={!!pending[`attach:env:${env.id}`]}>
