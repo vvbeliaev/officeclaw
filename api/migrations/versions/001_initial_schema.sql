@@ -15,8 +15,8 @@ CREATE TABLE "user" (
     email_verified   BOOLEAN     NOT NULL DEFAULT FALSE,
     image            TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    officeclaw_token TEXT        UNIQUE
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    -- officeclaw_token removed: lives on workspaces now
 );
 
 CREATE TABLE "session" (
@@ -59,13 +59,25 @@ CREATE INDEX session_user_id_idx         ON "session"(user_id);
 CREATE INDEX account_user_id_idx         ON "account"(user_id);
 CREATE INDEX verification_identifier_idx ON "verification"(identifier);
 
+-- ── workspaces ──────────────────────────────────────────────
+
+CREATE TABLE workspaces (
+    id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id          UUID        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    name             TEXT        NOT NULL,
+    officeclaw_token TEXT        UNIQUE,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX workspaces_user_id_idx ON workspaces(user_id);
+
 -- ── app domain ──────────────────────────────────────────────
 
 CREATE TYPE agent_status AS ENUM ('idle', 'running', 'error');
 
 CREATE TABLE agents (
     id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id      UUID         NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    workspace_id UUID         NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     name         TEXT         NOT NULL,
     status       agent_status NOT NULL DEFAULT 'idle',
     sandbox_id   TEXT,
@@ -88,7 +100,7 @@ CREATE TABLE agent_files (
 
 CREATE TABLE skills (
     id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    workspace_id UUID       NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     name        TEXT        NOT NULL,
     description TEXT        NOT NULL DEFAULT '',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -103,37 +115,38 @@ CREATE TABLE skill_files (
     UNIQUE(skill_id, path)
 );
 
-CREATE TABLE user_envs (
+CREATE TABLE workspace_envs (
     id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id          UUID        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    workspace_id     UUID        NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     name             TEXT        NOT NULL,
     values_encrypted BYTEA       NOT NULL,
     category         TEXT,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, name)
+    UNIQUE(workspace_id, name)
 );
 
-CREATE TABLE user_channels (
+CREATE TABLE workspace_channels (
     id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id          UUID        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    workspace_id     UUID        NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+    name             TEXT        NOT NULL,
     type             TEXT        NOT NULL,
     config_encrypted BYTEA       NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE TABLE user_mcp (
+CREATE TABLE workspace_mcp (
     id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id          UUID        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    workspace_id     UUID        NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     name             TEXT        NOT NULL,
-    type             TEXT        NOT NULL DEFAULT 'http',  -- 'stdio' | 'http'
+    type             TEXT        NOT NULL DEFAULT 'http',
     config_encrypted BYTEA       NOT NULL,
     created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, name)
+    UNIQUE(workspace_id, name)
 );
 
-CREATE TABLE user_templates (
+CREATE TABLE workspace_templates (
     id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id       UUID        NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    workspace_id  UUID        NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
     name          TEXT        NOT NULL,
     template_type TEXT        NOT NULL CHECK (template_type IN ('user','soul','agents','heartbeat','tools')),
     content       TEXT        NOT NULL DEFAULT '',
@@ -149,28 +162,26 @@ CREATE TABLE agent_skills (
 
 CREATE TABLE agent_envs (
     agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    env_id   UUID NOT NULL REFERENCES user_envs(id) ON DELETE CASCADE,
+    env_id   UUID NOT NULL REFERENCES workspace_envs(id) ON DELETE CASCADE,
     PRIMARY KEY (agent_id, env_id)
 );
 
 CREATE TABLE agent_channels (
     agent_id   UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    channel_id UUID NOT NULL REFERENCES user_channels(id) ON DELETE CASCADE,
+    channel_id UUID NOT NULL REFERENCES workspace_channels(id) ON DELETE CASCADE,
     PRIMARY KEY (agent_id, channel_id),
-    UNIQUE(channel_id)  -- one channel → one agent (exclusive)
+    UNIQUE(channel_id)
 );
 
 CREATE TABLE agent_mcp (
     agent_id UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    mcp_id   UUID NOT NULL REFERENCES user_mcp(id) ON DELETE CASCADE,
+    mcp_id   UUID NOT NULL REFERENCES workspace_mcp(id) ON DELETE CASCADE,
     PRIMARY KEY (agent_id, mcp_id)
 );
 
--- One template per type per agent (enforced via UNIQUE constraint on template_type).
--- ON CONFLICT (agent_id, template_type) DO UPDATE replaces the previous attachment.
 CREATE TABLE agent_user_templates (
     agent_id          UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    user_template_id  UUID NOT NULL REFERENCES user_templates(id) ON DELETE CASCADE,
+    user_template_id  UUID NOT NULL REFERENCES workspace_templates(id) ON DELETE CASCADE,
     template_type     TEXT NOT NULL CHECK (template_type IN ('user','soul','agents','heartbeat','tools')),
     PRIMARY KEY (agent_id, user_template_id),
     UNIQUE (agent_id, template_type)
