@@ -6,6 +6,7 @@
 	import AgentSidebarCard from '$lib/components/agent-sidebar-card.svelte';
 	import WorkspaceNav from '$lib/components/workspace-nav.svelte';
 	import OfficeclawLogo from '$lib/components/officeclaw-logo.svelte';
+	import WorkspaceSwitcher from '$lib/components/workspace-switcher.svelte';
 
 	let { data, children } = $props();
 
@@ -97,7 +98,7 @@
 			const res = await fetch('/api/agents', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name })
+				body: JSON.stringify({ name, workspace_id: workspaceId })
 			});
 
 			if (!res.ok) {
@@ -223,6 +224,12 @@
 				{/if}
 			</section>
 		</div>
+
+		<!-- Workspace switcher -->
+		<WorkspaceSwitcher
+			workspaces={data.workspaces ?? []}
+			activeWorkspaceId={workspaceId ?? ''}
+		/>
 
 		<!-- Theme switcher -->
 		<div class="theme-row">

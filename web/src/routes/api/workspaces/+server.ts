@@ -8,25 +8,17 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 	const body = await request.json();
 	const name = body.name?.toString().trim();
-	const workspaceId = body.workspace_id?.toString();
-
 	if (!name) error(400, 'Name is required');
-	if (!workspaceId) error(400, 'workspace_id is required');
 
-	const upstream = await fetch(`${API_URL}/agents`, {
+	const upstream = await fetch(`${API_URL}/workspaces`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({
-			workspace_id: workspaceId,
-			name,
-			image: body.image ?? 'localhost:5005/officeclaw/agent:latest',
-			is_admin: false
-		})
+		body: JSON.stringify({ user_id: locals.user!.id, name })
 	});
 
 	if (!upstream.ok) {
 		const text = await upstream.text();
-		error(upstream.status, text || 'Failed to create agent');
+		error(upstream.status, text || 'Failed to create workspace');
 	}
 
 	return json(await upstream.json(), { status: 201 });
