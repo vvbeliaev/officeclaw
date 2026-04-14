@@ -30,5 +30,31 @@ class ChannelRepo:
             raise ValueError(f"Channel {channel_id} not found")
         return decrypt_json(bytes(record["config_encrypted"]))
 
+    async def update(
+        self, channel_id: UUID, name: str | None = None, config: dict | None = None
+    ) -> asyncpg.Record | None:
+        parts: list[str] = []
+        params: list = [channel_id]
+        i = 2
+
+        if name is not None:
+            parts.append(f"name = ${i}")
+            params.append(name)
+            i += 1
+
+        if config is not None:
+            parts.append(f"config_encrypted = ${i}")
+            params.append(encrypt_json(config))
+            i += 1
+
+        if not parts:
+            return await self.find_by_id(channel_id)
+
+        return await self._conn.fetchrow(
+            f"UPDATE workspace_channels SET {', '.join(parts)} WHERE id = $1"
+            " RETURNING id, workspace_id, name, type, created_at",
+            *params,
+        )
+
     async def delete(self, channel_id: UUID) -> None:
         await self._conn.execute("DELETE FROM workspace_channels WHERE id = $1", channel_id)

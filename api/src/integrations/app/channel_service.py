@@ -21,5 +21,8 @@ class ChannelService:
     async def get_decrypted(self, channel_id: UUID) -> dict:
         return await self._repo.get_decrypted_config(channel_id)
 
+    async def update(self, channel_id: UUID, name: str | None = None, config: dict | None = None) -> asyncpg.Record | None:
+        return await self._repo.update(channel_id, name=name, config=config)
+
     async def delete(self, channel_id: UUID) -> None:
         await self._repo.delete(channel_id)

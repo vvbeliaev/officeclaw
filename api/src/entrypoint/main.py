@@ -1,12 +1,11 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 import asyncpg
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
 
 from src.shared.config import get_settings
+from src.shared.storage import S3Storage
 import src.fleet.di as fleet_di
 import src.identity.di as identity_di
 import src.library.di as library_di
@@ -37,6 +36,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     settings = get_settings()
     pool = await asyncpg.create_pool(settings.database_url)
 
+    storage = S3Storage(
+        endpoint=settings.storage_endpoint,
+        access_key=settings.storage_access_key,
+        secret_key=settings.storage_secret_key,
+        bucket=settings.storage_bucket,
+        public_base_url=settings.storage_public_base_url,
+    )
+
     integrations = integrations_di.build(pool)
     library = library_di.build(pool)
     fleet, watcher = fleet_di.build(pool, integrations, library)
@@ -51,6 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.integrations = integrations
     app.state.workspace = workspace
     app.state.knowledge = knowledge
+    app.state.storage = storage
 
     mcp_setup(
         pool=pool,
@@ -84,9 +92,6 @@ def create_app() -> FastAPI:
     app.include_router(links_router, tags=["links"])
     app.include_router(knowledge_router, prefix="/knowledge", tags=["knowledge"])
 
-    uploads_dir = Path("uploads")
-    uploads_dir.mkdir(exist_ok=True)
-    app.mount("/static", StaticFiles(directory=uploads_dir), name="static")
     app.mount("/mcp/admin", _admin_mcp_asgi)
     app.mount("/mcp/knowledge", _knowledge_mcp_asgi)
 

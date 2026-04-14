@@ -63,6 +63,11 @@ class IntegrationsApp:
     async def get_decrypted_channel(self, channel_id: UUID) -> dict:
         return await self._channels.get_decrypted(channel_id)
 
+    async def update_channel(
+        self, channel_id: UUID, name: str | None = None, config: dict | None = None
+    ) -> asyncpg.Record | None:
+        return await self._channels.update(channel_id, name=name, config=config)
+
     async def delete_channel(self, channel_id: UUID) -> None:
         await self._channels.delete(channel_id)
 
@@ -76,6 +81,14 @@ class IntegrationsApp:
 
     async def list_mcps(self, workspace_id: UUID) -> list[asyncpg.Record]:
         return await self._mcp.list(workspace_id)
+
+    async def get_decrypted_mcp(self, mcp_id: UUID) -> dict:
+        return await self._mcp.get_decrypted(mcp_id)
+
+    async def update_mcp(
+        self, mcp_id: UUID, name: str | None = None, config: dict | None = None
+    ) -> asyncpg.Record | None:
+        return await self._mcp.update(mcp_id, name=name, config=config)
 
     async def delete_mcp(self, mcp_id: UUID) -> None:
         await self._mcp.delete(mcp_id)

@@ -94,6 +94,106 @@
 		}
 	}
 
+	// ── Edit ──────────────────────────────────────────────────
+	let editId: string | null = $state(null);
+	let editType: McpType | null = $state(null);
+	let editLoading = $state(false);
+	let editSaving = $state(false);
+	let editError: string | null = $state(null);
+
+	// edit stdio fields
+	let editStdioName = $state('');
+	let editStdioCommand = $state('');
+	let editStdioArgs = $state('');
+	let editStdioEnvPairs: KvPair[] = $state([kv()]);
+
+	// edit http fields
+	let editHttpName = $state('');
+	let editHttpUrl = $state('');
+	let editHttpHeaderPairs: KvPair[] = $state([kv()]);
+
+	async function openEdit(mcp: McpRecord) {
+		editId = mcp.id;
+		editType = mcp.type;
+		editError = null;
+		editLoading = true;
+		try {
+			const res = await fetch(`/api/mcp/${mcp.id}`);
+			if (!res.ok) throw new Error(await res.text());
+			const { config } = await res.json() as { config: Record<string, unknown> };
+			if (mcp.type === 'stdio') {
+				editStdioName = mcp.name;
+				editStdioCommand = (config.command as string) ?? '';
+				editStdioArgs = Array.isArray(config.args) ? (config.args as string[]).join('\n') : '';
+				const env = (config.env as Record<string, string>) ?? {};
+				editStdioEnvPairs = Object.keys(env).length
+					? Object.entries(env).map(([k, v]) => kv(k, '', v))
+					: [kv()];
+			} else {
+				editHttpName = mcp.name;
+				editHttpUrl = (config.url as string) ?? '';
+				const headers = (config.headers as Record<string, string>) ?? {};
+				editHttpHeaderPairs = Object.keys(headers).length
+					? Object.entries(headers).map(([k, v]) => kv(k, '', v))
+					: [kv()];
+			}
+		} catch (e) {
+			editError = e instanceof Error ? e.message : 'Failed to load config';
+		} finally {
+			editLoading = false;
+		}
+	}
+	function closeEdit() { editId = null; editError = null; }
+
+	// KV helper that preserves original (for password fields)
+	type KvPairEdit = KvPair & { originalValue: string };
+	function kvToEditDict(pairs: KvPair[]): Record<string, string> {
+		const out: Record<string, string> = {};
+		for (const p of pairs) {
+			if (!p.key.trim()) continue;
+			out[p.key.trim()] = p.value !== '' ? p.value : p.originalValue;
+		}
+		return out;
+	}
+
+	async function saveEdit() {
+		if (!editId || !editType) return;
+		editError = null;
+		let name: string;
+		let config: Record<string, unknown>;
+
+		if (editType === 'stdio') {
+			name = editStdioName.trim();
+			if (!name) { editError = 'Name is required'; return; }
+			if (!editStdioCommand.trim()) { editError = 'Command is required'; return; }
+			const args = parseArgs(editStdioArgs);
+			const env = kvToEditDict(editStdioEnvPairs);
+			config = { command: editStdioCommand.trim(), ...(args.length ? { args } : {}), ...(Object.keys(env).length ? { env } : {}) };
+		} else {
+			name = editHttpName.trim();
+			if (!name) { editError = 'Name is required'; return; }
+			if (!editHttpUrl.trim()) { editError = 'URL is required'; return; }
+			const headers = kvToEditDict(editHttpHeaderPairs);
+			config = { url: editHttpUrl.trim(), ...(Object.keys(headers).length ? { headers } : {}) };
+		}
+
+		editSaving = true;
+		try {
+			const res = await fetch(`/api/mcp/${editId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name, config })
+			});
+			if (!res.ok) { editError = await res.text(); return; }
+			editId = null;
+			await invalidateAll();
+		} catch (e) {
+			editError = e instanceof Error ? e.message : 'Failed to save';
+		} finally {
+			editSaving = false;
+		}
+	}
+
 	// ── Delete ────────────────────────────────────────────────
 	let deleteId: string | null = $state(null);
 	let deleting = $state(false);
@@ -284,12 +384,84 @@
 							<span class="mcp-date font-mono">{relDate(mcp.createdAt)}</span>
 							{#if !isSystem(mcp)}
 								<button
+									class="mcp-edit font-mono"
+									type="button"
+									onclick={() => { if (editId === mcp.id) closeEdit(); else openEdit(mcp); deleteId = null; }}
+								>edit</button>
+								<button
 									class="mcp-del font-mono"
 									type="button"
-									onclick={() => { deleteId = deleteId === mcp.id ? null : mcp.id; deleteError = null; }}
+									onclick={() => { deleteId = deleteId === mcp.id ? null : mcp.id; deleteError = null; editId = null; }}
 								>delete</button>
 							{/if}
 						</div>
+
+						{#if editId === mcp.id}
+							<div class="edit-panel">
+								{#if editLoading}
+									<p class="edit-loading font-mono">loading…</p>
+								{:else if editType === 'stdio'}
+									<div class="field">
+										<label class="field-label font-mono" for="edit-stdio-name-{mcp.id}">Name</label>
+										<input id="edit-stdio-name-{mcp.id}" class="field-input font-mono" type="text" bind:value={editStdioName} spellcheck="false" />
+									</div>
+									<div class="field">
+										<label class="field-label font-mono" for="edit-stdio-cmd-{mcp.id}">Command</label>
+										<input id="edit-stdio-cmd-{mcp.id}" class="field-input font-mono" type="text" bind:value={editStdioCommand} spellcheck="false" />
+									</div>
+									<div class="field">
+										<label class="field-label font-mono" for="edit-stdio-args-{mcp.id}">Args <span class="field-opt">(one per line)</span></label>
+										<textarea id="edit-stdio-args-{mcp.id}" class="field-textarea font-mono" bind:value={editStdioArgs} rows={3} spellcheck="false"></textarea>
+									</div>
+									<div class="field">
+										<span class="field-label font-mono">Environment variables <span class="field-opt">(optional)</span></span>
+										<div class="kv-section">
+											{#each editStdioEnvPairs as pair (pair.id)}
+												<div class="kv-row">
+													<input class="kv-input font-mono" bind:value={pair.key} placeholder="KEY" spellcheck="false" />
+													<span class="kv-sep font-mono">=</span>
+													<input class="kv-input font-mono" type="password" bind:value={pair.value} placeholder={pair.originalValue ? '••••••••' : 'value'} spellcheck="false" autocomplete="new-password" />
+													<button class="kv-remove" type="button" onclick={() => { editStdioEnvPairs = editStdioEnvPairs.filter(p => p.id !== pair.id); }} disabled={editStdioEnvPairs.length === 1}>×</button>
+												</div>
+											{/each}
+											<button class="kv-add font-mono" type="button" onclick={() => { editStdioEnvPairs = [...editStdioEnvPairs, kv()]; }}>+ add variable</button>
+										</div>
+									</div>
+								{:else if editType === 'http'}
+									<div class="field">
+										<label class="field-label font-mono" for="edit-http-name-{mcp.id}">Name</label>
+										<input id="edit-http-name-{mcp.id}" class="field-input font-mono" type="text" bind:value={editHttpName} spellcheck="false" />
+									</div>
+									<div class="field">
+										<label class="field-label font-mono" for="edit-http-url-{mcp.id}">URL</label>
+										<input id="edit-http-url-{mcp.id}" class="field-input font-mono" type="text" bind:value={editHttpUrl} spellcheck="false" />
+									</div>
+									<div class="field">
+										<span class="field-label font-mono">Headers <span class="field-opt">(optional)</span></span>
+										<div class="kv-section">
+											{#each editHttpHeaderPairs as pair (pair.id)}
+												<div class="kv-row">
+													<input class="kv-input font-mono" bind:value={pair.key} placeholder="Authorization" spellcheck="false" />
+													<span class="kv-sep font-mono">=</span>
+													<input class="kv-input font-mono" type="password" bind:value={pair.value} placeholder={pair.originalValue ? '••••••••' : 'value'} spellcheck="false" autocomplete="new-password" />
+													<button class="kv-remove" type="button" onclick={() => { editHttpHeaderPairs = editHttpHeaderPairs.filter(p => p.id !== pair.id); }} disabled={editHttpHeaderPairs.length === 1}>×</button>
+												</div>
+											{/each}
+											<button class="kv-add font-mono" type="button" onclick={() => { editHttpHeaderPairs = [...editHttpHeaderPairs, kv()]; }}>+ add header</button>
+										</div>
+									</div>
+								{/if}
+								{#if editError}<p class="form-error font-mono">{editError}</p>{/if}
+								{#if !editLoading}
+									<div class="form-actions">
+										<button class="btn-primary font-mono" type="button" onclick={saveEdit} disabled={editSaving}>
+											{#if editSaving}<span class="spinner"></span>saving…{:else}Save changes{/if}
+										</button>
+										<button class="btn-ghost font-mono" type="button" onclick={closeEdit}>Cancel</button>
+									</div>
+								{/if}
+							</div>
+						{/if}
 
 						{#if deleteId === mcp.id}
 							<div class="danger-panel">
@@ -520,6 +692,16 @@
 		flex-shrink: 0;
 	}
 	.mcp-date { font-size: 0.65rem; letter-spacing: 0.02em; color: var(--muted-foreground); flex-shrink: 0; }
+	.mcp-edit {
+		font-size: 0.65rem;
+		letter-spacing: 0.06em;
+		padding: 0.28rem 0.65rem;
+		border-radius: 0.2rem;
+		color: var(--muted-foreground);
+		flex-shrink: 0;
+		transition: color 150ms ease, background 150ms ease;
+	}
+	.mcp-edit:hover { color: var(--primary); background: color-mix(in oklch, var(--primary) 8%, transparent); }
 	.mcp-del {
 		font-size: 0.65rem;
 		letter-spacing: 0.06em;
@@ -530,6 +712,14 @@
 		transition: color 150ms ease, background 150ms ease;
 	}
 	.mcp-del:hover { color: var(--destructive); background: color-mix(in oklch, var(--destructive) 8%, transparent); }
+	.edit-panel {
+		padding: 0.75rem 0 1.25rem 1.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		border-top: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+	}
+	.edit-loading { font-size: 0.68rem; color: var(--muted-foreground); }
 	.danger-panel { padding: 0.5rem 0 1rem 1.75rem; display: flex; flex-direction: column; gap: 0.9rem; }
 
 	/* ── Buttons ──────────────────────────────────────────── */

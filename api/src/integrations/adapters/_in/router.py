@@ -5,9 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.integrations.app import IntegrationsApp
 from src.integrations.core.schema import (
-    ChannelCreate, ChannelOut,
+    ChannelCreate, ChannelConfigOut, ChannelOut, ChannelUpdate,
     EnvCreate, EnvOut, EnvUpdate, EnvValuesOut,
-    McpCreate, McpOut,
+    McpConfigOut, McpCreate, McpOut, McpUpdate,
     TemplateCreate, TemplateOut, TemplateUpdate,
 )
 
@@ -76,6 +76,29 @@ async def create_channel(
     return ChannelOut(**dict(record))
 
 
+@channels_router.get("/{channel_id}/config", response_model=ChannelConfigOut)
+async def get_channel_config(
+    channel_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> ChannelConfigOut:
+    if not await deps.find_channel(channel_id):
+        raise HTTPException(404, "Channel not found")
+    config = await deps.get_decrypted_channel(channel_id)
+    return ChannelConfigOut(config=config)
+
+
+@channels_router.patch("/{channel_id}", response_model=ChannelOut)
+async def update_channel(
+    channel_id: UUID,
+    body: ChannelUpdate,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> ChannelOut:
+    if not await deps.find_channel(channel_id):
+        raise HTTPException(404, "Channel not found")
+    record = await deps.update_channel(channel_id, name=body.name, config=body.config)
+    return ChannelOut(**dict(record))
+
+
 @channels_router.delete("/{channel_id}", status_code=204)
 async def delete_channel(
     channel_id: UUID,
@@ -95,6 +118,29 @@ async def create_mcp(
         record = await deps.create_mcp(body.workspace_id, body.name, body.type, body.config)
     except asyncpg.UniqueViolationError:
         raise HTTPException(409, "MCP name already exists for this workspace")
+    return McpOut(**dict(record))
+
+
+@mcp_router.get("/{mcp_id}/config", response_model=McpConfigOut)
+async def get_mcp_config(
+    mcp_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> McpConfigOut:
+    if not await deps.find_mcp(mcp_id):
+        raise HTTPException(404, "MCP not found")
+    config = await deps.get_decrypted_mcp(mcp_id)
+    return McpConfigOut(config=config)
+
+
+@mcp_router.patch("/{mcp_id}", response_model=McpOut)
+async def update_mcp(
+    mcp_id: UUID,
+    body: McpUpdate,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> McpOut:
+    if not await deps.find_mcp(mcp_id):
+        raise HTTPException(404, "MCP not found")
+    record = await deps.update_mcp(mcp_id, name=body.name, config=body.config)
     return McpOut(**dict(record))
 
 

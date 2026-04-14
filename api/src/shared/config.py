@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     # Document normalisation — docling-serve base URL
     docling_url: str = "http://localhost:5001"
 
+    # S3-compatible object storage
+    storage_endpoint: str
+    storage_access_key: str
+    storage_secret_key: str
+    storage_bucket: str
+    storage_public_base_url: str
+
     model_config = SettingsConfigDict(
         env_file=_ENV_PATH, env_file_encoding="utf-8", extra="ignore"
     )

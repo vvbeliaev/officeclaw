@@ -36,6 +36,11 @@ class ChannelCreate(BaseModel):
     config: dict  # written, never returned
 
 
+class ChannelUpdate(BaseModel):
+    name: str | None = None
+    config: dict | None = None  # replaces encrypted blob when provided
+
+
 class ChannelOut(BaseModel):
     id: UUID
     workspace_id: UUID
@@ -45,11 +50,20 @@ class ChannelOut(BaseModel):
     # config intentionally omitted
 
 
+class ChannelConfigOut(BaseModel):
+    config: dict  # decrypted config, returned only on explicit request
+
+
 class McpCreate(BaseModel):
     workspace_id: UUID
     name: str
     type: str   # 'stdio' | 'http'
     config: dict  # written, never returned
+
+
+class McpUpdate(BaseModel):
+    name: str | None = None
+    config: dict | None = None  # replaces encrypted blob when provided
 
 
 class McpOut(BaseModel):
@@ -59,6 +73,10 @@ class McpOut(BaseModel):
     type: str
     created_at: datetime
     # config intentionally omitted
+
+
+class McpConfigOut(BaseModel):
+    config: dict  # decrypted config, returned only on explicit request
 
 
 class TemplateCreate(BaseModel):

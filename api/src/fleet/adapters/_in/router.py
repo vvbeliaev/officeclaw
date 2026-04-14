@@ -1,7 +1,5 @@
 import json
-import shutil
 from collections.abc import AsyncGenerator
-from pathlib import Path
 from uuid import UUID
 
 import httpx
@@ -17,12 +15,17 @@ from src.fleet.core.schema import (
     AgentOut,
     AgentUpdate,
 )
+from src.shared.storage import StoragePort
 
 router = APIRouter()
 
 
 def get_fleet(request: Request) -> FleetApp:
     return request.app.state.fleet
+
+
+def get_storage(request: Request) -> StoragePort:
+    return request.app.state.storage
 
 
 @router.post("", response_model=AgentOut, status_code=201)
@@ -140,16 +143,21 @@ async def proxy_chat_completions(
     return StreamingResponse(stream(), media_type=media_type)
 
 
-_AVATAR_DIR = Path("uploads/avatars")
 _ALLOWED_AVATAR_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+_AVATAR_EXT = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
 
 
 @router.post("/{agent_id}/avatar", response_model=AgentOut)
 async def upload_avatar(
     agent_id: UUID,
-    request: Request,
     file: UploadFile = File(...),
     fleet: FleetApp = Depends(get_fleet),
+    storage: StoragePort = Depends(get_storage),
 ) -> AgentOut:
     record = await fleet.find_agent(agent_id)
     if not record:
@@ -157,16 +165,11 @@ async def upload_avatar(
     if file.content_type not in _ALLOWED_AVATAR_TYPES:
         raise HTTPException(415, "Unsupported image type")
 
-    _AVATAR_DIR.mkdir(parents=True, exist_ok=True)
-    ext = Path(file.filename or "avatar.jpg").suffix.lower() or ".jpg"
-    filename = f"{agent_id}{ext}"
-    dest = _AVATAR_DIR / filename
-
-    with dest.open("wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    base = str(request.base_url).rstrip("/")
-    avatar_url = f"{base}/static/avatars/{filename}"
+    ext = _AVATAR_EXT[file.content_type]
+    key = f"avatars/{agent_id}{ext}"
+    data = await file.read()
+    await storage.put_object(key, data, file.content_type)
+    avatar_url = storage.public_url(key)
     updated = await fleet.update_agent(agent_id, avatar_url=avatar_url)
     return AgentOut(**dict(updated))
 

@@ -106,6 +106,121 @@
 		}
 	}
 
+	// ── Edit ──────────────────────────────────────────────────
+	let editId: string | null = $state(null);
+	let editChannelType: ChannelType | null = $state(null);
+	let editLoading = $state(false);
+	let editSaving = $state(false);
+	let editError: string | null = $state(null);
+
+	let editName = $state('');
+	let editTgToken = $state('');
+	let editTgAllowMode: 'all' | 'specific' = $state('all');
+	let editTgAllowIds = $state('');
+	let editTgStreaming = $state(true);
+	let editDcToken = $state('');
+	let editDcAllowMode: 'all' | 'specific' = $state('all');
+	let editDcAllowIds = $state('');
+	let editWaUrl = $state('');
+	let editWaToken = $state('');
+	let editWaAllowMode: 'all' | 'specific' = $state('all');
+	let editWaAllowIds = $state('');
+
+	// original masked values for password placeholders
+	let editHasToken = $state(false);
+
+	async function openEdit(ch: { id: string; name: string; type: string }) {
+		editId = ch.id;
+		editChannelType = ch.type as ChannelType;
+		editName = ch.name;
+		editError = null;
+		editLoading = true;
+		editHasToken = false;
+		try {
+			const res = await fetch(`/api/channels/${ch.id}`);
+			if (!res.ok) throw new Error(await res.text());
+			const { config } = await res.json() as { config: Record<string, unknown> };
+			const af = config.allow_from as string[];
+			const isAll = !af || af.length === 0 || af[0] === '*';
+
+			if (ch.type === 'telegram') {
+				editHasToken = !!config.token;
+				editTgToken = '';
+				editTgAllowMode = isAll ? 'all' : 'specific';
+				editTgAllowIds = isAll ? '' : af.join(', ');
+				editTgStreaming = config.streaming !== false;
+			} else if (ch.type === 'discord') {
+				editHasToken = !!config.token;
+				editDcToken = '';
+				editDcAllowMode = isAll ? 'all' : 'specific';
+				editDcAllowIds = isAll ? '' : af.join(', ');
+			} else if (ch.type === 'whatsapp') {
+				editHasToken = !!config.bridge_token;
+				editWaUrl = (config.bridge_url as string) ?? '';
+				editWaToken = '';
+				editWaAllowMode = isAll ? 'all' : 'specific';
+				editWaAllowIds = isAll ? '' : af.join(', ');
+			}
+		} catch (e) {
+			editError = e instanceof Error ? e.message : 'Failed to load config';
+		} finally {
+			editLoading = false;
+		}
+	}
+	function closeEdit() { editId = null; editError = null; }
+
+	async function saveEdit() {
+		if (!editId || !editChannelType) return;
+		editError = null;
+		if (!editName.trim()) { editError = 'Name is required'; return; }
+
+		let config: Record<string, unknown>;
+
+		if (editChannelType === 'telegram') {
+			const af = allowFrom(editTgAllowMode, editTgAllowIds);
+			if (editTgAllowMode === 'specific' && af.length === 0) { editError = 'Enter at least one user ID'; return; }
+			config = {
+				...(editTgToken.trim() ? { token: editTgToken.trim() } : {}),
+				allow_from: af,
+				streaming: editTgStreaming,
+			};
+		} else if (editChannelType === 'discord') {
+			const af = allowFrom(editDcAllowMode, editDcAllowIds);
+			if (editDcAllowMode === 'specific' && af.length === 0) { editError = 'Enter at least one user ID'; return; }
+			config = {
+				...(editDcToken.trim() ? { token: editDcToken.trim() } : {}),
+				allow_from: af,
+			};
+		} else if (editChannelType === 'whatsapp') {
+			if (!editWaUrl.trim()) { editError = 'Bridge URL is required'; return; }
+			const af = allowFrom(editWaAllowMode, editWaAllowIds);
+			if (editWaAllowMode === 'specific' && af.length === 0) { editError = 'Enter at least one phone number'; return; }
+			config = {
+				bridge_url: editWaUrl.trim(),
+				...(editWaToken.trim() ? { bridge_token: editWaToken.trim() } : {}),
+				allow_from: af,
+			};
+		} else {
+			return;
+		}
+
+		editSaving = true;
+		try {
+			const res = await fetch(`/api/channels/${editId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ name: editName.trim(), config })
+			});
+			if (!res.ok) { editError = await res.text(); return; }
+			editId = null;
+			await invalidateAll();
+		} catch (e) {
+			editError = e instanceof Error ? e.message : 'Failed to save';
+		} finally {
+			editSaving = false;
+		}
+	}
+
 	// ── Delete ───────────────────────────────────────────────
 	let deleteId: string | null = $state(null);
 	let deleting = $state(false);
@@ -324,11 +439,95 @@
 							<span class="ch-name font-mono">{ch.name}</span>
 							<span class="ch-date font-mono">{relDate(ch.createdAt)}</span>
 							<button
+								class="ch-edit font-mono"
+								type="button"
+								onclick={() => { if (editId === ch.id) closeEdit(); else openEdit(ch); deleteId = null; }}
+							>edit</button>
+							<button
 								class="ch-del font-mono"
 								type="button"
-								onclick={() => { deleteId = deleteId === ch.id ? null : ch.id; deleteError = null; }}
+								onclick={() => { deleteId = deleteId === ch.id ? null : ch.id; deleteError = null; editId = null; }}
 							>delete</button>
 						</div>
+
+						{#if editId === ch.id}
+							{@const meta = CHANNEL_META[editChannelType!]}
+							<div class="ch-edit-panel" style="--c: {meta?.color ?? 'var(--primary)'}">
+								{#if editLoading}
+									<p class="edit-loading font-mono">loading…</p>
+								{:else}
+									<div class="field">
+										<label class="field-label font-mono" for="edit-ch-name-{ch.id}">Channel Name</label>
+										<input id="edit-ch-name-{ch.id}" class="field-input font-mono" type="text" bind:value={editName} spellcheck="false" />
+									</div>
+
+									{#if editChannelType === 'telegram'}
+										<div class="field">
+											<label class="field-label font-mono" for="edit-tg-token-{ch.id}">Bot Token</label>
+											<input id="edit-tg-token-{ch.id}" class="field-input font-mono" type="password" bind:value={editTgToken} placeholder={editHasToken ? '••••••••  (leave blank to keep)' : '123456789:ABC...'} spellcheck="false" autocomplete="new-password" />
+										</div>
+										<div class="field">
+											<span class="field-label font-mono">Who can message this bot?</span>
+											<div class="radio-group">
+												<label class="radio font-mono"><input type="radio" bind:group={editTgAllowMode} value="all" /><span>Everyone</span></label>
+												<label class="radio font-mono"><input type="radio" bind:group={editTgAllowMode} value="specific" /><span>Specific user IDs</span></label>
+											</div>
+											{#if editTgAllowMode === 'specific'}
+												<textarea class="field-textarea font-mono" bind:value={editTgAllowIds} placeholder="12345678, 87654321" rows={2} spellcheck="false"></textarea>
+											{/if}
+										</div>
+										<label class="toggle font-mono">
+											<input type="checkbox" bind:checked={editTgStreaming} />
+											<span>Stream responses</span>
+										</label>
+
+									{:else if editChannelType === 'discord'}
+										<div class="field">
+											<label class="field-label font-mono" for="edit-dc-token-{ch.id}">Bot Token</label>
+											<input id="edit-dc-token-{ch.id}" class="field-input font-mono" type="password" bind:value={editDcToken} placeholder={editHasToken ? '••••••••  (leave blank to keep)' : 'MTxxxxxxx...'} spellcheck="false" autocomplete="new-password" />
+										</div>
+										<div class="field">
+											<span class="field-label font-mono">Who can message this bot?</span>
+											<div class="radio-group">
+												<label class="radio font-mono"><input type="radio" bind:group={editDcAllowMode} value="all" /><span>Everyone</span></label>
+												<label class="radio font-mono"><input type="radio" bind:group={editDcAllowMode} value="specific" /><span>Specific user IDs</span></label>
+											</div>
+											{#if editDcAllowMode === 'specific'}
+												<textarea class="field-textarea font-mono" bind:value={editDcAllowIds} placeholder="123456789012345678" rows={2} spellcheck="false"></textarea>
+											{/if}
+										</div>
+
+									{:else if editChannelType === 'whatsapp'}
+										<div class="field">
+											<label class="field-label font-mono" for="edit-wa-url-{ch.id}">Bridge URL</label>
+											<input id="edit-wa-url-{ch.id}" class="field-input font-mono" type="text" bind:value={editWaUrl} spellcheck="false" />
+										</div>
+										<div class="field">
+											<label class="field-label font-mono" for="edit-wa-token-{ch.id}">Bridge Token</label>
+											<input id="edit-wa-token-{ch.id}" class="field-input font-mono" type="password" bind:value={editWaToken} placeholder={editHasToken ? '••••••••  (leave blank to keep)' : '••••••••'} spellcheck="false" autocomplete="new-password" />
+										</div>
+										<div class="field">
+											<span class="field-label font-mono">Who can message this bot?</span>
+											<div class="radio-group">
+												<label class="radio font-mono"><input type="radio" bind:group={editWaAllowMode} value="all" /><span>Everyone</span></label>
+												<label class="radio font-mono"><input type="radio" bind:group={editWaAllowMode} value="specific" /><span>Specific numbers</span></label>
+											</div>
+											{#if editWaAllowMode === 'specific'}
+												<textarea class="field-textarea font-mono" bind:value={editWaAllowIds} placeholder="+1234567890" rows={2} spellcheck="false"></textarea>
+											{/if}
+										</div>
+									{/if}
+
+									{#if editError}<p class="form-error font-mono">{editError}</p>{/if}
+									<div class="form-actions">
+										<button class="btn-primary font-mono" type="button" onclick={saveEdit} disabled={editSaving}>
+											{#if editSaving}<span class="spinner"></span>saving…{:else}Save changes{/if}
+										</button>
+										<button class="btn-ghost font-mono" type="button" onclick={closeEdit}>Cancel</button>
+									</div>
+								{/if}
+							</div>
+						{/if}
 
 						{#if deleteId === ch.id}
 							<div class="danger-panel">
@@ -511,6 +710,16 @@
 	.ch-icon { display: flex; align-items: center; flex-shrink: 0; }
 	.ch-name { flex: 1; font-size: 0.82rem; letter-spacing: 0.04em; color: var(--foreground); }
 	.ch-date { font-size: 0.65rem; letter-spacing: 0.02em; color: var(--muted-foreground); flex-shrink: 0; }
+	.ch-edit {
+		font-size: 0.65rem;
+		letter-spacing: 0.06em;
+		padding: 0.28rem 0.65rem;
+		border-radius: 0.2rem;
+		color: var(--muted-foreground);
+		flex-shrink: 0;
+		transition: color 150ms ease, background 150ms ease;
+	}
+	.ch-edit:hover { color: var(--primary); background: color-mix(in oklch, var(--primary) 8%, transparent); }
 	.ch-del {
 		font-size: 0.65rem;
 		letter-spacing: 0.06em;
@@ -521,6 +730,15 @@
 		transition: color 150ms ease, background 150ms ease;
 	}
 	.ch-del:hover { color: var(--destructive); background: color-mix(in oklch, var(--destructive) 8%, transparent); }
+	.ch-edit-panel {
+		padding: 0.75rem 0 1.25rem 1.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		border-top: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+		border-left: 2px solid var(--c);
+	}
+	.edit-loading { font-size: 0.68rem; color: var(--muted-foreground); }
 	.danger-panel { padding: 0.5rem 0 1rem 1.75rem; display: flex; flex-direction: column; gap: 0.9rem; }
 
 	/* ── Buttons ──────────────────────────────────────────── */
