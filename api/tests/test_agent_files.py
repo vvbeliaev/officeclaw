@@ -7,8 +7,8 @@ import pytest
 @pytest.fixture
 async def agent_id(client):
     user = await client.post("/users", json={"email": "files-owner@example.com"})
-    uid = user.json()["id"]
-    agent = await client.post("/agents", json={"user_id": uid, "name": "Agent"})
+    workspace_id = user.json()["workspace_id"]
+    agent = await client.post("/agents", json={"workspace_id": workspace_id, "name": "Agent"})
     return agent.json()["id"]
 
 

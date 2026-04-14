@@ -47,7 +47,8 @@ async def test_store_caches_instances(mock_settings):
     store = LightRAGStore(mock_settings)
     user_id = uuid4()
 
-    with patch("src.knowledge.adapters.out.lightrag_store.LightRAG") as MockRAG:
+    with patch("src.knowledge.adapters.out.lightrag_store.LightRAG") as MockRAG, \
+         patch("src.knowledge.adapters.out.lightrag_store.EmbeddingFunc"):
         mock_rag = AsyncMock()
         MockRAG.return_value = mock_rag
 
@@ -56,7 +57,7 @@ async def test_store_caches_instances(mock_settings):
 
     assert rag1 is rag2
     assert MockRAG.call_count == 1
-    mock_rag.initialize.assert_awaited_once()
+    mock_rag.initialize_storages.assert_awaited_once()
 
 
 from src.knowledge.app.service import KnowledgeService
@@ -66,7 +67,8 @@ from src.shared.config import Settings
 @pytest.mark.asyncio
 async def test_service_ingest_delegates():
     store = AsyncMock()
-    service = KnowledgeService(store)
+    normalizer = AsyncMock()
+    service = KnowledgeService(store, normalizer)
     user_id = uuid4()
 
     await service.ingest(user_id, "some findings", {"source": "agent-a"})
@@ -79,8 +81,9 @@ async def test_service_ingest_delegates():
 @pytest.mark.asyncio
 async def test_service_query_delegates():
     store = AsyncMock()
+    normalizer = AsyncMock()
     store.query.return_value = "answer text"
-    service = KnowledgeService(store)
+    service = KnowledgeService(store, normalizer)
     user_id = uuid4()
 
     result = await service.query(user_id, "what is X?", "hybrid")
@@ -92,8 +95,9 @@ async def test_service_query_delegates():
 @pytest.mark.asyncio
 async def test_service_get_graph_delegates():
     store = AsyncMock()
+    normalizer = AsyncMock()
     store.get_graph.return_value = {"nodes": [], "edges": []}
-    service = KnowledgeService(store)
+    service = KnowledgeService(store, normalizer)
     user_id = uuid4()
 
     result = await service.get_graph(user_id)
@@ -103,10 +107,21 @@ async def test_service_get_graph_delegates():
 
 
 def test_knowledge_settings_defaults():
-    s = Settings(
-        database_url="postgresql://u:p@localhost/db",
-        encryption_key="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-    )
+    # Bypass .env file to test pure Python defaults
+    with patch.dict("os.environ", {
+        "DATABASE_URL": "postgresql://u:p@localhost/db",
+        "ENCRYPTION_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+        "KNOWLEDGE_LLM_MODEL": "gpt-4o-mini",
+        "KNOWLEDGE_EMBED_DIM": "1536",
+        "KNOWLEDGE_EMBED_MODEL": "text-embedding-3-small",
+    }, clear=False):
+        s = Settings(
+            database_url="postgresql://u:p@localhost/db",
+            encryption_key="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+            knowledge_llm_model="gpt-4o-mini",
+            knowledge_embed_dim=1536,
+            knowledge_embed_model="text-embedding-3-small",
+        )
     assert s.knowledge_llm_model == "gpt-4o-mini"
     assert s.knowledge_embed_dim == 1536
     assert s.knowledge_embed_model == "text-embedding-3-small"

@@ -7,9 +7,9 @@ import json
 async def full_agent(client):
     """Create user -> agent -> files -> skill -> env -> channel -> mcp."""
     user = await client.post("/users", json={"email": "payload@example.com"})
-    uid = user.json()["id"]
+    workspace_id = user.json()["workspace_id"]
 
-    agent = await client.post("/agents", json={"user_id": uid, "name": "Agent"})
+    agent = await client.post("/agents", json={"workspace_id": workspace_id, "name": "Agent"})
     agent_id = agent.json()["id"]
 
     await client.put(
@@ -20,7 +20,7 @@ async def full_agent(client):
         f"/agents/{agent_id}/files", json={"path": "AGENTS.md", "content": "# Agents"}
     )
 
-    skill = await client.post("/skills", json={"user_id": uid, "name": "research"})
+    skill = await client.post("/skills", json={"workspace_id": workspace_id, "name": "research"})
     skill_id = skill.json()["id"]
     await client.put(
         f"/skills/{skill_id}/files", json={"path": "SKILL.md", "content": "# Research"}
@@ -30,7 +30,7 @@ async def full_agent(client):
     env = await client.post(
         "/envs",
         json={
-            "user_id": uid,
+            "workspace_id": workspace_id,
             "name": "anthropic",
             "values": {"ANTHROPIC_API_KEY": "sk-test"},
         },
@@ -40,23 +40,27 @@ async def full_agent(client):
     channel = await client.post(
         "/channels",
         json={
-            "user_id": uid,
+            "workspace_id": workspace_id,
+            "name": "telegram",
             "type": "telegram",
             "config": {"token": "bot:999", "allow_from": ["12345"]},
         },
     )
     await client.post(f"/agents/{agent_id}/channels/{channel.json()['id']}")
 
-    await client.post(
-        f"/agents/{agent_id}/mcp",
+    mcp = await client.post(
+        "/user-mcp",
         json={
+            "workspace_id": workspace_id,
             "name": "officeclaw",
+            "type": "http",
             "config": {
                 "url": "http://mcp:8700/mcp",
                 "headers": {"Authorization": "Bearer tok"},
             },
         },
     )
+    await client.post(f"/agents/{agent_id}/mcp/{mcp.json()['id']}")
 
     return agent_id
 
@@ -69,7 +73,7 @@ async def test_vm_payload_structure(client, full_agent, conn):
 
     integrations = integrations_di.build(conn)  # type: ignore[arg-type]
     library = library_di.build(conn)  # type: ignore[arg-type]
-    fleet = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
+    fleet, _ = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
 
     payload = await build_vm_payload(full_agent, fleet._agents, integrations, library)  # type: ignore[arg-type]
 

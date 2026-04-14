@@ -50,7 +50,7 @@ def setup(
     workspace: WorkspaceApp,
     library: LibraryApp,
     integrations: IntegrationsApp,
-    knowledge: KnowledgeApp,
+    knowledge: KnowledgeApp | None = None,
 ) -> None:
     global _pool, _fleet, _workspace, _library, _integrations, _knowledge
     _pool = pool

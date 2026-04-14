@@ -10,17 +10,17 @@ class TemplateLinkRepo:
     async def attach(self, agent_id: UUID, template_id: UUID, template_type: str) -> None:
         # Upsert: replaces existing attachment of the same type for this agent.
         await self._conn.execute(
-            "INSERT INTO agent_user_templates (agent_id, user_template_id, template_type)"
+            "INSERT INTO agent_user_templates (agent_id, template_id, template_type)"
             " VALUES ($1, $2, $3)"
             " ON CONFLICT (agent_id, template_type)"
-            " DO UPDATE SET user_template_id = EXCLUDED.user_template_id",
+            " DO UPDATE SET template_id = EXCLUDED.template_id",
             agent_id, template_id, template_type,
         )
 
     async def detach(self, agent_id: UUID, template_id: UUID) -> None:
         await self._conn.execute(
             "DELETE FROM agent_user_templates"
-            " WHERE agent_id = $1 AND user_template_id = $2",
+            " WHERE agent_id = $1 AND template_id = $2",
             agent_id, template_id,
         )
 
@@ -28,7 +28,7 @@ class TemplateLinkRepo:
         return await self._conn.fetch(
             "SELECT t.id, t.workspace_id, t.name, t.template_type, t.content, t.created_at"
             " FROM workspace_templates t"
-            " JOIN agent_user_templates a ON a.user_template_id = t.id"
+            " JOIN agent_user_templates a ON a.template_id = t.id"
             " WHERE a.agent_id = $1",
             agent_id,
         )

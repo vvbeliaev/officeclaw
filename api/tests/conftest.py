@@ -16,6 +16,7 @@ import src.fleet.di as fleet_di
 import src.identity.di as identity_di
 import src.library.di as library_di
 import src.integrations.di as integrations_di
+import src.workspace.di as workspace_di
 from src.entrypoint.mcp import setup as mcp_setup
 
 # Prime the cached Settings instance at import time. Some tests patch
@@ -72,18 +73,20 @@ async def client(conn: asyncpg.Connection) -> AsyncGenerator[AsyncClient, None]:
     pool = conn  # type: ignore[assignment]
     integrations = integrations_di.build(pool)  # type: ignore[arg-type]
     library = library_di.build(pool)  # type: ignore[arg-type]
-    fleet = fleet_di.build(pool, integrations, library)  # type: ignore[arg-type]
-    identity = identity_di.build(pool, fleet, integrations)  # type: ignore[arg-type]
+    fleet, _ = fleet_di.build(pool, integrations, library)  # type: ignore[arg-type]
+    workspace = workspace_di.build(pool, fleet, integrations)  # type: ignore[arg-type]
+    identity = identity_di.build(pool, workspace)  # type: ignore[arg-type]
 
     app.state.pool = pool
     app.state.fleet = fleet
     app.state.identity = identity
     app.state.library = library
     app.state.integrations = integrations
+    app.state.workspace = workspace
     mcp_setup(
         pool=pool,  # type: ignore[arg-type]
         fleet=fleet,
-        identity=identity,
+        workspace=workspace,
         library=library,
         integrations=integrations,
     )
@@ -100,17 +103,17 @@ async def client(conn: asyncpg.Connection) -> AsyncGenerator[AsyncClient, None]:
 
 @pytest.fixture
 async def mcp_user(client):
-    """Create a user and return (user_id, token)."""
+    """Create a user and return (user_id, workspace_id, token)."""
     resp = await client.post("/users", json={"email": "mcp-user@example.com"})
     body = resp.json()
-    return body["id"], body["officeclaw_token"]
+    return body["id"], body["workspace_id"], body["officeclaw_token"]
 
 
 @pytest.fixture
 async def mcp_conn_user(conn, mcp_user):
-    """Return (conn, user_id) — conn is the test transaction connection."""
-    user_id, _ = mcp_user
-    return conn, UUID(user_id)
+    """Return (conn, workspace_id) — conn is the test transaction connection."""
+    user_id, workspace_id, _ = mcp_user
+    return conn, UUID(workspace_id)
 
 
 @pytest.fixture
@@ -125,4 +128,10 @@ def library_deps(conn):
 
 @pytest.fixture
 def fleet_deps(conn, integrations_deps, library_deps):
-    return fleet_di.build(conn, integrations_deps, library_deps)  # type: ignore[arg-type]
+    fleet, _ = fleet_di.build(conn, integrations_deps, library_deps)  # type: ignore[arg-type]
+    return fleet
+
+
+@pytest.fixture
+def workspace_deps(conn, fleet_deps, integrations_deps):
+    return workspace_di.build(conn, fleet_deps, integrations_deps)  # type: ignore[arg-type]

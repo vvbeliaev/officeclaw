@@ -7,16 +7,19 @@ import pytest
 @pytest.fixture
 async def setup(client):
     user = await client.post("/users", json={"email": "links@example.com"})
-    uid = user.json()["id"]
-    agent = await client.post("/agents", json={"user_id": uid, "name": "Agent"})
-    skill = await client.post("/skills", json={"user_id": uid, "name": "research"})
-    env = await client.post("/envs", json={"user_id": uid, "name": "anthropic", "values": {"K": "V"}})
-    channel = await client.post("/channels", json={"user_id": uid, "type": "telegram", "config": {}})
+    workspace_id = user.json()["workspace_id"]
+    agent = await client.post("/agents", json={"workspace_id": workspace_id, "name": "Agent"})
+    skill = await client.post("/skills", json={"workspace_id": workspace_id, "name": "research"})
+    env = await client.post("/envs", json={"workspace_id": workspace_id, "name": "anthropic", "values": {"K": "V"}})
+    channel = await client.post("/channels", json={"workspace_id": workspace_id, "name": "telegram", "type": "telegram", "config": {}})
+    mcp = await client.post("/user-mcp", json={"workspace_id": workspace_id, "name": "officeclaw", "type": "http", "config": {"url": "http://mcp:8700/mcp", "headers": {"Authorization": "Bearer tok"}}})
     return {
+        "workspace_id": workspace_id,
         "agent_id": agent.json()["id"],
         "skill_id": skill.json()["id"],
         "env_id": env.json()["id"],
         "channel_id": channel.json()["id"],
+        "mcp_id": mcp.json()["id"],
     }
 
 
@@ -44,12 +47,9 @@ async def test_attach_detach_channel(client, setup, integrations_deps):
     assert (await client.delete(f"/agents/{agent_id}/channels/{channel_id}")).status_code == 204
 
 
-async def test_add_mcp(client, setup):
-    agent_id = setup["agent_id"]
-    resp = await client.post(f"/agents/{agent_id}/mcp", json={
-        "name": "officeclaw",
-        "config": {"url": "http://mcp:8700/mcp", "headers": {"Authorization": "Bearer tok"}}
-    })
-    assert resp.status_code == 201
-    assert resp.json()["name"] == "officeclaw"
-    assert "config" not in resp.json()
+async def test_add_mcp(client, setup, integrations_deps):
+    agent_id, mcp_id = UUID(setup["agent_id"]), UUID(setup["mcp_id"])
+    resp = await client.post(f"/agents/{agent_id}/mcp/{mcp_id}")
+    assert resp.status_code == 204
+    mcps = await integrations_deps.list_agent_mcps(agent_id)
+    assert any(str(m["id"]) == str(mcp_id) for m in mcps)

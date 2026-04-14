@@ -32,13 +32,17 @@ def force_msb_runner():
 
 @pytest.fixture
 async def plain_agent(conn) -> UUID:
-    """Create a plain (non-admin) agent with a real user."""
+    """Create a plain (non-admin) agent with a real user and workspace."""
     from src.fleet.adapters.out.repository import AgentRepo
     uid = (await conn.fetchrow(
         'INSERT INTO "user" (email) VALUES ($1) RETURNING id',
         f"sandbox-test-{uuid.uuid4()}@example.com",
     ))["id"]
-    agent = await AgentRepo(conn).create(uid, "TestBot", "ghcr.io/hkuds/nanobot:latest", False)
+    workspace_id = (await conn.fetchrow(
+        "INSERT INTO workspaces (user_id, name, officeclaw_token) VALUES ($1, $2, $3) RETURNING id",
+        uid, "Personal", f"tok-{uuid.uuid4()}",
+    ))["id"]
+    agent = await AgentRepo(conn).create(workspace_id, "TestBot", "ghcr.io/hkuds/nanobot:latest", False)
     return agent["id"]
 
 
@@ -46,7 +50,8 @@ async def plain_agent(conn) -> UUID:
 def sandbox_svc(conn):
     integrations = integrations_di.build(conn)  # type: ignore[arg-type]
     library = library_di.build(conn)  # type: ignore[arg-type]
-    return fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
+    fleet, _ = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
+    return fleet
 
 
 def _proc(returncode: int = 0, stderr: bytes = b"") -> AsyncMock:
@@ -59,6 +64,8 @@ def _proc(returncode: int = 0, stderr: bytes = b"") -> AsyncMock:
 async def test_start_sandbox_calls_msb(sandbox_svc, plain_agent):
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()) as mock_exec, \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch("src.fleet.app.sandbox.Path.rename"), \
+         patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         await sandbox_svc.start_sandbox(plain_agent)
@@ -73,6 +80,8 @@ async def test_start_sandbox_updates_db(conn, sandbox_svc, plain_agent):
     from src.fleet.adapters.out.repository import AgentRepo
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch("src.fleet.app.sandbox.Path.rename"), \
+         patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         await sandbox_svc.start_sandbox(plain_agent)
@@ -85,6 +94,8 @@ async def test_start_sandbox_raises_on_failure(sandbox_svc, plain_agent):
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec",
                return_value=_proc(returncode=1, stderr=b"boom")), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch("src.fleet.app.sandbox.Path.rename"), \
+         patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch("builtins.open", MagicMock()):
         with pytest.raises(RuntimeError, match="msb run failed"):
             await sandbox_svc.start_sandbox(plain_agent)
@@ -93,6 +104,8 @@ async def test_start_sandbox_raises_on_failure(sandbox_svc, plain_agent):
 async def test_stop_sandbox_calls_msb_stop_and_rm(sandbox_svc, plain_agent):
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch("src.fleet.app.sandbox.Path.rename"), \
+         patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         await sandbox_svc.start_sandbox(plain_agent)
@@ -108,6 +121,8 @@ async def test_stop_sandbox_updates_db(conn, sandbox_svc, plain_agent):
     from src.fleet.adapters.out.repository import AgentRepo
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch("src.fleet.app.sandbox.Path.rename"), \
+         patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         await sandbox_svc.start_sandbox(plain_agent)
@@ -120,21 +135,37 @@ async def test_stop_sandbox_updates_db(conn, sandbox_svc, plain_agent):
 
 
 async def test_stop_sandbox_syncs_mutable_files(conn, sandbox_svc, plain_agent):
+    from pathlib import Path
     from src.fleet.adapters.out.repository import AgentFileRepo
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.Path.mkdir"), \
+         patch("src.fleet.app.sandbox.Path.rename"), \
+         patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
         await sandbox_svc.start_sandbox(plain_agent)
 
     memory_content = "# Memory\nRemembered something."
 
-    def _exists(self: object) -> bool:
+    # Build a fake MEMORY.md path that rglob would return
+    fake_workdir = Path(f"/fake-sandboxes/{plain_agent}")
+    fake_memory_path = fake_workdir / "memory" / "MEMORY.md"
+
+    def _rglob(self: Path, pattern: str):  # type: ignore[override]
+        return [fake_memory_path]
+
+    def _is_file(self: Path) -> bool:
         return str(self).endswith("MEMORY.md")
+
+    def _relative_to(self: Path, other: Path) -> Path:
+        return Path("memory/MEMORY.md")
 
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.shutil.rmtree"), \
-         patch("pathlib.Path.exists", _exists), \
+         patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
+         patch("pathlib.Path.rglob", _rglob), \
+         patch("pathlib.Path.is_file", _is_file), \
+         patch("pathlib.Path.relative_to", _relative_to), \
          patch("pathlib.Path.read_text", return_value=memory_content):
         await sandbox_svc.stop_sandbox(plain_agent)
 

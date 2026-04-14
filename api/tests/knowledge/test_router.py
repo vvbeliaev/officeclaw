@@ -5,7 +5,7 @@ from uuid import uuid4, UUID
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.knowledge.adapters._in.router import router, get_knowledge_user_id
+from src.knowledge.adapters._in.router import router, get_knowledge_workspace_id
 from src.knowledge.app import KnowledgeApp
 
 
@@ -24,7 +24,7 @@ def app():
 
 def test_query_endpoint(app):
     user_id = uuid4()
-    app.dependency_overrides[get_knowledge_user_id] = lambda: user_id
+    app.dependency_overrides[get_knowledge_workspace_id] = lambda: user_id
 
     client = TestClient(app)
     resp = client.post("/knowledge/query", json={"query": "capital of France?"})
@@ -34,7 +34,7 @@ def test_query_endpoint(app):
 
 def test_graph_endpoint(app):
     user_id = uuid4()
-    app.dependency_overrides[get_knowledge_user_id] = lambda: user_id
+    app.dependency_overrides[get_knowledge_workspace_id] = lambda: user_id
 
     client = TestClient(app)
     resp = client.get("/knowledge/graph")
@@ -45,7 +45,7 @@ def test_graph_endpoint(app):
 
 def test_ingest_text_endpoint(app):
     user_id = uuid4()
-    app.dependency_overrides[get_knowledge_user_id] = lambda: user_id
+    app.dependency_overrides[get_knowledge_workspace_id] = lambda: user_id
 
     client = TestClient(app)
     resp = client.post(
