@@ -75,11 +75,24 @@
 </script>
 
 <div class="switcher" bind:this={root}>
-  <button class="trigger font-mono" onclick={toggle} type="button">
-    <span class="ws-initial">{active?.name?.[0]?.toUpperCase() ?? '?'}</span>
-    <span class="ws-name">{active?.name ?? 'workspace'}</span>
-    <Icon icon="tabler:chevron-up-down" width={12} height={12} class="chevron" />
-  </button>
+  <div class="trigger-row">
+    <button class="trigger font-mono" onclick={toggle} type="button">
+      <span class="ws-initial">{active?.name?.[0]?.toUpperCase() ?? '?'}</span>
+      <span class="ws-name">{active?.name ?? 'workspace'}</span>
+      <Icon icon="tabler:chevron-up-down" width={12} height={12} class="chevron" />
+    </button>
+    {#if active}
+      <a
+        href="/w/{active.slug}/workspace/settings"
+        class="trigger-gear"
+        onclick={() => { open = false; }}
+        title="Workspace settings"
+        aria-label="Settings for {active.name}"
+      >
+        <Icon icon="tabler:settings" width={13} height={13} />
+      </a>
+    {/if}
+  </div>
 
   {#if open}
     <div class="popover">
@@ -144,20 +157,49 @@
     position: relative;
   }
 
-  .trigger {
+  .trigger-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    width: 100%;
-    padding: 0.55rem 0.75rem;
-    font-size: 0.72rem;
-    color: var(--sidebar-foreground);
     border-top: 1px solid var(--sidebar-border);
     transition: background 150ms ease;
   }
 
-  .trigger:hover {
+  .trigger-row:hover {
     background: var(--sidebar-accent);
+  }
+
+  .trigger-row:hover .trigger-gear {
+    opacity: 1;
+  }
+
+  .trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 0;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.72rem;
+    color: var(--sidebar-foreground);
+  }
+
+  .trigger-gear {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: 0.25rem;
+    color: color-mix(in oklch, var(--sidebar-foreground) 35%, transparent);
+    opacity: 0;
+    transition: color 120ms ease, background 120ms ease, opacity 120ms ease;
+    margin-right: 0.4rem;
+  }
+
+  .trigger-gear:hover {
+    color: var(--sidebar-foreground);
+    background: color-mix(in oklch, var(--sidebar-foreground) 10%, transparent);
   }
 
   .ws-initial {
