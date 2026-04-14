@@ -31,7 +31,7 @@ async def create_agent(
     fleet: FleetApp = Depends(get_fleet),
 ) -> AgentOut:
     record = await fleet.create_agent(
-        body.user_id, body.name, body.image, body.is_admin
+        body.workspace_id, body.name, body.image, body.is_admin
     )
     return AgentOut(**dict(record))
 

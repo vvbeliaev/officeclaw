@@ -7,7 +7,7 @@ AgentStatus = Literal["idle", "running", "error"]
 
 
 class AgentCreate(BaseModel):
-    user_id: UUID
+    workspace_id: UUID
     name: str
     image: str = "localhost:5005/officeclaw/agent:latest"
     is_admin: bool = False
@@ -22,7 +22,7 @@ class AgentUpdate(BaseModel):
 
 class AgentOut(BaseModel):
     id: UUID
-    user_id: UUID
+    workspace_id: UUID
     name: str
     status: str
     sandbox_id: str | None

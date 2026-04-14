@@ -9,15 +9,15 @@ class AgentService:
         self._files = file_repo
 
     async def create(
-        self, user_id: UUID, name: str, image: str, is_admin: bool = False
+        self, workspace_id: UUID, name: str, image: str, is_admin: bool = False
     ) -> dict:
-        return await self._agents.create(user_id, name, image, is_admin)
+        return await self._agents.create(workspace_id, name, image, is_admin)
 
     async def find_by_id(self, agent_id: UUID) -> dict | None:
         return await self._agents.find_by_id(agent_id)
 
-    async def list_by_user(self, user_id: UUID) -> list[dict]:
-        return await self._agents.list_by_user(user_id)
+    async def list_by_workspace(self, workspace_id: UUID) -> list[dict]:
+        return await self._agents.list_by_workspace(workspace_id)
 
     async def list_running(self) -> list[dict]:
         return await self._agents.list_running()

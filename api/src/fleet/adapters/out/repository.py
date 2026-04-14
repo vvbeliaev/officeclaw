@@ -12,22 +12,22 @@ class AgentRepo:
         self._conn = conn
 
     async def create(
-        self, user_id: UUID, name: str, image: str, is_admin: bool
+        self, workspace_id: UUID, name: str, image: str, is_admin: bool
     ) -> asyncpg.Record:
         return await self._conn.fetchrow(
-            "INSERT INTO agents (user_id, name, image, is_admin) VALUES ($1, $2, $3, $4) RETURNING *",
-            user_id,
-            name,
-            image,
-            is_admin,
+            "INSERT INTO agents (workspace_id, name, image, is_admin)"
+            " VALUES ($1, $2, $3, $4) RETURNING *",
+            workspace_id, name, image, is_admin,
         )
 
     async def find_by_id(self, agent_id: UUID) -> asyncpg.Record | None:
-        return await self._conn.fetchrow("SELECT * FROM agents WHERE id = $1", agent_id)
+        return await self._conn.fetchrow(
+            "SELECT * FROM agents WHERE id = $1", agent_id
+        )
 
-    async def list_by_user(self, user_id: UUID) -> list[asyncpg.Record]:
+    async def list_by_workspace(self, workspace_id: UUID) -> list[asyncpg.Record]:
         return await self._conn.fetch(
-            "SELECT * FROM agents WHERE user_id = $1", user_id
+            "SELECT * FROM agents WHERE workspace_id = $1", workspace_id
         )
 
     async def list_running(self) -> list[asyncpg.Record]:
