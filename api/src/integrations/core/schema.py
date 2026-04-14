@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 
 class EnvCreate(BaseModel):
-    user_id: UUID
+    workspace_id: UUID
     name: str
     values: dict  # written, never read back
     category: str | None = None  # 'system' | 'llm-provider' | None
@@ -18,7 +18,7 @@ class EnvUpdate(BaseModel):
 
 class EnvOut(BaseModel):
     id: UUID
-    user_id: UUID
+    workspace_id: UUID
     name: str
     category: str | None = None
     created_at: datetime
@@ -30,7 +30,7 @@ class EnvValuesOut(BaseModel):
 
 
 class ChannelCreate(BaseModel):
-    user_id: UUID
+    workspace_id: UUID
     name: str
     type: str
     config: dict  # written, never returned
@@ -38,7 +38,7 @@ class ChannelCreate(BaseModel):
 
 class ChannelOut(BaseModel):
     id: UUID
-    user_id: UUID
+    workspace_id: UUID
     name: str
     type: str
     created_at: datetime
@@ -46,7 +46,7 @@ class ChannelOut(BaseModel):
 
 
 class McpCreate(BaseModel):
-    user_id: UUID
+    workspace_id: UUID
     name: str
     type: str   # 'stdio' | 'http'
     config: dict  # written, never returned
@@ -54,7 +54,7 @@ class McpCreate(BaseModel):
 
 class McpOut(BaseModel):
     id: UUID
-    user_id: UUID
+    workspace_id: UUID
     name: str
     type: str
     created_at: datetime
@@ -62,7 +62,7 @@ class McpOut(BaseModel):
 
 
 class TemplateCreate(BaseModel):
-    user_id: UUID
+    workspace_id: UUID
     name: str
     template_type: str  # 'user' | 'soul' | 'agents' | 'heartbeat' | 'tools'
     content: str = ''
@@ -75,7 +75,7 @@ class TemplateUpdate(BaseModel):
 
 class TemplateOut(BaseModel):
     id: UUID
-    user_id: UUID
+    workspace_id: UUID
     name: str
     template_type: str
     content: str

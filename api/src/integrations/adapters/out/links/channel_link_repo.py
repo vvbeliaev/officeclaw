@@ -23,7 +23,7 @@ class ChannelLinkRepo:
 
     async def list_by_agent(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._conn.fetch(
-            "SELECT c.id, c.user_id, c.type, c.created_at FROM user_channels c"
+            "SELECT c.id, c.workspace_id, c.type, c.created_at FROM workspace_channels c"
             " JOIN agent_channels a ON a.channel_id = c.id WHERE a.agent_id = $1",
             agent_id,
         )

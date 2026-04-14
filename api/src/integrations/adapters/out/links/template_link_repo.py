@@ -26,8 +26,8 @@ class TemplateLinkRepo:
 
     async def list_by_agent(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._conn.fetch(
-            "SELECT t.id, t.user_id, t.name, t.template_type, t.content, t.created_at"
-            " FROM user_templates t"
+            "SELECT t.id, t.workspace_id, t.name, t.template_type, t.content, t.created_at"
+            " FROM workspace_templates t"
             " JOIN agent_user_templates a ON a.user_template_id = t.id"
             " WHERE a.agent_id = $1",
             agent_id,

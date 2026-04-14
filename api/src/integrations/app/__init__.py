@@ -26,14 +26,14 @@ class IntegrationsApp:
 
     # --- Env ---
 
-    async def create_env(self, user_id: UUID, name: str, values: dict, category: str | None = None) -> asyncpg.Record:
-        return await self._envs.create(user_id, name, values, category)
+    async def create_env(self, workspace_id: UUID, name: str, values: dict, category: str | None = None) -> asyncpg.Record:
+        return await self._envs.create(workspace_id, name, values, category)
 
     async def find_env(self, env_id: UUID) -> asyncpg.Record | None:
         return await self._envs.find(env_id)
 
-    async def list_envs(self, user_id: UUID) -> list[asyncpg.Record]:
-        return await self._envs.list(user_id)
+    async def list_envs(self, workspace_id: UUID) -> list[asyncpg.Record]:
+        return await self._envs.list(workspace_id)
 
     async def get_decrypted_env(self, env_id: UUID) -> dict:
         return await self._envs.get_decrypted(env_id)
@@ -46,19 +46,19 @@ class IntegrationsApp:
     async def delete_env(self, env_id: UUID) -> None:
         await self._envs.delete(env_id)
 
-    async def find_llm_provider(self, user_id: UUID) -> asyncpg.Record | None:
-        return await self._envs.find_llm_provider(user_id)
+    async def find_llm_provider(self, workspace_id: UUID) -> asyncpg.Record | None:
+        return await self._envs.find_llm_provider(workspace_id)
 
     # --- Channel ---
 
-    async def create_channel(self, user_id: UUID, name: str, type_: str, config: dict) -> asyncpg.Record:
-        return await self._channels.create(user_id, name, type_, config)
+    async def create_channel(self, workspace_id: UUID, name: str, type_: str, config: dict) -> asyncpg.Record:
+        return await self._channels.create(workspace_id, name, type_, config)
 
     async def find_channel(self, channel_id: UUID) -> asyncpg.Record | None:
         return await self._channels.find(channel_id)
 
-    async def list_channels(self, user_id: UUID) -> list[asyncpg.Record]:
-        return await self._channels.list(user_id)
+    async def list_channels(self, workspace_id: UUID) -> list[asyncpg.Record]:
+        return await self._channels.list(workspace_id)
 
     async def get_decrypted_channel(self, channel_id: UUID) -> dict:
         return await self._channels.get_decrypted(channel_id)
@@ -68,14 +68,14 @@ class IntegrationsApp:
 
     # --- MCP ---
 
-    async def create_mcp(self, user_id: UUID, name: str, type_: str, config: dict) -> asyncpg.Record:
-        return await self._mcp.create(user_id, name, type_, config)
+    async def create_mcp(self, workspace_id: UUID, name: str, type_: str, config: dict) -> asyncpg.Record:
+        return await self._mcp.create(workspace_id, name, type_, config)
 
     async def find_mcp(self, mcp_id: UUID) -> asyncpg.Record | None:
         return await self._mcp.find(mcp_id)
 
-    async def list_mcps(self, user_id: UUID) -> list[asyncpg.Record]:
-        return await self._mcp.list(user_id)
+    async def list_mcps(self, workspace_id: UUID) -> list[asyncpg.Record]:
+        return await self._mcp.list(workspace_id)
 
     async def delete_mcp(self, mcp_id: UUID) -> None:
         await self._mcp.delete(mcp_id)
@@ -130,15 +130,15 @@ class IntegrationsApp:
     # --- Templates ---
 
     async def create_template(
-        self, user_id: UUID, name: str, template_type: str, content: str
+        self, workspace_id: UUID, name: str, template_type: str, content: str
     ) -> asyncpg.Record:
-        return await self._templates.create(user_id, name, template_type, content)
+        return await self._templates.create(workspace_id, name, template_type, content)
 
     async def find_template(self, template_id: UUID) -> asyncpg.Record | None:
         return await self._templates.find(template_id)
 
-    async def list_templates(self, user_id: UUID) -> list[asyncpg.Record]:
-        return await self._templates.list(user_id)
+    async def list_templates(self, workspace_id: UUID) -> list[asyncpg.Record]:
+        return await self._templates.list(workspace_id)
 
     async def update_template(
         self, template_id: UUID, name: str | None = None, content: str | None = None

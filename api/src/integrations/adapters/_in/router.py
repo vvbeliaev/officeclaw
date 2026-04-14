@@ -28,9 +28,9 @@ async def create_env(
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> EnvOut:
     try:
-        record = await deps.create_env(body.user_id, body.name, body.values, body.category)
+        record = await deps.create_env(body.workspace_id, body.name, body.values, body.category)
     except asyncpg.UniqueViolationError:
-        raise HTTPException(409, "Env name already exists for this user")
+        raise HTTPException(409, "Env name already exists for this workspace")
     return EnvOut(**dict(record))
 
 
@@ -72,7 +72,7 @@ async def create_channel(
     body: ChannelCreate,
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> ChannelOut:
-    record = await deps.create_channel(body.user_id, body.name, body.type, body.config)
+    record = await deps.create_channel(body.workspace_id, body.name, body.type, body.config)
     return ChannelOut(**dict(record))
 
 
@@ -92,9 +92,9 @@ async def create_mcp(
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> McpOut:
     try:
-        record = await deps.create_mcp(body.user_id, body.name, body.type, body.config)
+        record = await deps.create_mcp(body.workspace_id, body.name, body.type, body.config)
     except asyncpg.UniqueViolationError:
-        raise HTTPException(409, "MCP name already exists for this user")
+        raise HTTPException(409, "MCP name already exists for this workspace")
     return McpOut(**dict(record))
 
 
@@ -113,7 +113,7 @@ async def create_template(
     body: TemplateCreate,
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> TemplateOut:
-    record = await deps.create_template(body.user_id, body.name, body.template_type, body.content)
+    record = await deps.create_template(body.workspace_id, body.name, body.template_type, body.content)
     return TemplateOut(**dict(record))
 
 
