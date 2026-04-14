@@ -12,6 +12,7 @@ import src.identity.di as identity_di
 import src.library.di as library_di
 import src.integrations.di as integrations_di
 import src.knowledge.di as knowledge_di
+import src.workspace.di as workspace_di
 from src.fleet.adapters._in.router import router as agents_router
 from src.identity.adapters._in.router import router as users_router
 from src.integrations.adapters._in.router import (
@@ -23,11 +24,10 @@ from src.integrations.adapters._in.router import (
 )
 from src.library.adapters._in.router import router as skills_router
 from src.knowledge.adapters._in.router import router as knowledge_router
+from src.workspace.adapters._in.router import router as workspaces_router
 
 from .mcp import admin_mcp, knowledge_mcp, setup as mcp_setup
 
-# Build FastMCP ASGI apps once at module level so their lifespans
-# can be wired into the FastAPI lifespan below.
 _admin_mcp_asgi = admin_mcp.http_app(path="/")
 _knowledge_mcp_asgi = knowledge_mcp.http_app(path="/")
 
@@ -40,7 +40,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     integrations = integrations_di.build(pool)
     library = library_di.build(pool)
     fleet, watcher = fleet_di.build(pool, integrations, library)
-    identity = identity_di.build(pool, fleet, integrations)
+    workspace = workspace_di.build(pool, fleet, integrations)
+    identity = identity_di.build(pool, workspace)
     knowledge = knowledge_di.build(settings)
 
     app.state.pool = pool
@@ -48,12 +49,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.identity = identity
     app.state.library = library
     app.state.integrations = integrations
+    app.state.workspace = workspace
     app.state.knowledge = knowledge
 
     mcp_setup(
         pool=pool,
         fleet=fleet,
-        identity=identity,
+        workspace=workspace,
         library=library,
         integrations=integrations,
         knowledge=knowledge,
@@ -61,8 +63,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     watcher.start()
 
-    # FastAPI mount() does not propagate sub-app lifespans, so we must
-    # explicitly run both FastMCP session-manager lifespans here.
     async with _admin_mcp_asgi.lifespan(_admin_mcp_asgi):
         async with _knowledge_mcp_asgi.lifespan(_knowledge_mcp_asgi):
             yield
@@ -74,6 +74,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     app = FastAPI(title="OfficeClaw API", lifespan=lifespan)
     app.include_router(users_router, prefix="/users", tags=["users"])
+    app.include_router(workspaces_router, prefix="/workspaces", tags=["workspaces"])
     app.include_router(agents_router, prefix="/agents", tags=["agents"])
     app.include_router(skills_router, prefix="/skills", tags=["skills"])
     app.include_router(envs_router, prefix="/envs", tags=["envs"])
@@ -86,7 +87,6 @@ def create_app() -> FastAPI:
     uploads_dir = Path("uploads")
     uploads_dir.mkdir(exist_ok=True)
     app.mount("/static", StaticFiles(directory=uploads_dir), name="static")
-
     app.mount("/mcp/admin", _admin_mcp_asgi)
     app.mount("/mcp/knowledge", _knowledge_mcp_asgi)
 
