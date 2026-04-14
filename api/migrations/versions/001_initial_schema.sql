@@ -131,7 +131,8 @@ CREATE TABLE workspace_channels (
     name             TEXT        NOT NULL,
     type             TEXT        NOT NULL,
     config_encrypted BYTEA       NOT NULL,
-    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(workspace_id, name)
 );
 
 CREATE TABLE workspace_mcp (
@@ -180,9 +181,13 @@ CREATE TABLE agent_mcp (
 );
 
 CREATE TABLE agent_user_templates (
-    agent_id          UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
-    user_template_id  UUID NOT NULL REFERENCES workspace_templates(id) ON DELETE CASCADE,
-    template_type     TEXT NOT NULL CHECK (template_type IN ('user','soul','agents','heartbeat','tools')),
-    PRIMARY KEY (agent_id, user_template_id),
+    agent_id      UUID NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+    template_id   UUID NOT NULL REFERENCES workspace_templates(id) ON DELETE CASCADE,
+    template_type TEXT NOT NULL CHECK (template_type IN ('user','soul','agents','heartbeat','tools')),
+    PRIMARY KEY (agent_id, template_id),
     UNIQUE (agent_id, template_type)
 );
+
+CREATE INDEX agents_workspace_id_idx              ON agents(workspace_id);
+CREATE INDEX skills_workspace_id_idx              ON skills(workspace_id);
+CREATE INDEX workspace_templates_workspace_id_idx ON workspace_templates(workspace_id);
