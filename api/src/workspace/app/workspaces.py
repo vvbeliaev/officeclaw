@@ -149,7 +149,7 @@ class WorkspaceService:
         knowledge_mcp_url = f"{settings.mcp_base_url}/mcp/knowledge"
         await self._integrations.create_mcp(
             workspace_id,
-            "knowledge",
+            "officeclaw-knowledge",
             "http",
             {
                 "url": knowledge_mcp_url,
