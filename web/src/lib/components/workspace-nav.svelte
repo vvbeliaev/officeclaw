@@ -3,6 +3,7 @@
 	import { Icon } from '$lib/icons';
 
 	type Props = {
+		workspaceId: string;
 		counts: {
 			skills: number;
 			envs: number;
@@ -13,15 +14,15 @@
 		};
 	};
 
-	let { counts }: Props = $props();
+	let { workspaceId, counts }: Props = $props();
 
 	const items = $derived([
-		{ href: '/workspace/skills', label: 'Skills', icon: 'oc:tool', count: counts.skills },
-		{ href: '/workspace/environments', label: 'Environments', icon: 'oc:configure', count: counts.envs },
-		{ href: '/workspace/channels', label: 'Channels', icon: 'oc:log', count: counts.channels },
-		{ href: '/workspace/mcp', label: 'MCP Servers', icon: 'oc:memory', count: counts.mcp },
-		{ href: '/workspace/knowledge', label: 'Knowledge', icon: 'oc:memory', count: counts.knowledge },
-		{ href: '/prompts', label: 'Prompts', icon: 'tabler:file-text', count: counts.prompts }
+		{ href: `/w/${workspaceId}/workspace/skills`, label: 'Skills', icon: 'oc:tool', count: counts.skills },
+		{ href: `/w/${workspaceId}/workspace/environments`, label: 'Environments', icon: 'oc:configure', count: counts.envs },
+		{ href: `/w/${workspaceId}/workspace/channels`, label: 'Channels', icon: 'oc:log', count: counts.channels },
+		{ href: `/w/${workspaceId}/workspace/mcp`, label: 'MCP Servers', icon: 'oc:memory', count: counts.mcp },
+		{ href: `/w/${workspaceId}/workspace/knowledge`, label: 'Knowledge', icon: 'oc:memory', count: counts.knowledge },
+		{ href: `/w/${workspaceId}/prompts`, label: 'Prompts', icon: 'tabler:file-text', count: counts.prompts }
 	]);
 
 	function isActive(href: string): boolean {

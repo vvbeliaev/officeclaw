@@ -1,17 +1,16 @@
 import { error, fail } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { agents, agentFiles, workspaces } from '$lib/server/db/app.schema';
+import { agents, agentFiles } from '$lib/server/db/app.schema';
 import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:8000';
 
-export const load: PageServerLoad = async ({ params, locals }) => {
+export const load: PageServerLoad = async ({ params }) => {
 	const [row] = await db
 		.select()
 		.from(agents)
-		.innerJoin(workspaces, eq(workspaces.id, agents.workspaceId))
-		.where(and(eq(agents.id, params.id), eq(workspaces.userId, locals.user!.id)))
+		.where(and(eq(agents.id, params.id), eq(agents.workspaceId, params.workspaceId)))
 		.limit(1);
 
 	if (!row) error(404, 'Agent not found');
@@ -22,7 +21,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		.where(eq(agentFiles.agentId, params.id))
 		.orderBy(agentFiles.path);
 
-	return { agent: row.agents, files };
+	return { agent: row, files };
 };
 
 export const actions: Actions = {

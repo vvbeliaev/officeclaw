@@ -7,7 +7,6 @@ import {
 	workspaceEnvs,
 	workspaceMcp,
 	workspaceTemplates,
-	workspaces,
 	agentChannels,
 	agentSkills,
 	agentEnvs,
@@ -19,21 +18,16 @@ import type { PageServerLoad, Actions } from './$types';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:8000';
 
-export const load: PageServerLoad = async ({ params, locals }) => {
-	if (!locals.session) redirect(302, '/auth');
-	const userId = locals.user!.id;
+export const load: PageServerLoad = async ({ params }) => {
+	const workspaceId = params.workspaceId;
 
 	const [agentRow] = await db
 		.select()
 		.from(agents)
-		.innerJoin(workspaces, eq(workspaces.id, agents.workspaceId))
-		.where(and(eq(agents.id, params.id), eq(workspaces.userId, userId)))
+		.where(and(eq(agents.id, params.id), eq(agents.workspaceId, workspaceId)))
 		.limit(1);
 
 	if (!agentRow) error(404, 'Agent not found');
-
-	const agent = agentRow.agents;
-	const workspaceId = agentRow.workspaces.id;
 
 	const [
 		allChannels,
@@ -113,7 +107,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	const attachedTemplateIds = new Set(attachedTemplateRows.map((r) => r.templateId));
 
 	return {
-		agent,
+		agent: agentRow,
 		channels: allChannels.map((c) => {
 			const assignment = channelAssignments.find((a) => a.channelId === c.id);
 			return {
@@ -188,8 +182,7 @@ export const actions: Actions = {
 		const [row] = await db
 			.select({ id: agents.id, isAdmin: agents.isAdmin })
 			.from(agents)
-			.innerJoin(workspaces, eq(workspaces.id, agents.workspaceId))
-			.where(and(eq(agents.id, params.id), eq(workspaces.userId, locals.user!.id)))
+			.where(and(eq(agents.id, params.id), eq(agents.workspaceId, params.workspaceId)))
 			.limit(1);
 
 		if (!row) error(404, 'Agent not found');
@@ -202,7 +195,7 @@ export const actions: Actions = {
 			return fail(upstream.status, { error: text || 'Failed to delete agent' });
 		}
 
-		redirect(302, '/');
+		redirect(302, `/w/${params.workspaceId}`);
 	},
 
 	attachChannel: async ({ params, request, locals }) => {

@@ -9,6 +9,28 @@
 
 	let { data, children } = $props();
 
+	// `agents` and `workspaceCounts` are injected by the [workspaceId] child layout
+	// when inside a workspace route. They are absent at the top level.
+	type WorkspaceData = typeof data & {
+		agents?: Array<{
+			id: string;
+			name: string;
+			status: string;
+			isAdmin: boolean;
+			avatarUrl?: string | null;
+			workspaceId: string;
+		}>;
+		workspaceCounts?: {
+			skills: number;
+			envs: number;
+			channels: number;
+			mcp: number;
+			knowledge: number;
+			prompts: number;
+		};
+	};
+	const d = data as WorkspaceData;
+
 	type Theme = 'light' | 'dark' | 'sage';
 	let theme = $state<Theme>('dark');
 
@@ -28,8 +50,10 @@
 
 	type AgentStatus = 'running' | 'idle' | 'error';
 
+	const workspaceId = $derived(page.params.workspaceId as string | undefined);
+
 	const activeAgentId = $derived(
-		page.url.pathname.startsWith('/agents/') ? page.params.id : undefined
+		page.url.pathname.includes('/agents/') ? page.params.id : undefined
 	);
 
 	const initials = $derived(
@@ -86,7 +110,7 @@
 			spawning = false;
 			spawnName = '';
 			await invalidateAll();
-			goto(`/agents/${agent.id}`);
+			goto(`/w/${workspaceId}/agents/${agent.id}`);
 		} catch (err) {
 			spawnError = err instanceof Error ? err.message : 'Failed to create agent';
 		} finally {
@@ -127,15 +151,16 @@
 					</button>
 				</div>
 
-				{#if data.agents.length === 0 && !spawning}
+				{#if !d.agents || d.agents.length === 0 && !spawning}
 					<p class="empty">
 						Bootstrap pending<span class="blink">…</span>
 					</p>
 				{:else}
 					<div class="agent-list">
-						{#each data.agents as agent (agent.id)}
+						{#each (d.agents ?? []) as agent (agent.id)}
 							<AgentSidebarCard
 								id={agent.id}
+								workspaceId={workspaceId ?? ''}
 								name={agent.name}
 								status={agent.status as AgentStatus}
 								isAdmin={agent.isAdmin}
@@ -193,7 +218,9 @@
 				<div class="section-head">
 					<span class="section-label font-mono">workspace</span>
 				</div>
-				<WorkspaceNav counts={data.workspaceCounts} />
+				{#if workspaceId && d.workspaceCounts}
+					<WorkspaceNav workspaceId={workspaceId} counts={d.workspaceCounts} />
+				{/if}
 			</section>
 		</div>
 

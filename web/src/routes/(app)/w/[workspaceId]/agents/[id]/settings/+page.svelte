@@ -3,7 +3,6 @@
 	import { invalidateAll } from '$app/navigation';
 	import AgentAvatar from '$lib/components/agent-avatar.svelte';
 	import { Icon } from '$lib/icons';
-	import { resolve } from '$app/paths';
 
 	let { data, form } = $props();
 
@@ -89,7 +88,7 @@
 	<!-- ── Header ──────────────────────────────────────────────── -->
 	<header class="settings-header">
 		<div class="header-left">
-			<a href={resolve(`/agents/${data.agent.id}`)} class="back-btn" aria-label="Back to chat">
+			<a href={`/w/${data.workspace.id}/agents/${data.agent.id}`} class="back-btn" aria-label="Back to chat">
 				<Icon icon="tabler:arrow-left" width={13} height={13} />
 				<span>back</span>
 			</a>
@@ -459,7 +458,7 @@
 					<span class="cap-meta font-mono">{(data.templates as Template[]).filter(t => t.attached).length} / {(data.templates as Template[]).length}</span>
 				</div>
 				{#if (data.templates as Template[]).length === 0}
-					<p class="cap-empty font-mono">No templates in library — <a href="/prompts" class="cap-link">create one</a></p>
+					<p class="cap-empty font-mono">No templates in library — <a href={`/w/${data.workspace.id}/prompts`} class="cap-link">create one</a></p>
 				{:else}
 					<div class="chip-grid">
 						{#each (data.templates as Template[]).filter(t => t.attached) as tpl (tpl.id)}

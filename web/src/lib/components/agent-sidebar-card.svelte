@@ -7,6 +7,7 @@
 
 	type Props = {
 		id: string;
+		workspaceId: string;
 		name: string;
 		status: AgentStatus;
 		isAdmin: boolean;
@@ -14,7 +15,7 @@
 		active: boolean;
 	};
 
-	let { id, name, status, isAdmin, avatarUrl = null, active }: Props = $props();
+	let { id, workspaceId, name, status, isAdmin, avatarUrl = null, active }: Props = $props();
 
 	const statusClass = $derived(
 		{
@@ -34,7 +35,7 @@
 </script>
 
 <a
-	href={`/agents/${id}`}
+	href={`/w/${workspaceId}/agents/${id}`}
 	class="agent-card"
 	class:active
 	aria-current={active ? 'page' : undefined}
@@ -62,7 +63,7 @@
 		onclick={(e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			goto(`/agents/${id}/settings`);
+			goto(`/w/${workspaceId}/agents/${id}/settings`);
 		}}
 	>
 		<Icon icon="tabler:settings" width={12} height={12} />

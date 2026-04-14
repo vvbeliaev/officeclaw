@@ -6,7 +6,6 @@
 	import AgentAvatar from '$lib/components/agent-avatar.svelte';
 	import Markdown from '$lib/components/markdown.svelte';
 	import { Icon } from '$lib/icons';
-	import { resolve } from '$app/paths';
 
 	let { data } = $props();
 
@@ -194,7 +193,7 @@
 			<div class="header-divider"></div>
 			<a
 				class="header-btn"
-				href={resolve(`/agents/${data.agent.id}/files`)}
+				href={`/w/${data.workspace.id}/agents/${data.agent.id}/files`}
 				aria-label="Agent files"
 			>
 				<Icon icon="tabler:folder-open" width={13} height={13} />
@@ -202,7 +201,7 @@
 			</a>
 			<a
 				class="header-btn"
-				href={resolve(`/agents/${data.agent.id}/settings`)}
+				href={`/w/${data.workspace.id}/agents/${data.agent.id}/settings`}
 				aria-label="Agent settings"
 			>
 				<Icon icon="tabler:settings" width={13} height={13} />

@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
-	import { resolve } from '$app/paths';
 	import { deserialize } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import AgentAvatar from '$lib/components/agent-avatar.svelte';
@@ -211,7 +210,7 @@
 	<!-- ── Header ──────────────────────────────────────────────────── -->
 	<header class="files-header">
 		<div class="header-left">
-			<a href={resolve(`/agents/${data.agent.id}`)} class="back-btn" aria-label="Back to chat">
+			<a href={`/w/${data.workspace.id}/agents/${data.agent.id}`} class="back-btn" aria-label="Back to chat">
 				<Icon icon="tabler:arrow-left" width={14} height={14} />
 				<span>Back</span>
 			</a>
