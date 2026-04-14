@@ -42,6 +42,7 @@ async def build_vm_payload(
     agents: AgentService,
     integrations: IntegrationsApp,
     skills: LibraryApp,
+    workspace_token: str,
 ) -> dict:
     # 1. Agent workspace files — split runtime files from regular files
     files: list[dict] = []
@@ -101,6 +102,7 @@ async def build_vm_payload(
 
     # 4. Build config.json
     config, extra_env = await _build_config_json(agent_id, integrations, env_vars)
+    extra_env["OFFICECLAW_TOKEN"] = workspace_token
     merged_env = {**env_vars, **extra_env}
 
     return {

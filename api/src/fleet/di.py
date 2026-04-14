@@ -15,5 +15,5 @@ def build(
     library: LibraryApp,
 ) -> tuple[FleetApp, SandboxWatcher]:
     agents = AgentService(AgentRepo(pool), AgentFileRepo(pool))
-    sandbox = SandboxService(agents, integrations, library)
+    sandbox = SandboxService(agents, integrations, library, pool)
     return FleetApp(agents, sandbox, integrations), SandboxWatcher(sandbox)

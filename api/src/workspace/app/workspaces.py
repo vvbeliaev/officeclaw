@@ -115,10 +115,6 @@ class WorkspaceService:
         """Create Admin agent and all seed resources for a new workspace."""
         settings = get_settings()
 
-        env_record = await self._integrations.create_env(
-            workspace_id, "officeclaw", {"OFFICECLAW_TOKEN": token}, category="system"
-        )
-
         default_llm_env = await self._integrations.create_env(
             workspace_id,
             "default-llm",
@@ -150,6 +146,17 @@ class WorkspaceService:
             },
         )
 
+        knowledge_mcp_url = f"{settings.mcp_base_url}/mcp/knowledge"
+        await self._integrations.create_mcp(
+            workspace_id,
+            "knowledge",
+            "http",
+            {
+                "url": knowledge_mcp_url,
+                "headers": {"Authorization": "Bearer ${OFFICECLAW_TOKEN}"},
+            },
+        )
+        # No attach — users connect it to agents themselves
+
         await self._integrations.attach_mcp(agent_id, mcp_record["id"])
-        await self._integrations.attach_env(agent_id, env_record["id"])
         await self._integrations.attach_env(agent_id, default_llm_env["id"])

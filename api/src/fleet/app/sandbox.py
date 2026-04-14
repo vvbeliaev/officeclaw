@@ -5,6 +5,7 @@ import socket
 from pathlib import Path
 from uuid import UUID
 
+import asyncpg
 import httpx
 
 from src.fleet.app.agents import AgentService
@@ -233,15 +234,23 @@ class SandboxService:
         agents: AgentService,
         integrations: IntegrationsApp,
         skills: LibraryApp,
+        pool: asyncpg.Pool,
     ) -> None:
         self._agents = agents
         self._integrations = integrations
         self._skills = skills
+        self._pool = pool
 
     async def start(self, agent_id: UUID) -> str:
         """Build VM payload, write workspace, launch msb sandbox. Returns sandbox_id."""
+        agent = await self._agents.find_by_id(agent_id)
+        row = await self._pool.fetchrow(
+            "SELECT officeclaw_token FROM workspaces WHERE id = $1",
+            agent["workspace_id"],
+        )
+        workspace_token = row["officeclaw_token"]
         payload = await build_vm_payload(
-            agent_id, self._agents, self._integrations, self._skills
+            agent_id, self._agents, self._integrations, self._skills, workspace_token
         )
 
         workdir = _sandbox_workdir(agent_id)
