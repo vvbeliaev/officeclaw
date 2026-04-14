@@ -19,6 +19,7 @@ node_modules/
 postgres/
 
 .sandboxes/
+.worktrees/
 .ruff_cache/
 
 api/uploads/
