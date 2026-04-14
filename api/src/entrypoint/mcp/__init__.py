@@ -4,7 +4,7 @@ OfficeClaw MCP servers — two endpoints sharing the same app state.
   /mcp/admin     — fleet management tools (Admin agent only)
   /mcp/knowledge — knowledge graph tools (all agents)
 
-All tools are scoped to the authenticated user via OFFICECLAW_TOKEN bearer auth.
+All tools are scoped to the authenticated workspace via OFFICECLAW_TOKEN bearer auth.
 
 Tool modules (admin):
   agents      — fleet overview, create agent
@@ -26,7 +26,7 @@ from fastmcp import FastMCP
 from fastmcp.server.context import Context
 
 from src.fleet.app import FleetApp
-from src.identity.app import IdentityApp
+from src.workspace.app import WorkspaceApp
 from src.integrations.app import IntegrationsApp
 from src.knowledge.app import KnowledgeApp
 from src.library.app import LibraryApp
@@ -38,7 +38,7 @@ knowledge_mcp = FastMCP("OfficeClaw-Knowledge")
 
 _pool: asyncpg.Pool | None = None
 _fleet: FleetApp | None = None
-_identity: IdentityApp | None = None
+_workspace: WorkspaceApp | None = None
 _library: LibraryApp | None = None
 _integrations: IntegrationsApp | None = None
 _knowledge: KnowledgeApp | None = None
@@ -47,15 +47,15 @@ _knowledge: KnowledgeApp | None = None
 def setup(
     pool: asyncpg.Pool,
     fleet: FleetApp,
-    identity: IdentityApp,
+    workspace: WorkspaceApp,
     library: LibraryApp,
     integrations: IntegrationsApp,
     knowledge: KnowledgeApp,
 ) -> None:
-    global _pool, _fleet, _identity, _library, _integrations, _knowledge
+    global _pool, _fleet, _workspace, _library, _integrations, _knowledge
     _pool = pool
     _fleet = fleet
-    _identity = identity
+    _workspace = workspace
     _library = library
     _integrations = integrations
     _knowledge = knowledge
@@ -66,19 +66,19 @@ def _assert_ready() -> None:
         raise RuntimeError("MCP not initialised — call setup() first")
 
 
-async def _require_user(context: Context) -> UUID:
-    """Extract and validate bearer token → return user_id."""
+async def _require_workspace(context: Context) -> UUID:
+    """Extract and validate bearer token → return workspace_id."""
     _assert_ready()
     request = context.request_context.request
     auth = request.headers.get("authorization", "")
     if not auth.lower().startswith("bearer "):
         raise ValueError("Missing or malformed Authorization header")
     token = auth[7:]
-    assert _identity is not None
-    record = await _identity.find_by_token(token)
+    assert _workspace is not None
+    record = await _workspace.find_by_token(token)
     if not record:
         raise ValueError("Invalid OFFICECLAW_TOKEN")
-    return record["id"]
+    return record["id"]  # workspace id
 
 
 # Import tool modules last to trigger @admin_mcp.tool() / @knowledge_mcp.tool() registration

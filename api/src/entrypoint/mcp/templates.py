@@ -11,7 +11,7 @@ _TEMPLATE_TYPES = ("user", "soul", "agents", "heartbeat", "tools")
 @_pkg.admin_mcp.tool()
 async def get_template(context: Context, template_id: str) -> dict:
     """Inspect a template — returns full content."""
-    await _pkg._require_user(context)
+    await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._integrations is not None
     record = await _pkg._integrations.find_template(UUID(template_id))
@@ -28,10 +28,10 @@ async def get_template(context: Context, template_id: str) -> dict:
 @_pkg.admin_mcp.tool()
 async def list_templates(context: Context) -> list[dict]:
     """List all user templates."""
-    user_id = await _pkg._require_user(context)
+    workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._integrations is not None
-    records = await _pkg._integrations.list_templates(user_id)
+    records = await _pkg._integrations.list_templates(workspace_id)
     return [
         {"id": str(r["id"]), "name": r["name"], "template_type": r["template_type"]}
         for r in records
@@ -55,10 +55,10 @@ async def create_template(
         raise ValueError(
             f"template_type must be one of {_TEMPLATE_TYPES}, got {template_type!r}"
         )
-    user_id = await _pkg._require_user(context)
+    workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._integrations is not None
-    record = await _pkg._integrations.create_template(user_id, name, template_type, content)
+    record = await _pkg._integrations.create_template(workspace_id, name, template_type, content)
     return {
         "id": str(record["id"]),
         "name": record["name"],
@@ -74,7 +74,7 @@ async def attach_template(context: Context, agent_id: str, template_id: str) -> 
     At sandbox start the template content is prepended to the matching
     runtime file (SOUL.md, AGENTS.md, HEARTBEAT.md, TOOLS.md, or USER.md).
     """
-    await _pkg._require_user(context)
+    await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._integrations is not None
     template = await _pkg._integrations.find_template(UUID(template_id))

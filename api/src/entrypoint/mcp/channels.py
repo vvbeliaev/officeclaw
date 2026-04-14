@@ -10,10 +10,10 @@ from fastmcp.server.context import Context
 @_pkg.admin_mcp.tool()
 async def list_channels(context: Context) -> list[dict]:
     """List all channel integrations (config never returned)."""
-    user_id = await _pkg._require_user(context)
+    workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._integrations is not None
-    records = await _pkg._integrations.list_channels(user_id)
+    records = await _pkg._integrations.list_channels(workspace_id)
     return [{"id": str(r["id"]), "name": r["name"], "type": r["type"]} for r in records]
 
 
@@ -30,7 +30,7 @@ async def create_channel(
       whatsapp: {"bridge_url": "ws://localhost:3001", "bridge_token": "..."}
     name: human-readable label for this channel (defaults to channel_type if omitted)
     """
-    user_id = await _pkg._require_user(context)
+    workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._integrations is not None
     try:
@@ -40,14 +40,14 @@ async def create_channel(
     if not isinstance(config, dict):
         raise ValueError("config_json must be a JSON object")
     effective_name = name.strip() or channel_type
-    record = await _pkg._integrations.create_channel(user_id, effective_name, channel_type, config)
+    record = await _pkg._integrations.create_channel(workspace_id, effective_name, channel_type, config)
     return {"id": str(record["id"]), "name": record["name"], "type": record["type"]}
 
 
 @_pkg.admin_mcp.tool()
 async def attach_channel(context: Context, agent_id: str, channel_id: str) -> dict:
     """Attach a channel integration to an agent."""
-    await _pkg._require_user(context)
+    await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._integrations is not None
     await _pkg._integrations.attach_channel(UUID(agent_id), UUID(channel_id))

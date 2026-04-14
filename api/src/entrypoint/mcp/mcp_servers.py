@@ -10,10 +10,10 @@ from fastmcp.server.context import Context
 @_pkg.admin_mcp.tool()
 async def list_mcp_servers(context: Context) -> list[dict]:
     """List all MCP server configs for the authenticated user."""
-    user_id = await _pkg._require_user(context)
+    workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._integrations is not None
-    records = await _pkg._integrations.list_mcps(user_id)
+    records = await _pkg._integrations.list_mcps(workspace_id)
     return [{"id": str(r["id"]), "name": r["name"], "type": r["type"]} for r in records]
 
 
@@ -28,7 +28,7 @@ async def create_mcp_server(
       http:  {"url": "https://...", "headers": {"Authorization": "Bearer ..."}}
       stdio: {"command": "npx", "args": ["-y", "@some/mcp-package"]}
     """
-    user_id = await _pkg._require_user(context)
+    workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._integrations is not None
     try:
@@ -37,14 +37,14 @@ async def create_mcp_server(
         raise ValueError(f"config_json is not valid JSON: {exc}") from exc
     if not isinstance(config, dict):
         raise ValueError("config_json must be a JSON object")
-    record = await _pkg._integrations.create_mcp(user_id, name, server_type, config)
+    record = await _pkg._integrations.create_mcp(workspace_id, name, server_type, config)
     return {"id": str(record["id"]), "name": record["name"], "type": record["type"]}
 
 
 @_pkg.admin_mcp.tool()
 async def attach_mcp_server(context: Context, agent_id: str, mcp_id: str) -> dict:
     """Attach an MCP server config to an agent."""
-    await _pkg._require_user(context)
+    await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._integrations is not None
     await _pkg._integrations.attach_mcp(UUID(agent_id), UUID(mcp_id))

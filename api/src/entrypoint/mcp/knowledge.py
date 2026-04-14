@@ -9,16 +9,16 @@ from src.knowledge.app import KnowledgeApp
 
 
 async def mcp_ingest_knowledge(
-    knowledge: KnowledgeApp, user_id: UUID, text: str, metadata: dict
+    knowledge: KnowledgeApp, workspace_id: UUID, text: str, metadata: dict
 ) -> dict:
-    await knowledge.ingest(user_id, text, metadata)
+    await knowledge.ingest(workspace_id, text, metadata)
     return {"status": "ingested"}
 
 
 async def mcp_query_knowledge(
-    knowledge: KnowledgeApp, user_id: UUID, query: str, mode: str
+    knowledge: KnowledgeApp, workspace_id: UUID, query: str, mode: str
 ) -> dict:
-    answer = await knowledge.query(user_id, query, mode)
+    answer = await knowledge.query(workspace_id, query, mode)
     return {"answer": answer}
 
 
@@ -35,14 +35,14 @@ async def ingest_knowledge(
 
     metadata_json: optional JSON string e.g. {"source": "web", "topic": "AI"}.
     """
-    user_id = await _pkg._require_user(context)
+    workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._knowledge is not None
     try:
         metadata = json.loads(metadata_json)
     except json.JSONDecodeError:
         metadata = {}
-    return await mcp_ingest_knowledge(_pkg._knowledge, user_id, text, metadata)
+    return await mcp_ingest_knowledge(_pkg._knowledge, workspace_id, text, metadata)
 
 
 @_pkg.knowledge_mcp.tool()
@@ -61,7 +61,7 @@ async def query_knowledge(
       "hybrid" — both combined (recommended)
       "naive"  — vector similarity only
     """
-    user_id = await _pkg._require_user(context)
+    workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._knowledge is not None
-    return await mcp_query_knowledge(_pkg._knowledge, user_id, query, mode)
+    return await mcp_query_knowledge(_pkg._knowledge, workspace_id, query, mode)

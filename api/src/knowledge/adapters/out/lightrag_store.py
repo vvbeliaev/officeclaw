@@ -41,16 +41,16 @@ class LightRAGStore:
         self._pg = _parse_pg_params(settings.database_url)
         _export_pg_env(self._pg)
 
-    def _get_lock(self, user_id: UUID) -> asyncio.Lock:
-        if user_id not in self._locks:
-            self._locks[user_id] = asyncio.Lock()
-        return self._locks[user_id]
+    def _get_lock(self, workspace_id: UUID) -> asyncio.Lock:
+        if workspace_id not in self._locks:
+            self._locks[workspace_id] = asyncio.Lock()
+        return self._locks[workspace_id]
 
-    async def _get_or_create(self, user_id: UUID) -> LightRAG:
-        if user_id in self._instances:
-            return self._instances[user_id]
-        async with self._get_lock(user_id):
-            if user_id not in self._instances:  # double-checked locking
+    async def _get_or_create(self, workspace_id: UUID) -> LightRAG:
+        if workspace_id in self._instances:
+            return self._instances[workspace_id]
+        async with self._get_lock(workspace_id):
+            if workspace_id not in self._instances:  # double-checked locking
                 s = self._settings
                 pg = self._pg
 
@@ -80,7 +80,7 @@ class LightRAGStore:
 
                 rag = LightRAG(
                     working_dir="data/kg",
-                    workspace=str(user_id),
+                    workspace=str(workspace_id),
                     llm_model_func=llm_func,
                     embedding_func=EmbeddingFunc(
                         embedding_dim=s.knowledge_embed_dim,
@@ -100,20 +100,20 @@ class LightRAGStore:
                     },
                 )
                 await rag.initialize_storages()
-                self._instances[user_id] = rag
-        return self._instances[user_id]
+                self._instances[workspace_id] = rag
+        return self._instances[workspace_id]
 
-    async def ingest(self, user_id: UUID, text: str, metadata: dict) -> None:
-        rag = await self._get_or_create(user_id)
+    async def ingest(self, workspace_id: UUID, text: str, metadata: dict) -> None:
+        rag = await self._get_or_create(workspace_id)
         await rag.ainsert(text)
 
-    async def query(self, user_id: UUID, query: str, mode: str = "hybrid") -> str:
-        rag = await self._get_or_create(user_id)
+    async def query(self, workspace_id: UUID, query: str, mode: str = "hybrid") -> str:
+        rag = await self._get_or_create(workspace_id)
         result = await rag.aquery(query, param=QueryParam(mode=mode))
         return result if isinstance(result, str) else str(result)
 
-    async def get_graph(self, user_id: UUID) -> dict:
-        rag = await self._get_or_create(user_id)
+    async def get_graph(self, workspace_id: UUID) -> dict:
+        rag = await self._get_or_create(workspace_id)
         nodes = await rag.chunk_entity_relation_graph.get_all_nodes()
         edges = await rag.chunk_entity_relation_graph.get_all_edges()
         return {"nodes": nodes or [], "edges": edges or []}

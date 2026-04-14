@@ -10,7 +10,7 @@ from fastmcp.server.context import Context
 async def get_agent(context: Context, agent_id: str) -> dict:
     """Inspect a single agent — metadata, all workspace files, and every
     attached resource (skills, envs, channels, MCP servers, templates)."""
-    await _pkg._require_user(context)
+    await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._fleet is not None
     assert _pkg._integrations is not None
@@ -44,10 +44,10 @@ async def get_agent(context: Context, agent_id: str) -> dict:
 @_pkg.admin_mcp.tool()
 async def get_fleet_status(context: Context) -> dict:
     """Return all agents with a status summary (idle/running/error counts)."""
-    user_id = await _pkg._require_user(context)
+    workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._fleet is not None
-    records = await _pkg._fleet.list_agents(user_id)
+    records = await _pkg._fleet.list_agents(workspace_id)
     agents = [
         {
             "id": str(r["id"]),
@@ -71,10 +71,10 @@ async def create_agent(
     image: str = "localhost:5005/officeclaw/agent:latest",
 ) -> dict:
     """Create a new agent. Returns {id, name, status}."""
-    user_id = await _pkg._require_user(context)
+    workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._fleet is not None
-    record = await _pkg._fleet.create_agent(user_id, name, image, False)
+    record = await _pkg._fleet.create_agent(workspace_id, name, image, False)
     return {"id": str(record["id"]), "name": record["name"], "status": record["status"]}
 
 
