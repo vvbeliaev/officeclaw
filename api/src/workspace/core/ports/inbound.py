@@ -1,0 +1,9 @@
+"""Primary (inbound) ports — interfaces that in-adapters call into the app layer."""
+from typing import Protocol
+from uuid import UUID
+
+
+class IWorkspaceApp(Protocol):
+    async def create_workspace(self, user_id: UUID, name: str) -> dict: ...
+    async def list_workspaces(self, user_id: UUID) -> list[dict]: ...
+    async def find_by_token(self, token: str) -> dict | None: ...
