@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
+  import { goto, invalidateAll } from '$app/navigation';
   import { Icon } from '$lib/icons';
 
   interface Workspace {
@@ -43,6 +43,7 @@
       const ws = await res.json();
       open = false;
       creating = false;
+      await invalidateAll();
       goto(`/w/${ws.id}`);
     } finally {
       loading = false;

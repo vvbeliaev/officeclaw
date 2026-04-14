@@ -10,27 +10,28 @@
 
 	let { data, children } = $props();
 
-	// `agents` and `workspaceCounts` are injected by the [workspaceId] child layout
-	// when inside a workspace route. They are absent at the top level.
-	type WorkspaceData = typeof data & {
-		agents?: Array<{
-			id: string;
-			name: string;
-			status: string;
-			isAdmin: boolean;
-			avatarUrl?: string | null;
-			workspaceId: string;
-		}>;
-		workspaceCounts?: {
-			skills: number;
-			envs: number;
-			channels: number;
-			mcp: number;
-			knowledge: number;
-			prompts: number;
-		};
+	// `agents` and `workspaceCounts` come from the child [workspaceId] layout.
+	// Parent layouts can't access child layout data via `data`, but page.data
+	// is the fully-merged object — so we read those fields from there.
+	type AgentEntry = {
+		id: string;
+		name: string;
+		status: string;
+		isAdmin: boolean;
+		avatarUrl?: string | null;
+		workspaceId: string;
 	};
-	const d = data as WorkspaceData;
+	type WorkspaceCounts = {
+		skills: number;
+		envs: number;
+		channels: number;
+		mcp: number;
+		knowledge: number;
+		prompts: number;
+	};
+
+	const agents = $derived(page.data.agents as AgentEntry[] | undefined);
+	const workspaceCounts = $derived(page.data.workspaceCounts as WorkspaceCounts | undefined);
 
 	type Theme = 'light' | 'dark' | 'sage';
 	let theme = $state<Theme>('dark');
@@ -152,13 +153,13 @@
 					</button>
 				</div>
 
-				{#if !d.agents || d.agents.length === 0 && !spawning}
+				{#if !agents || agents.length === 0 && !spawning}
 					<p class="empty">
 						Bootstrap pending<span class="blink">…</span>
 					</p>
 				{:else}
 					<div class="agent-list">
-						{#each (d.agents ?? []) as agent (agent.id)}
+						{#each agents as agent (agent.id)}
 							<AgentSidebarCard
 								id={agent.id}
 								workspaceId={workspaceId ?? ''}
@@ -219,8 +220,8 @@
 				<div class="section-head">
 					<span class="section-label font-mono">workspace</span>
 				</div>
-				{#if workspaceId && d.workspaceCounts}
-					<WorkspaceNav workspaceId={workspaceId} counts={d.workspaceCounts} />
+				{#if workspaceId && workspaceCounts}
+					<WorkspaceNav workspaceId={workspaceId} counts={workspaceCounts} />
 				{/if}
 			</section>
 		</div>
