@@ -62,9 +62,9 @@ export const agentFiles = pgTable(
 
 export const skills = pgTable('skills', {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	userId: uuid('user_id')
+	workspaceId: uuid('workspace_id')
 		.notNull()
-		.references(() => user.id, { onDelete: 'cascade' }),
+		.references(() => workspaces.id, { onDelete: 'cascade' }),
 	name: text().notNull(),
 	description: text().default('').notNull(),
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
@@ -253,7 +253,7 @@ export const agentChannelsRelations = relations(agentChannels, ({ one }) => ({
 }));
 
 export const skillsRelations = relations(skills, ({ one, many }) => ({
-	user: one(user, { fields: [skills.userId], references: [user.id] }),
+	workspace: one(workspaces, { fields: [skills.workspaceId], references: [workspaces.id] }),
 	files: many(skillFiles),
 	agents: many(agentSkills)
 }));

@@ -49,10 +49,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		channelAssignments
 	] = await Promise.all([
 		db
-			.select({ id: workspaceChannels.id, type: workspaceChannels.type, createdAt: workspaceChannels.createdAt })
+			.select({
+				id: workspaceChannels.id,
+				type: workspaceChannels.type,
+				createdAt: workspaceChannels.createdAt
+			})
 			.from(workspaceChannels)
 			.where(eq(workspaceChannels.workspaceId, workspaceId)),
-		db.select({ id: skills.id, name: skills.name }).from(skills).where(eq(skills.userId, userId)),
+		db
+			.select({ id: skills.id, name: skills.name })
+			.from(skills)
+			.where(eq(skills.workspaceId, workspaceId)),
 		db
 			.select({ id: workspaceEnvs.id, name: workspaceEnvs.name, category: workspaceEnvs.category })
 			.from(workspaceEnvs)

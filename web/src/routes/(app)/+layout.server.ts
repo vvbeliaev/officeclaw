@@ -29,7 +29,11 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	// Workspace counts — shown as badges in the sidebar.
 	const [[skillsCount], [envsCount], [channelsCount], [mcpCount], [promptsCount]] =
 		await Promise.all([
-			db.select({ n: count() }).from(skills).where(eq(skills.userId, userId)),
+			db
+				.select({ n: count() })
+				.from(skills)
+				.innerJoin(workspaces, eq(workspaces.id, skills.workspaceId))
+				.where(eq(workspaces.userId, userId)),
 			db
 				.select({ n: count() })
 				.from(workspaceEnvs)
