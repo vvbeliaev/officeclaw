@@ -8,7 +8,12 @@ export const load: PageServerLoad = async ({ parent }) => {
 	const rows = await db
 		.select({ template: workspaceTemplates })
 		.from(workspaceTemplates)
-		.where(and(eq(workspaceTemplates.workspaceId, workspace.id), ne(workspaceTemplates.templateType, 'user')))
+		.where(
+			and(
+				eq(workspaceTemplates.workspaceId, workspace.id),
+				ne(workspaceTemplates.templateType, 'user')
+			)
+		)
 		.orderBy(workspaceTemplates.createdAt);
 
 	return { templates: rows.map((r) => r.template) };

@@ -59,6 +59,7 @@
 				body: JSON.stringify({
 					name: llmNewName.trim(),
 					category: 'llm-provider',
+					workspace_id: data.workspace.id,
 					values: {
 						OFFICECLAW_LLM_API_KEY: llmNewFields.apiKey,
 						OFFICECLAW_LLM_BASE_URL: llmNewFields.baseUrl,
@@ -154,7 +155,7 @@
 			const res = await fetch('/api/envs', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name, values: kvToDict(newPairs) })
+				body: JSON.stringify({ name, values: kvToDict(newPairs), workspace_id: data.workspace.id })
 			});
 			if (!res.ok) { newError = await res.text(); return; }
 			newOpen = false;

@@ -94,7 +94,7 @@
 			const res = await fetch('/api/channels', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: chName.trim(), type, config })
+				body: JSON.stringify({ name: chName.trim(), type, config, workspace_id: data.workspace.id })
 			});
 			if (!res.ok) { chError = await res.text(); return; }
 			addOpen = false;

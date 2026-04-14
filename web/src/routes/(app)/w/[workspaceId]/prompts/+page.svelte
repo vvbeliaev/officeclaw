@@ -51,7 +51,7 @@
 			const res = await fetch('/api/templates', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: newName.trim(), template_type: newType, content: newContent })
+				body: JSON.stringify({ name: newName.trim(), template_type: newType, content: newContent, workspace_id: data.workspace.id })
 			});
 			if (!res.ok) { createError = await res.text(); return; }
 			creating = false;

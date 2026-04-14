@@ -82,7 +82,7 @@
 			const res = await fetch('/api/mcp', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name, type, config })
+				body: JSON.stringify({ name, type, config, workspace_id: data.workspace.id })
 			});
 			if (!res.ok) { saveError = await res.text(); return; }
 			addOpen = false;
