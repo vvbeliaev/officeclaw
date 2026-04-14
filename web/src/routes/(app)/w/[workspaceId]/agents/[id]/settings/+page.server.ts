@@ -2,6 +2,7 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import {
 	agents,
+	workspaces,
 	workspaceChannels,
 	skills,
 	workspaceEnvs,
@@ -18,8 +19,9 @@ import type { PageServerLoad, Actions } from './$types';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:8000';
 
-export const load: PageServerLoad = async ({ params }) => {
-	const workspaceId = params.workspaceId;
+export const load: PageServerLoad = async ({ params, parent }) => {
+	const { workspace } = await parent();
+	const workspaceId = workspace.id;
 
 	const [agentRow] = await db
 		.select()
@@ -180,13 +182,21 @@ export const actions: Actions = {
 		if (!locals.session) error(401, 'Unauthorized');
 
 		const [row] = await db
-			.select({ id: agents.id, isAdmin: agents.isAdmin })
+			.select({ id: agents.id, isAdmin: agents.isAdmin, workspaceId: agents.workspaceId })
 			.from(agents)
-			.where(and(eq(agents.id, params.id), eq(agents.workspaceId, params.workspaceId)))
+			.where(eq(agents.id, params.id))
 			.limit(1);
 
 		if (!row) error(404, 'Agent not found');
 		if (row.isAdmin) return fail(400, { error: 'Admin agent cannot be deleted' });
+
+		// Verify the agent's workspace belongs to this user
+		const [ws] = await db
+			.select({ id: workspaces.id })
+			.from(workspaces)
+			.where(and(eq(workspaces.id, row.workspaceId), eq(workspaces.userId, locals.user!.id)))
+			.limit(1);
+		if (!ws) error(403, 'Forbidden');
 
 		const upstream = await fetch(`${API_URL}/agents/${params.id}`, { method: 'DELETE' });
 

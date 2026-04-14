@@ -6,11 +6,12 @@ import type { PageServerLoad, Actions } from './$types';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:8000';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, parent }) => {
+	const { workspace } = await parent();
 	const [row] = await db
 		.select()
 		.from(agents)
-		.where(and(eq(agents.id, params.id), eq(agents.workspaceId, params.workspaceId)))
+		.where(and(eq(agents.id, params.id), eq(agents.workspaceId, workspace.id)))
 		.limit(1);
 
 	if (!row) error(404, 'Agent not found');

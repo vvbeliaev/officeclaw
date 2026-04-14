@@ -5,6 +5,7 @@
   interface Workspace {
     id: string;
     name: string;
+    slug: string;
   }
 
   let { workspaces, activeWorkspaceId }: { workspaces: Workspace[]; activeWorkspaceId: string } =
@@ -17,7 +18,9 @@
   let nameInput: HTMLInputElement | null = $state(null);
   let root: HTMLDivElement | null = $state(null);
 
-  const active = $derived(workspaces.find((w) => w.id === activeWorkspaceId));
+  const active = $derived(
+    workspaces.find((w) => w.slug === activeWorkspaceId || w.id === activeWorkspaceId)
+  );
 
   function toggle() {
     open = !open;
@@ -59,7 +62,7 @@
       open = false;
       creating = false;
       await invalidateAll();
-      goto(`/w/${ws.id}`);
+      goto(`/w/${ws.slug}`);
     } finally {
       loading = false;
     }
@@ -85,8 +88,8 @@
           <li>
             <button
               class="ws-item font-mono"
-              class:active={ws.id === activeWorkspaceId}
-              onclick={() => { goto(`/w/${ws.id}`); open = false; }}
+              class:active={ws.slug === activeWorkspaceId || ws.id === activeWorkspaceId}
+              onclick={() => { goto(`/w/${ws.slug}`); open = false; }}
               type="button"
             >
               <span class="ws-initial sm">{ws.name[0]?.toUpperCase()}</span>

@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.workspace.app import WorkspaceApp
-from src.workspace.core.schema import WorkspaceCreate, WorkspaceOut
+from src.workspace.core.schema import WorkspaceCreate, WorkspaceOut, WorkspaceUpdate
 
 router = APIRouter()
 
@@ -28,3 +28,28 @@ async def list_workspaces(
 ) -> list[WorkspaceOut]:
     records = await workspace.list_workspaces(user_id)
     return [WorkspaceOut(**dict(r)) for r in records]
+
+
+@router.patch("/{workspace_id}", response_model=WorkspaceOut)
+async def update_workspace(
+    workspace_id: UUID,
+    body: WorkspaceUpdate,
+    workspace: WorkspaceApp = Depends(get_workspace),
+) -> WorkspaceOut:
+    if body.name is None and body.slug is None:
+        raise HTTPException(status_code=400, detail="At least one field required")
+    try:
+        record = await workspace.update_workspace(workspace_id, body.name, body.slug)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if record is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return WorkspaceOut(**dict(record))
+
+
+@router.delete("/{workspace_id}", status_code=204)
+async def delete_workspace(
+    workspace_id: UUID,
+    workspace: WorkspaceApp = Depends(get_workspace),
+) -> None:
+    await workspace.delete_workspace(workspace_id)

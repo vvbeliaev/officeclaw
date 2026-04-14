@@ -17,3 +17,14 @@ class WorkspaceApp:
 
     async def find_by_token(self, token: str) -> asyncpg.Record | None:
         return await self._service.find_by_token(token)
+
+    async def update_workspace(
+        self,
+        workspace_id: UUID,
+        name: str | None,
+        slug: str | None,
+    ) -> asyncpg.Record:
+        return await self._service.update_workspace(workspace_id, name, slug)
+
+    async def delete_workspace(self, workspace_id: UUID) -> None:
+        return await self._service.delete_workspace(workspace_id)

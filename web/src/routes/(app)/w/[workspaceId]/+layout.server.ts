@@ -9,40 +9,50 @@ import {
 	workspaceMcp,
 	workspaceTemplates
 } from '$lib/server/db/app.schema';
-import { and, eq, ne, desc, count } from 'drizzle-orm';
+import { and, eq, ne, or, desc, count } from 'drizzle-orm';
 import type { LayoutServerLoad } from './$types';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const load: LayoutServerLoad = async ({ locals, params }) => {
 	const workspaceId = params.workspaceId;
+
+	// Accept both UUID (legacy) and slug in the URL param
+	const idCondition = UUID_RE.test(workspaceId)
+		? or(eq(workspaces.id, workspaceId), eq(workspaces.slug, workspaceId))
+		: eq(workspaces.slug, workspaceId);
 
 	// Validate ownership
 	const [workspace] = await db
 		.select()
 		.from(workspaces)
-		.where(and(eq(workspaces.id, workspaceId), eq(workspaces.userId, locals.user!.id)))
+		.where(and(idCondition, eq(workspaces.userId, locals.user!.id)))
 		.limit(1);
 
 	if (!workspace) error(403, 'Workspace not found');
+
+	// Use the real UUID for all subsequent queries (params.workspaceId may be a slug)
+	const wsId = workspace.id;
 
 	const [userAgents, [skillsCount], [envsCount], [channelsCount], [mcpCount], [promptsCount]] =
 		await Promise.all([
 			db
 				.select()
 				.from(agents)
-				.where(eq(agents.workspaceId, workspaceId))
+				.where(eq(agents.workspaceId, wsId))
 				.orderBy(desc(agents.isAdmin), desc(agents.createdAt)),
-			db.select({ n: count() }).from(skills).where(eq(skills.workspaceId, workspaceId)),
-			db.select({ n: count() }).from(workspaceEnvs).where(eq(workspaceEnvs.workspaceId, workspaceId)),
-			db.select({ n: count() }).from(workspaceChannels).where(eq(workspaceChannels.workspaceId, workspaceId)),
-			db.select({ n: count() }).from(workspaceMcp).where(eq(workspaceMcp.workspaceId, workspaceId)),
+			db.select({ n: count() }).from(skills).where(eq(skills.workspaceId, wsId)),
+			db.select({ n: count() }).from(workspaceEnvs).where(eq(workspaceEnvs.workspaceId, wsId)),
+			db
+				.select({ n: count() })
+				.from(workspaceChannels)
+				.where(eq(workspaceChannels.workspaceId, wsId)),
+			db.select({ n: count() }).from(workspaceMcp).where(eq(workspaceMcp.workspaceId, wsId)),
 			db
 				.select({ n: count() })
 				.from(workspaceTemplates)
 				.where(
-					and(
-						eq(workspaceTemplates.workspaceId, workspaceId),
-						ne(workspaceTemplates.templateType, 'user')
-					)
+					and(eq(workspaceTemplates.workspaceId, wsId), ne(workspaceTemplates.templateType, 'user'))
 				)
 		]);
 

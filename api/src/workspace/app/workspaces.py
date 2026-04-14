@@ -1,6 +1,7 @@
 """WorkspaceService — creates workspaces and runs per-workspace bootstrap."""
 from __future__ import annotations
 
+import re
 import secrets
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -58,6 +59,17 @@ Fleet management tool. Use it to:
 - Fleet status: `get_fleet_status`
 """
 
+_SLUG_RE = re.compile(r'^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$')
+
+
+def validate_slug(slug: str) -> str | None:
+    """Return error message if slug is invalid, else None."""
+    if len(slug) < 3 or len(slug) > 64:
+        return "Slug must be 3–64 characters"
+    if not _SLUG_RE.match(slug):
+        return "Slug may only contain lowercase letters, digits, and hyphens (no leading/trailing hyphens)"
+    return None
+
 
 class WorkspaceService:
     def __init__(
@@ -83,6 +95,21 @@ class WorkspaceService:
 
     async def find_by_token(self, token: str) -> asyncpg.Record | None:
         return await self._repo.find_by_token(token)
+
+    async def update_workspace(
+        self,
+        workspace_id: UUID,
+        name: str | None,
+        slug: str | None,
+    ) -> asyncpg.Record:
+        if slug is not None:
+            err = validate_slug(slug)
+            if err:
+                raise ValueError(err)
+        return await self._repo.update(workspace_id, name, slug)
+
+    async def delete_workspace(self, workspace_id: UUID) -> None:
+        await self._repo.delete(workspace_id)
 
     async def _bootstrap(self, workspace_id: UUID, token: str) -> None:
         """Create Admin agent and all seed resources for a new workspace."""

@@ -16,13 +16,14 @@
 
 	let { workspaceId, counts }: Props = $props();
 
-	const items = $derived([
+	const items: { href: string; label: string; icon: string; count: number | null }[] = $derived([
 		{ href: `/w/${workspaceId}/workspace/skills`, label: 'Skills', icon: 'oc:tool', count: counts.skills },
 		{ href: `/w/${workspaceId}/workspace/environments`, label: 'Environments', icon: 'oc:configure', count: counts.envs },
 		{ href: `/w/${workspaceId}/workspace/channels`, label: 'Channels', icon: 'oc:log', count: counts.channels },
 		{ href: `/w/${workspaceId}/workspace/mcp`, label: 'MCP Servers', icon: 'oc:memory', count: counts.mcp },
 		{ href: `/w/${workspaceId}/workspace/knowledge`, label: 'Knowledge', icon: 'oc:memory', count: counts.knowledge },
-		{ href: `/w/${workspaceId}/prompts`, label: 'Prompts', icon: 'tabler:file-text', count: counts.prompts }
+		{ href: `/w/${workspaceId}/prompts`, label: 'Prompts', icon: 'tabler:file-text', count: counts.prompts },
+		{ href: `/w/${workspaceId}/workspace/settings`, label: 'Settings', icon: 'tabler:settings', count: null }
 	]);
 
 	function isActive(href: string): boolean {
@@ -36,9 +37,11 @@
 		<a href={item.href} class="item" class:active>
 			<Icon icon={item.icon} width={14} height={14} class="item-icon" />
 			<span class="label">{item.label}</span>
-			<span class="count font-mono" class:muted={item.count === 0}>
-				{item.count === 0 ? '–' : item.count}
-			</span>
+			{#if item.count !== null}
+				<span class="count font-mono" class:muted={item.count === 0}>
+					{item.count === 0 ? '–' : item.count}
+				</span>
+			{/if}
 		</a>
 	{/each}
 </nav>

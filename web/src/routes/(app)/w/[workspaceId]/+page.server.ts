@@ -4,11 +4,13 @@ import { agents } from '$lib/server/db/app.schema';
 import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ params, parent }) => {
+	const { workspace } = await parent();
+
 	const [admin] = await db
 		.select({ id: agents.id })
 		.from(agents)
-		.where(and(eq(agents.workspaceId, params.workspaceId), eq(agents.isAdmin, true)))
+		.where(and(eq(agents.workspaceId, workspace.id), eq(agents.isAdmin, true)))
 		.limit(1);
 
 	if (admin) redirect(302, `/w/${params.workspaceId}/agents/${admin.id}`);
