@@ -153,7 +153,7 @@
 					</button>
 				</div>
 
-				{#if !agents || agents.length === 0 && !spawning}
+				{#if !agents || (agents.length === 0 && !spawning)}
 					<p class="empty">
 						Bootstrap pending<span class="blink">…</span>
 					</p>
@@ -198,11 +198,7 @@
 											create ↵
 										{/if}
 									</button>
-									<button
-										class="spawn-cancel font-mono"
-										type="button"
-										onclick={cancelSpawn}
-									>
+									<button class="spawn-cancel font-mono" type="button" onclick={cancelSpawn}>
 										esc
 									</button>
 								</div>
@@ -221,16 +217,13 @@
 					<span class="section-label font-mono">workspace</span>
 				</div>
 				{#if workspaceId && workspaceCounts}
-					<WorkspaceNav workspaceId={workspaceId} counts={workspaceCounts} />
+					<WorkspaceNav {workspaceId} counts={workspaceCounts} />
 				{/if}
 			</section>
 		</div>
 
 		<!-- Workspace switcher -->
-		<WorkspaceSwitcher
-			workspaces={data.workspaces ?? []}
-			activeWorkspaceId={workspaceId ?? ''}
-		/>
+		<WorkspaceSwitcher workspaces={data.workspaces ?? []} activeWorkspaceId={workspaceId ?? ''} />
 
 		<!-- Theme switcher -->
 		<div class="theme-row">

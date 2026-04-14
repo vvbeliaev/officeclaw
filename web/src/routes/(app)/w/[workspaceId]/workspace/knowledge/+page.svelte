@@ -1,5 +1,8 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import KnowledgeGraph from '$lib/components/knowledge-graph.svelte';
+
+	const workspaceId = $derived(page.params.workspaceId as string);
 
 	type PageTab = 'ingest' | 'query' | 'graph';
 	type InputMode = 'text' | 'file';
@@ -57,7 +60,7 @@
 			const res = await fetch('/api/knowledge/ingest/text', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ text: textValue, metadata })
+				body: JSON.stringify({ workspace_id: workspaceId, text: textValue, metadata })
 			});
 			if (!res.ok) {
 				const msg = await res.text();
@@ -79,6 +82,7 @@
 		ingestLoading = true;
 		try {
 			const fd = new FormData();
+			fd.append('workspace_id', workspaceId);
 			fd.append('file', file);
 			const res = await fetch('/api/knowledge/ingest/file', {
 				method: 'POST',
@@ -124,7 +128,7 @@
 			const res = await fetch('/api/knowledge/query', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ query: queryText, mode: queryMode })
+				body: JSON.stringify({ workspace_id: workspaceId, query: queryText, mode: queryMode })
 			});
 			if (!res.ok) {
 				const msg = await res.text();
@@ -169,7 +173,7 @@
 
 	<!-- ── Graph tab ────────────────────────────────────── -->
 	{#if activeTab === 'graph'}
-		<KnowledgeGraph />
+		<KnowledgeGraph {workspaceId} />
 	{/if}
 
 	<!-- ── Ingest + Query tabs ───────────────────────────── -->

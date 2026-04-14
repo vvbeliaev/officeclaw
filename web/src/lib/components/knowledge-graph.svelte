@@ -4,6 +4,8 @@
 	import Sigma from 'sigma';
 	import forceAtlas2 from 'graphology-layout-forceatlas2';
 
+	let { workspaceId }: { workspaceId: string } = $props();
+
 	type GraphNode = { id: string; type: string; description: string };
 	type GraphEdge = { source: string; target: string; label: string; weight: number };
 	type GraphData = { nodes: GraphNode[]; edges: GraphEdge[] };
@@ -46,7 +48,7 @@
 		loading = true;
 		error = '';
 		try {
-			const res = await fetch('/api/knowledge/graph');
+			const res = await fetch(`/api/knowledge/graph?workspace_id=${workspaceId}`);
 			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const data: GraphData = await res.json();
 
