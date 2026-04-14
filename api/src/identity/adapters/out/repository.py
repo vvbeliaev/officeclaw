@@ -20,14 +20,3 @@ class UserRepo:
         return await self._conn.fetchrow(
             'SELECT * FROM "user" WHERE email = $1', email
         )
-
-    async def set_token(self, user_id: UUID, token: str) -> None:
-        await self._conn.execute(
-            'UPDATE "user" SET officeclaw_token = $2 WHERE id = $1',
-            user_id, token,
-        )
-
-    async def find_by_token(self, token: str) -> asyncpg.Record | None:
-        return await self._conn.fetchrow(
-            'SELECT id FROM "user" WHERE officeclaw_token = $1', token
-        )

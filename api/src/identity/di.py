@@ -1,14 +1,18 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import asyncpg
 
-from src.fleet.app import FleetApp
 from src.identity.adapters.out.repository import UserRepo
 from src.identity.app import IdentityApp
-from src.integrations.app import IntegrationsApp
+from src.identity.app.users import UserService
+
+if TYPE_CHECKING:
+    from src.workspace.app import WorkspaceApp
 
 
-def build(
-    pool: asyncpg.Pool,
-    fleet: FleetApp,
-    integrations: IntegrationsApp,
-) -> IdentityApp:
-    return IdentityApp(UserRepo(pool), fleet, integrations)
+def build(pool: asyncpg.Pool, workspace: WorkspaceApp) -> IdentityApp:
+    repo = UserRepo(pool)
+    service = UserService(repo, workspace)
+    return IdentityApp(service)

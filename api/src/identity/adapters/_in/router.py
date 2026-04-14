@@ -19,14 +19,15 @@ async def create_user(
     identity: IdentityApp = Depends(get_identity),
 ) -> UserRegistered:
     try:
-        record, token = await identity.register(body.email)
+        user, workspace = await identity.register(body.email)
     except asyncpg.UniqueViolationError:
         raise HTTPException(409, "Email already registered")
     return UserRegistered(
-        id=record["id"],
-        email=record["email"],
-        created_at=record["created_at"],
-        officeclaw_token=token,
+        id=user["id"],
+        email=user["email"],
+        workspace_id=workspace["id"],
+        officeclaw_token=workspace["officeclaw_token"],
+        created_at=user["created_at"],
     )
 
 
@@ -35,11 +36,14 @@ async def bootstrap_user(
     user_id: UUID,
     identity: IdentityApp = Depends(get_identity),
 ) -> BootstrapOut:
-    """Called by SvelteKit after better-auth creates a new user. Sets up Admin agent."""
-    record = await identity.find_by_id(user_id)
-    if not record:
-        raise HTTPException(404, "User not found")
-    if record["officeclaw_token"]:
+    """Called by SvelteKit after better-auth creates a new user."""
+    try:
+        workspace = await identity.bootstrap(user_id)
+    except asyncpg.UniqueViolationError:
         raise HTTPException(409, "User already bootstrapped")
-    token = await identity.bootstrap(user_id)
-    return BootstrapOut(officeclaw_token=token)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    return BootstrapOut(
+        workspace_id=workspace["id"],
+        officeclaw_token=workspace["officeclaw_token"],
+    )
