@@ -7,12 +7,12 @@ from uuid import UUID
 
 import asyncpg
 
-from src.workspace.adapters.out.repository import WorkspaceRepo
 from src.shared.config import get_settings
 
 if TYPE_CHECKING:
     from src.fleet.app import FleetApp
     from src.integrations.app import IntegrationsApp
+    from src.workspace.core.ports.outbound import IWorkspaceRepo
 
 _SOUL_MD = """
 You are the Admin agent for OfficeClaw -- a fleet manager AI that helps users
@@ -62,7 +62,7 @@ Fleet management tool. Use it to:
 class WorkspaceService:
     def __init__(
         self,
-        repo: WorkspaceRepo,
+        repo: IWorkspaceRepo,
         fleet: FleetApp,
         integrations: IntegrationsApp,
     ) -> None:
