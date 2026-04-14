@@ -1,5 +1,5 @@
 import { db } from '$lib/server/db';
-import { userChannels } from '$lib/server/db/app.schema';
+import { workspaceChannels, workspaces } from '$lib/server/db/app.schema';
 import { eq, desc } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
@@ -7,13 +7,14 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
 	const channels = await db
 		.select({
-			id: userChannels.id,
-			name: userChannels.name,
-			type: userChannels.type,
-			createdAt: userChannels.createdAt
+			id: workspaceChannels.id,
+			name: workspaceChannels.name,
+			type: workspaceChannels.type,
+			createdAt: workspaceChannels.createdAt
 		})
-		.from(userChannels)
-		.where(eq(userChannels.userId, userId))
-		.orderBy(desc(userChannels.createdAt));
+		.from(workspaceChannels)
+		.innerJoin(workspaces, eq(workspaces.id, workspaceChannels.workspaceId))
+		.where(eq(workspaces.userId, userId))
+		.orderBy(desc(workspaceChannels.createdAt));
 	return { channels };
 };

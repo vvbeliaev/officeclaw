@@ -11,8 +11,7 @@ export const user = pgTable('user', {
 	updatedAt: timestamp('updated_at', { withTimezone: true })
 		.notNull()
 		.defaultNow()
-		.$onUpdate(() => new Date()),
-	officeclawToken: text('officeclaw_token').unique()
+		.$onUpdate(() => new Date())
 });
 
 export const session = pgTable(

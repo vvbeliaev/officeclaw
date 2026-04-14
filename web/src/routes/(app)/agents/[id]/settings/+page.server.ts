@@ -2,11 +2,12 @@ import { error, fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
 import {
 	agents,
-	userChannels,
+	workspaceChannels,
 	skills,
-	userEnvs,
-	userMcp,
-	userTemplates,
+	workspaceEnvs,
+	workspaceMcp,
+	workspaceTemplates,
+	workspaces,
 	agentChannels,
 	agentSkills,
 	agentEnvs,
@@ -22,13 +23,17 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	if (!locals.session) redirect(302, '/auth');
 	const userId = locals.user!.id;
 
-	const [agent] = await db
+	const [agentRow] = await db
 		.select()
 		.from(agents)
-		.where(and(eq(agents.id, params.id), eq(agents.userId, userId)))
+		.innerJoin(workspaces, eq(workspaces.id, agents.workspaceId))
+		.where(and(eq(agents.id, params.id), eq(workspaces.userId, userId)))
 		.limit(1);
 
-	if (!agent) error(404, 'Agent not found');
+	if (!agentRow) error(404, 'Agent not found');
+
+	const agent = agentRow.agents;
+	const workspaceId = agentRow.workspaces.id;
 
 	const [
 		allChannels,
@@ -44,27 +49,27 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		channelAssignments
 	] = await Promise.all([
 		db
-			.select({ id: userChannels.id, type: userChannels.type, createdAt: userChannels.createdAt })
-			.from(userChannels)
-			.where(eq(userChannels.userId, userId)),
+			.select({ id: workspaceChannels.id, type: workspaceChannels.type, createdAt: workspaceChannels.createdAt })
+			.from(workspaceChannels)
+			.where(eq(workspaceChannels.workspaceId, workspaceId)),
 		db.select({ id: skills.id, name: skills.name }).from(skills).where(eq(skills.userId, userId)),
 		db
-			.select({ id: userEnvs.id, name: userEnvs.name, category: userEnvs.category })
-			.from(userEnvs)
-			.where(eq(userEnvs.userId, userId)),
+			.select({ id: workspaceEnvs.id, name: workspaceEnvs.name, category: workspaceEnvs.category })
+			.from(workspaceEnvs)
+			.where(eq(workspaceEnvs.workspaceId, workspaceId)),
 		db
-			.select({ id: userMcp.id, name: userMcp.name, type: userMcp.type })
-			.from(userMcp)
-			.where(eq(userMcp.userId, userId)),
+			.select({ id: workspaceMcp.id, name: workspaceMcp.name, type: workspaceMcp.type })
+			.from(workspaceMcp)
+			.where(eq(workspaceMcp.workspaceId, workspaceId)),
 		db
 			.select({
-				id: userTemplates.id,
-				name: userTemplates.name,
-				templateType: userTemplates.templateType
+				id: workspaceTemplates.id,
+				name: workspaceTemplates.name,
+				templateType: workspaceTemplates.templateType
 			})
-			.from(userTemplates)
-			.where(eq(userTemplates.userId, userId))
-			.orderBy(userTemplates.templateType, userTemplates.createdAt),
+			.from(workspaceTemplates)
+			.where(eq(workspaceTemplates.workspaceId, workspaceId))
+			.orderBy(workspaceTemplates.templateType, workspaceTemplates.createdAt),
 		db
 			.select({ channelId: agentChannels.channelId })
 			.from(agentChannels)
@@ -77,12 +82,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		db.select({ mcpId: agentMcp.mcpId }).from(agentMcp).where(eq(agentMcp.agentId, params.id)),
 		db
 			.select({
-				userTemplateId: agentUserTemplates.userTemplateId,
+				templateId: agentUserTemplates.templateId,
 				templateType: agentUserTemplates.templateType
 			})
 			.from(agentUserTemplates)
 			.where(eq(agentUserTemplates.agentId, params.id)),
-		// All channel assignments across this user's agents — to detect channels taken by others
+		// All channel assignments across this workspace's agents — to detect channels taken by others
 		db
 			.select({
 				channelId: agentChannels.channelId,
@@ -91,14 +96,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 			})
 			.from(agentChannels)
 			.innerJoin(agents, eq(agents.id, agentChannels.agentId))
-			.where(eq(agents.userId, userId))
+			.where(eq(agents.workspaceId, workspaceId))
 	]);
 
 	const attachedChannelIds = new Set(attachedChannelRows.map((r) => r.channelId));
 	const attachedSkillIds = new Set(attachedSkillRows.map((r) => r.skillId));
 	const attachedEnvIds = new Set(attachedEnvRows.map((r) => r.envId));
 	const attachedMcpIds = new Set(attachedMcpRows.map((r) => r.mcpId));
-	const attachedTemplateIds = new Set(attachedTemplateRows.map((r) => r.userTemplateId));
+	const attachedTemplateIds = new Set(attachedTemplateRows.map((r) => r.templateId));
 
 	return {
 		agent,
@@ -173,14 +178,15 @@ export const actions: Actions = {
 	delete: async ({ params, locals }) => {
 		if (!locals.session) error(401, 'Unauthorized');
 
-		const [agent] = await db
+		const [row] = await db
 			.select({ id: agents.id, isAdmin: agents.isAdmin })
 			.from(agents)
-			.where(and(eq(agents.id, params.id), eq(agents.userId, locals.user!.id)))
+			.innerJoin(workspaces, eq(workspaces.id, agents.workspaceId))
+			.where(and(eq(agents.id, params.id), eq(workspaces.userId, locals.user!.id)))
 			.limit(1);
 
-		if (!agent) error(404, 'Agent not found');
-		if (agent.isAdmin) return fail(400, { error: 'Admin agent cannot be deleted' });
+		if (!row) error(404, 'Agent not found');
+		if (row.isAdmin) return fail(400, { error: 'Admin agent cannot be deleted' });
 
 		const upstream = await fetch(`${API_URL}/agents/${params.id}`, { method: 'DELETE' });
 

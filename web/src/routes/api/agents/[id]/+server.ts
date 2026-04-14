@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { agents } from '$lib/server/db/app.schema';
+import { agents, workspaces } from '$lib/server/db/app.schema';
 import { and, eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 
@@ -10,7 +10,8 @@ async function checkOwnership(agentId: string, userId: string): Promise<boolean>
 	const [owned] = await db
 		.select({ id: agents.id })
 		.from(agents)
-		.where(and(eq(agents.id, agentId), eq(agents.userId, userId)))
+		.innerJoin(workspaces, eq(workspaces.id, agents.workspaceId))
+		.where(and(eq(agents.id, agentId), eq(workspaces.userId, userId)))
 		.limit(1);
 	return !!owned;
 }

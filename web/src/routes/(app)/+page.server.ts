@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { agents } from '$lib/server/db/app.schema';
+import { agents, workspaces } from '$lib/server/db/app.schema';
 import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad } from './$types';
 
@@ -10,7 +10,8 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const [admin] = await db
 		.select({ id: agents.id })
 		.from(agents)
-		.where(and(eq(agents.userId, locals.user!.id), eq(agents.isAdmin, true)))
+		.innerJoin(workspaces, eq(workspaces.id, agents.workspaceId))
+		.where(and(eq(workspaces.userId, locals.user!.id), eq(agents.isAdmin, true)))
 		.limit(1);
 
 	if (admin) {

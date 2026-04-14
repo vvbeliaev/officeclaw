@@ -40,16 +40,6 @@ export const auth = betterAuth({
 		}
 	},
 
-	user: {
-		additionalFields: {
-			officeclawToken: {
-				type: 'string',
-				required: false,
-				input: false
-			}
-		}
-	},
-
 	plugins: [
 		emailOTP({
 			sendVerificationOTP: async ({ email, otp, type }) => {

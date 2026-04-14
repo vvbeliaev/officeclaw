@@ -20,11 +20,21 @@ import { user } from './auth.schema';
 
 export const agentStatus = pgEnum('agent_status', ['idle', 'running', 'error']);
 
-export const agents = pgTable('agents', {
+export const workspaces = pgTable('workspaces', {
 	id: uuid().defaultRandom().primaryKey().notNull(),
 	userId: uuid('user_id')
 		.notNull()
 		.references(() => user.id, { onDelete: 'cascade' }),
+	name: text().notNull(),
+	officeclawToken: text('officeclaw_token').unique(),
+	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
+});
+
+export const agents = pgTable('agents', {
+	id: uuid().defaultRandom().primaryKey().notNull(),
+	workspaceId: uuid('workspace_id')
+		.notNull()
+		.references(() => workspaces.id, { onDelete: 'cascade' }),
 	name: text().notNull(),
 	status: agentStatus().default('idle').notNull(),
 	sandboxId: text('sandbox_id'),
@@ -74,52 +84,52 @@ export const skillFiles = pgTable(
 	(t) => [unique('skill_files_skill_id_path_key').on(t.skillId, t.path)]
 );
 
-export const userEnvs = pgTable(
-	'user_envs',
+export const workspaceEnvs = pgTable(
+	'workspace_envs',
 	{
 		id: uuid().defaultRandom().primaryKey().notNull(),
-		userId: uuid('user_id')
+		workspaceId: uuid('workspace_id')
 			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' }),
+			.references(() => workspaces.id, { onDelete: 'cascade' }),
 		name: text().notNull(),
 		category: text(), // null | 'system' | 'llm-provider'
 		// values_encrypted (bytea) excluded — encrypted by Python, never read in web
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
-	(t) => [unique('user_envs_user_id_name_key').on(t.userId, t.name)]
+	(t) => [unique('workspace_envs_workspace_id_name_key').on(t.workspaceId, t.name)]
 );
 
-export const userChannels = pgTable('user_channels', {
+export const workspaceChannels = pgTable('workspace_channels', {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	userId: uuid('user_id')
+	workspaceId: uuid('workspace_id')
 		.notNull()
-		.references(() => user.id, { onDelete: 'cascade' }),
+		.references(() => workspaces.id, { onDelete: 'cascade' }),
 	name: text().notNull(),
 	type: text().notNull(),
 	// config_encrypted (bytea) excluded — encrypted by Python, never read in web
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 
-export const userMcp = pgTable(
-	'user_mcp',
+export const workspaceMcp = pgTable(
+	'workspace_mcp',
 	{
 		id: uuid().defaultRandom().primaryKey().notNull(),
-		userId: uuid('user_id')
+		workspaceId: uuid('workspace_id')
 			.notNull()
-			.references(() => user.id, { onDelete: 'cascade' }),
+			.references(() => workspaces.id, { onDelete: 'cascade' }),
 		name: text().notNull(),
 		type: text().notNull(), // 'stdio' | 'http'
 		// config_encrypted (bytea) excluded — encrypted by Python, never read in web
 		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 	},
-	(t) => [unique('user_mcp_user_id_name_key').on(t.userId, t.name)]
+	(t) => [unique('workspace_mcp_workspace_id_name_key').on(t.workspaceId, t.name)]
 );
 
-export const userTemplates = pgTable('user_templates', {
+export const workspaceTemplates = pgTable('workspace_templates', {
 	id: uuid().defaultRandom().primaryKey().notNull(),
-	userId: uuid('user_id')
+	workspaceId: uuid('workspace_id')
 		.notNull()
-		.references(() => user.id, { onDelete: 'cascade' }),
+		.references(() => workspaces.id, { onDelete: 'cascade' }),
 	name: text().notNull(),
 	templateType: text('template_type').notNull(), // 'user'|'soul'|'agents'|'heartbeat'|'tools'
 	content: text().default('').notNull(),
@@ -133,13 +143,13 @@ export const agentUserTemplates = pgTable(
 		agentId: uuid('agent_id')
 			.notNull()
 			.references(() => agents.id, { onDelete: 'cascade' }),
-		userTemplateId: uuid('user_template_id')
+		templateId: uuid('template_id')
 			.notNull()
-			.references(() => userTemplates.id, { onDelete: 'cascade' }),
+			.references(() => workspaceTemplates.id, { onDelete: 'cascade' }),
 		templateType: text('template_type').notNull()
 	},
 	(t) => [
-		primaryKey({ columns: [t.agentId, t.userTemplateId] }),
+		primaryKey({ columns: [t.agentId, t.templateId] }),
 		unique('agent_user_templates_agent_id_template_type_key').on(t.agentId, t.templateType)
 	]
 );
@@ -152,7 +162,7 @@ export const agentMcp = pgTable(
 			.references(() => agents.id, { onDelete: 'cascade' }),
 		mcpId: uuid('mcp_id')
 			.notNull()
-			.references(() => userMcp.id, { onDelete: 'cascade' })
+			.references(() => workspaceMcp.id, { onDelete: 'cascade' })
 	},
 	(t) => [primaryKey({ columns: [t.agentId, t.mcpId] })]
 );
@@ -178,7 +188,7 @@ export const agentEnvs = pgTable(
 			.references(() => agents.id, { onDelete: 'cascade' }),
 		envId: uuid('env_id')
 			.notNull()
-			.references(() => userEnvs.id, { onDelete: 'cascade' })
+			.references(() => workspaceEnvs.id, { onDelete: 'cascade' })
 	},
 	(t) => [primaryKey({ columns: [t.agentId, t.envId] })]
 );
@@ -191,7 +201,7 @@ export const agentChannels = pgTable(
 			.references(() => agents.id, { onDelete: 'cascade' }),
 		channelId: uuid('channel_id')
 			.notNull()
-			.references(() => userChannels.id, { onDelete: 'cascade' })
+			.references(() => workspaceChannels.id, { onDelete: 'cascade' })
 	},
 	(t) => [
 		primaryKey({ columns: [t.agentId, t.channelId] }),
@@ -200,8 +210,17 @@ export const agentChannels = pgTable(
 );
 
 // Relations
+export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
+	user: one(user, { fields: [workspaces.userId], references: [user.id] }),
+	agents: many(agents),
+	envs: many(workspaceEnvs),
+	channels: many(workspaceChannels),
+	mcp: many(workspaceMcp),
+	templates: many(workspaceTemplates)
+}));
+
 export const agentsRelations = relations(agents, ({ one, many }) => ({
-	user: one(user, { fields: [agents.userId], references: [user.id] }),
+	workspace: one(workspaces, { fields: [agents.workspaceId], references: [workspaces.id] }),
 	files: many(agentFiles),
 	skills: many(agentSkills),
 	envs: many(agentEnvs),
@@ -215,7 +234,7 @@ export const agentFilesRelations = relations(agentFiles, ({ one }) => ({
 }));
 export const agentMcpRelations = relations(agentMcp, ({ one }) => ({
 	agent: one(agents, { fields: [agentMcp.agentId], references: [agents.id] }),
-	mcp: one(userMcp, { fields: [agentMcp.mcpId], references: [userMcp.id] })
+	mcp: one(workspaceMcp, { fields: [agentMcp.mcpId], references: [workspaceMcp.id] })
 }));
 export const agentSkillsRelations = relations(agentSkills, ({ one }) => ({
 	agent: one(agents, { fields: [agentSkills.agentId], references: [agents.id] }),
@@ -223,11 +242,14 @@ export const agentSkillsRelations = relations(agentSkills, ({ one }) => ({
 }));
 export const agentEnvsRelations = relations(agentEnvs, ({ one }) => ({
 	agent: one(agents, { fields: [agentEnvs.agentId], references: [agents.id] }),
-	env: one(userEnvs, { fields: [agentEnvs.envId], references: [userEnvs.id] })
+	env: one(workspaceEnvs, { fields: [agentEnvs.envId], references: [workspaceEnvs.id] })
 }));
 export const agentChannelsRelations = relations(agentChannels, ({ one }) => ({
 	agent: one(agents, { fields: [agentChannels.agentId], references: [agents.id] }),
-	channel: one(userChannels, { fields: [agentChannels.channelId], references: [userChannels.id] })
+	channel: one(workspaceChannels, {
+		fields: [agentChannels.channelId],
+		references: [workspaceChannels.id]
+	})
 }));
 
 export const skillsRelations = relations(skills, ({ one, many }) => ({
@@ -238,26 +260,32 @@ export const skillsRelations = relations(skills, ({ one, many }) => ({
 export const skillFilesRelations = relations(skillFiles, ({ one }) => ({
 	skill: one(skills, { fields: [skillFiles.skillId], references: [skills.id] })
 }));
-export const userEnvsRelations = relations(userEnvs, ({ one }) => ({
-	user: one(user, { fields: [userEnvs.userId], references: [user.id] })
+export const workspaceEnvsRelations = relations(workspaceEnvs, ({ one }) => ({
+	workspace: one(workspaces, { fields: [workspaceEnvs.workspaceId], references: [workspaces.id] })
 }));
-export const userChannelsRelations = relations(userChannels, ({ one }) => ({
-	user: one(user, { fields: [userChannels.userId], references: [user.id] })
+export const workspaceChannelsRelations = relations(workspaceChannels, ({ one }) => ({
+	workspace: one(workspaces, {
+		fields: [workspaceChannels.workspaceId],
+		references: [workspaces.id]
+	})
 }));
-export const userMcpRelations = relations(userMcp, ({ one, many }) => ({
-	user: one(user, { fields: [userMcp.userId], references: [user.id] }),
+export const workspaceMcpRelations = relations(workspaceMcp, ({ one, many }) => ({
+	workspace: one(workspaces, { fields: [workspaceMcp.workspaceId], references: [workspaces.id] }),
 	agents: many(agentMcp)
 }));
 
-export const userTemplatesRelations = relations(userTemplates, ({ one, many }) => ({
-	user: one(user, { fields: [userTemplates.userId], references: [user.id] }),
+export const workspaceTemplatesRelations = relations(workspaceTemplates, ({ one, many }) => ({
+	workspace: one(workspaces, {
+		fields: [workspaceTemplates.workspaceId],
+		references: [workspaces.id]
+	}),
 	agents: many(agentUserTemplates)
 }));
 
 export const agentUserTemplatesRelations = relations(agentUserTemplates, ({ one }) => ({
 	agent: one(agents, { fields: [agentUserTemplates.agentId], references: [agents.id] }),
-	template: one(userTemplates, {
-		fields: [agentUserTemplates.userTemplateId],
-		references: [userTemplates.id]
+	template: one(workspaceTemplates, {
+		fields: [agentUserTemplates.templateId],
+		references: [workspaceTemplates.id]
 	})
 }));

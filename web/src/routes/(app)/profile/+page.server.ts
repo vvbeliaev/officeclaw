@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { userTemplates } from '$lib/server/db/app.schema';
+import { workspaceTemplates, workspaces } from '$lib/server/db/app.schema';
 import { and, eq } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
 
@@ -11,9 +11,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const userId = locals.user!.id;
 
 	const [userTemplate] = await db
-		.select()
-		.from(userTemplates)
-		.where(and(eq(userTemplates.userId, userId), eq(userTemplates.templateType, 'user')))
+		.select({ id: workspaceTemplates.id, name: workspaceTemplates.name, templateType: workspaceTemplates.templateType, content: workspaceTemplates.content, createdAt: workspaceTemplates.createdAt, updatedAt: workspaceTemplates.updatedAt, workspaceId: workspaceTemplates.workspaceId })
+		.from(workspaceTemplates)
+		.innerJoin(workspaces, eq(workspaces.id, workspaceTemplates.workspaceId))
+		.where(and(eq(workspaces.userId, userId), eq(workspaceTemplates.templateType, 'user')))
 		.limit(1);
 
 	return {

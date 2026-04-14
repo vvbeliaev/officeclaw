@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { userChannels } from '$lib/server/db/app.schema';
+import { workspaceChannels, workspaces } from '$lib/server/db/app.schema';
 import { and, eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 
@@ -8,9 +8,10 @@ const API_URL = process.env.API_URL ?? 'http://localhost:8000';
 
 async function checkOwnership(channelId: string, userId: string): Promise<boolean> {
 	const [owned] = await db
-		.select({ id: userChannels.id })
-		.from(userChannels)
-		.where(and(eq(userChannels.id, channelId), eq(userChannels.userId, userId)))
+		.select({ id: workspaceChannels.id })
+		.from(workspaceChannels)
+		.innerJoin(workspaces, eq(workspaces.id, workspaceChannels.workspaceId))
+		.where(and(eq(workspaceChannels.id, channelId), eq(workspaces.userId, userId)))
 		.limit(1);
 	return !!owned;
 }

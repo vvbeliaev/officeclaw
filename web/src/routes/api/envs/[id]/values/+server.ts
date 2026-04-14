@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { userEnvs } from '$lib/server/db/app.schema';
+import { workspaceEnvs, workspaces } from '$lib/server/db/app.schema';
 import { and, eq } from 'drizzle-orm';
 import type { RequestHandler } from './$types';
 
@@ -11,9 +11,10 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	// Ownership check before returning decrypted secrets
 	const [owned] = await db
-		.select({ id: userEnvs.id })
-		.from(userEnvs)
-		.where(and(eq(userEnvs.id, params.id), eq(userEnvs.userId, locals.user!.id)))
+		.select({ id: workspaceEnvs.id })
+		.from(workspaceEnvs)
+		.innerJoin(workspaces, eq(workspaces.id, workspaceEnvs.workspaceId))
+		.where(and(eq(workspaceEnvs.id, params.id), eq(workspaces.userId, locals.user!.id)))
 		.limit(1);
 	if (!owned) error(404, 'Env not found');
 
