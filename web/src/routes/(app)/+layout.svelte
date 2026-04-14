@@ -138,7 +138,34 @@
 		</header>
 
 		<div class="scroll">
-			{#if workspaceId}
+			{#if !workspaceId}
+			<!-- User context sidebar -->
+			<div class="user-ctx">
+				<button
+					class="back-btn font-mono"
+					type="button"
+					onclick={() => {
+						if (data.workspaces?.[0]?.slug) {
+							const ws = data.workspaces[0];
+							history.back();
+							// fallback: if no history, navigate after tick
+							setTimeout(() => {
+								if (document.location.pathname === '/profile') {
+									import('$app/navigation').then(({ goto }) => goto(`/w/${ws.slug}`));
+								}
+							}, 100);
+						} else {
+							history.back();
+						}
+					}}
+				>
+					<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+						<path d="M7.5 2L3.5 6L7.5 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+					</svg>
+					back to workspace
+				</button>
+			</div>
+			{:else}
 			<!-- Fleet section -->
 			<section class="section">
 				<div class="section-head">
@@ -577,6 +604,45 @@
 	.user-footer:hover :global(.user-chevron) {
 		color: color-mix(in oklch, var(--sidebar-foreground) 55%, transparent);
 		transform: translateX(2px);
+	}
+
+	/* ── User context sidebar ───────────────────────────────── */
+	.user-ctx {
+		padding: 0.75rem 0.75rem 0;
+	}
+
+	.back-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.55rem;
+		width: 100%;
+		padding: 0.6rem 0.85rem;
+		border-radius: 0.45rem;
+		font-size: 0.65rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: color-mix(in oklch, var(--sidebar-foreground) 55%, transparent);
+		background: color-mix(in oklch, var(--sidebar-foreground) 5%, transparent);
+		border: 1px solid color-mix(in oklch, var(--sidebar-border) 80%, transparent);
+		transition:
+			color 150ms ease,
+			background 150ms ease,
+			border-color 150ms ease;
+	}
+
+	.back-btn:hover {
+		color: var(--sidebar-foreground);
+		background: color-mix(in oklch, var(--primary) 8%, transparent);
+		border-color: color-mix(in oklch, var(--primary) 25%, transparent);
+	}
+
+	.back-btn svg {
+		flex-shrink: 0;
+		transition: transform 150ms ease;
+	}
+
+	.back-btn:hover svg {
+		transform: translateX(-2px);
 	}
 
 	/* ── Main ────────────────────────────────────────────────── */
