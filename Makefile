@@ -1,5 +1,8 @@
 AGENT_IMAGE ?= localhost:5005/officeclaw/agent:latest
 
+migrate:
+	cd api && uv run alembic upgrade head
+
 infra:
 	docker compose -f compose.local.yml up -d db registry docling minio minio-init
 
@@ -13,7 +16,9 @@ down:
 	docker compose -f compose.local.yml down
 
 dev:
-	docker compose -f compose.local.yml up -d db registry docling minio minio-init api web
+	make infra
+	make migrate
+	make dev-api & make dev-web
 
 vm-build:
 	docker build -t $(AGENT_IMAGE) ./sandbox/
