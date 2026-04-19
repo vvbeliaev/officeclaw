@@ -24,3 +24,4 @@ postgres/
 
 api/uploads/
 api/data/kg/
+minio/
