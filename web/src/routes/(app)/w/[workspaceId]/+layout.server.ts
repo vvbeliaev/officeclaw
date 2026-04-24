@@ -7,7 +7,8 @@ import {
 	workspaceEnvs,
 	workspaceChannels,
 	workspaceMcp,
-	workspaceTemplates
+	workspaceTemplates,
+	workspaceCrons
 } from '$lib/server/db/app.schema';
 import { and, eq, ne, or, desc, count } from 'drizzle-orm';
 import type { LayoutServerLoad } from './$types';
@@ -35,27 +36,35 @@ export const load: LayoutServerLoad = async ({ locals, params, depends }) => {
 	// Use the real UUID for all subsequent queries (params.workspaceId may be a slug)
 	const wsId = workspace.id;
 
-	const [userAgents, [skillsCount], [envsCount], [channelsCount], [mcpCount], [promptsCount]] =
-		await Promise.all([
-			db
-				.select()
-				.from(agents)
-				.where(eq(agents.workspaceId, wsId))
-				.orderBy(desc(agents.isAdmin), desc(agents.createdAt)),
-			db.select({ n: count() }).from(skills).where(eq(skills.workspaceId, wsId)),
-			db.select({ n: count() }).from(workspaceEnvs).where(eq(workspaceEnvs.workspaceId, wsId)),
-			db
-				.select({ n: count() })
-				.from(workspaceChannels)
-				.where(eq(workspaceChannels.workspaceId, wsId)),
-			db.select({ n: count() }).from(workspaceMcp).where(eq(workspaceMcp.workspaceId, wsId)),
-			db
-				.select({ n: count() })
-				.from(workspaceTemplates)
-				.where(
-					and(eq(workspaceTemplates.workspaceId, wsId), ne(workspaceTemplates.templateType, 'user'))
-				)
-		]);
+	const [
+		userAgents,
+		[skillsCount],
+		[envsCount],
+		[channelsCount],
+		[mcpCount],
+		[promptsCount],
+		[cronsCount]
+	] = await Promise.all([
+		db
+			.select()
+			.from(agents)
+			.where(eq(agents.workspaceId, wsId))
+			.orderBy(desc(agents.isAdmin), desc(agents.createdAt)),
+		db.select({ n: count() }).from(skills).where(eq(skills.workspaceId, wsId)),
+		db.select({ n: count() }).from(workspaceEnvs).where(eq(workspaceEnvs.workspaceId, wsId)),
+		db
+			.select({ n: count() })
+			.from(workspaceChannels)
+			.where(eq(workspaceChannels.workspaceId, wsId)),
+		db.select({ n: count() }).from(workspaceMcp).where(eq(workspaceMcp.workspaceId, wsId)),
+		db
+			.select({ n: count() })
+			.from(workspaceTemplates)
+			.where(
+				and(eq(workspaceTemplates.workspaceId, wsId), ne(workspaceTemplates.templateType, 'user'))
+			),
+		db.select({ n: count() }).from(workspaceCrons).where(eq(workspaceCrons.workspaceId, wsId))
+	]);
 
 	return {
 		workspace,
@@ -66,7 +75,8 @@ export const load: LayoutServerLoad = async ({ locals, params, depends }) => {
 			channels: channelsCount?.n ?? 0,
 			mcp: mcpCount?.n ?? 0,
 			knowledge: 0,
-			prompts: promptsCount?.n ?? 0
+			prompts: promptsCount?.n ?? 0,
+			crons: cronsCount?.n ?? 0
 		}
 	};
 };

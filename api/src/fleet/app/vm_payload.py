@@ -39,6 +39,8 @@ async def build_vm_payload(
     if not agent_record:
         raise ValueError(f"Agent {agent_id} not found")
     skill_evolution = bool(agent_record["skill_evolution"])
+    heartbeat_enabled = bool(agent_record["heartbeat_enabled"])
+    heartbeat_interval_s = int(agent_record["heartbeat_interval_s"])
 
     # 1. Agent workspace files — split runtime files from regular files
     files: list[dict] = []
@@ -90,9 +92,20 @@ async def build_vm_payload(
             )
         env_vars = {**env_vars, **values}
 
-    # 4. Build config.json
+    # 4. Render cron jobs.json from attached workspace_crons
+    cron_jobs_json = _render_cron_jobs_json(await integrations.list_agent_crons(agent_id))
+    if cron_jobs_json:
+        files.append({"path": "cron/jobs.json", "content": cron_jobs_json})
+
+    # 5. Build config.json
     config, extra_env = await _build_config_json(
-        agent_id, integrations, env_vars, timezone, skill_evolution
+        agent_id,
+        integrations,
+        env_vars,
+        timezone,
+        skill_evolution,
+        heartbeat_enabled,
+        heartbeat_interval_s,
     )
     extra_env["OFFICECLAW_TOKEN"] = workspace_token
     merged_env = {**env_vars, **extra_env}
@@ -104,12 +117,56 @@ async def build_vm_payload(
     }
 
 
+def _render_cron_jobs_json(rows: list[dict]) -> str:
+    """Serialize agent's attached crons into nanobot's jobs.json shape.
+
+    State fields (next/last/history) are preserved from DB so that a restart
+    doesn't reset the cron schedule drift.
+    """
+    if not rows:
+        return ""
+    jobs = []
+    for r in rows:
+        jobs.append({
+            "id": str(r["id"])[:8],
+            "name": r["name"],
+            "enabled": bool(r["enabled"]),
+            "schedule": {
+                "kind": r["schedule_kind"],
+                "atMs": r.get("schedule_at_ms"),
+                "everyMs": r.get("schedule_every_ms"),
+                "expr": r.get("schedule_expr"),
+                "tz": r.get("schedule_tz"),
+            },
+            "payload": {
+                "kind": "agent_turn",
+                "message": r.get("message") or "",
+                "deliver": bool(r.get("deliver")),
+                "channel": r.get("channel"),
+                "to": r.get("recipient"),
+            },
+            "state": {
+                "nextRunAtMs": r.get("next_run_at_ms"),
+                "lastRunAtMs": r.get("last_run_at_ms"),
+                "lastStatus": r.get("last_status"),
+                "lastError": r.get("last_error"),
+                "runHistory": r.get("run_history") or [],
+            },
+            "createdAtMs": 0,
+            "updatedAtMs": 0,
+            "deleteAfterRun": bool(r.get("delete_after_run")),
+        })
+    return json.dumps({"version": 1, "jobs": jobs}, indent=2, ensure_ascii=False)
+
+
 async def _build_config_json(
     agent_id: UUID,
     integrations: IntegrationsApp,
     env_vars: dict,
     timezone: str,
     skill_evolution: bool,
+    heartbeat_enabled: bool,
+    heartbeat_interval_s: int,
 ) -> tuple[dict, dict]:
     # Single OpenAI-compatible provider slot. nanobot's `custom` entry in
     # the provider registry is a direct OpenAI-compat client — we force
@@ -222,7 +279,10 @@ async def _build_config_json(
         "gateway": {
             "host": "0.0.0.0",
             "port": 18790,
-            "heartbeat": {"enabled": True, "intervalS": 1800},
+            "heartbeat": {
+                "enabled": heartbeat_enabled,
+                "intervalS": heartbeat_interval_s,
+            },
         },
     }
     return config_dict, extra_env

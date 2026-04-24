@@ -28,6 +28,7 @@
 		mcp: number;
 		knowledge: number;
 		prompts: number;
+		crons: number;
 	};
 
 	const agents = $derived(page.data.agents as AgentEntry[] | undefined);

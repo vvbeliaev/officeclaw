@@ -10,6 +10,8 @@ import {
 	boolean,
 	timestamp,
 	integer,
+	bigint,
+	jsonb,
 	primaryKey,
 	foreignKey,
 	unique,
@@ -44,6 +46,8 @@ export const agents = pgTable('agents', {
 	avatarUrl: text('avatar_url'),
 	gatewayPort: integer('gateway_port'),
 	skillEvolution: boolean('skill_evolution').default(false).notNull(),
+	heartbeatEnabled: boolean('heartbeat_enabled').default(false).notNull(),
+	heartbeatIntervalS: integer('heartbeat_interval_s').default(1800).notNull(),
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });
@@ -195,6 +199,49 @@ export const agentEnvs = pgTable(
 	(t) => [primaryKey({ columns: [t.agentId, t.envId] })]
 );
 
+export const workspaceCrons = pgTable(
+	'workspace_crons',
+	{
+		id: uuid().defaultRandom().primaryKey().notNull(),
+		workspaceId: uuid('workspace_id')
+			.notNull()
+			.references(() => workspaces.id, { onDelete: 'cascade' }),
+		name: text().notNull(),
+		scheduleKind: text('schedule_kind').notNull(), // 'at' | 'every' | 'cron'
+		scheduleAtMs: bigint('schedule_at_ms', { mode: 'number' }),
+		scheduleEveryMs: bigint('schedule_every_ms', { mode: 'number' }),
+		scheduleExpr: text('schedule_expr'),
+		scheduleTz: text('schedule_tz'),
+		message: text().default('').notNull(),
+		deliver: boolean().default(false).notNull(),
+		channel: text(),
+		recipient: text(),
+		deleteAfterRun: boolean('delete_after_run').default(false).notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(t) => [unique('workspace_crons_workspace_id_name_key').on(t.workspaceId, t.name)]
+);
+
+export const agentCrons = pgTable(
+	'agent_crons',
+	{
+		agentId: uuid('agent_id')
+			.notNull()
+			.references(() => agents.id, { onDelete: 'cascade' }),
+		cronId: uuid('cron_id')
+			.notNull()
+			.references(() => workspaceCrons.id, { onDelete: 'cascade' }),
+		enabled: boolean().default(true).notNull(),
+		nextRunAtMs: bigint('next_run_at_ms', { mode: 'number' }),
+		lastRunAtMs: bigint('last_run_at_ms', { mode: 'number' }),
+		lastStatus: text('last_status'), // 'ok' | 'error' | 'skipped' | null
+		lastError: text('last_error'),
+		runHistory: jsonb('run_history').default([]).notNull()
+	},
+	(t) => [primaryKey({ columns: [t.agentId, t.cronId] })]
+);
+
 export const agentChannels = pgTable(
 	'agent_channels',
 	{
@@ -218,7 +265,8 @@ export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
 	envs: many(workspaceEnvs),
 	channels: many(workspaceChannels),
 	mcp: many(workspaceMcp),
-	templates: many(workspaceTemplates)
+	templates: many(workspaceTemplates),
+	crons: many(workspaceCrons)
 }));
 
 export const agentsRelations = relations(agents, ({ one, many }) => ({
@@ -228,7 +276,18 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
 	envs: many(agentEnvs),
 	channels: many(agentChannels),
 	mcp: many(agentMcp),
-	templates: many(agentUserTemplates)
+	templates: many(agentUserTemplates),
+	crons: many(agentCrons)
+}));
+
+export const workspaceCronsRelations = relations(workspaceCrons, ({ one, many }) => ({
+	workspace: one(workspaces, { fields: [workspaceCrons.workspaceId], references: [workspaces.id] }),
+	agents: many(agentCrons)
+}));
+
+export const agentCronsRelations = relations(agentCrons, ({ one }) => ({
+	agent: one(agents, { fields: [agentCrons.agentId], references: [agents.id] }),
+	cron: one(workspaceCrons, { fields: [agentCrons.cronId], references: [workspaceCrons.id] })
 }));
 
 export const agentFilesRelations = relations(agentFiles, ({ one }) => ({

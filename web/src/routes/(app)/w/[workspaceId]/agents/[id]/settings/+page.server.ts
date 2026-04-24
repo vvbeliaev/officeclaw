@@ -8,11 +8,13 @@ import {
 	workspaceEnvs,
 	workspaceMcp,
 	workspaceTemplates,
+	workspaceCrons,
 	agentChannels,
 	agentSkills,
 	agentEnvs,
 	agentMcp,
-	agentUserTemplates
+	agentUserTemplates,
+	agentCrons
 } from '$lib/server/db/app.schema';
 import { and, eq, ne } from 'drizzle-orm';
 import type { PageServerLoad, Actions } from './$types';
@@ -37,11 +39,13 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 		allEnvs,
 		allMcps,
 		allTemplates,
+		allCrons,
 		attachedChannelRows,
 		attachedSkillRows,
 		attachedEnvRows,
 		attachedMcpRows,
 		attachedTemplateRows,
+		attachedCronRows,
 		channelAssignments
 	] = await Promise.all([
 		db
@@ -74,6 +78,18 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 			.where(eq(workspaceTemplates.workspaceId, workspaceId))
 			.orderBy(workspaceTemplates.templateType, workspaceTemplates.createdAt),
 		db
+			.select({
+				id: workspaceCrons.id,
+				name: workspaceCrons.name,
+				scheduleKind: workspaceCrons.scheduleKind,
+				scheduleEveryMs: workspaceCrons.scheduleEveryMs,
+				scheduleExpr: workspaceCrons.scheduleExpr,
+				scheduleTz: workspaceCrons.scheduleTz
+			})
+			.from(workspaceCrons)
+			.where(eq(workspaceCrons.workspaceId, workspaceId))
+			.orderBy(workspaceCrons.createdAt),
+		db
 			.select({ channelId: agentChannels.channelId })
 			.from(agentChannels)
 			.where(eq(agentChannels.agentId, params.id)),
@@ -90,6 +106,16 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 			})
 			.from(agentUserTemplates)
 			.where(eq(agentUserTemplates.agentId, params.id)),
+		db
+			.select({
+				cronId: agentCrons.cronId,
+				enabled: agentCrons.enabled,
+				lastStatus: agentCrons.lastStatus,
+				lastRunAtMs: agentCrons.lastRunAtMs,
+				nextRunAtMs: agentCrons.nextRunAtMs
+			})
+			.from(agentCrons)
+			.where(eq(agentCrons.agentId, params.id)),
 		// All channel assignments across this workspace's agents — to detect channels taken by others
 		db
 			.select({
@@ -107,6 +133,7 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	const attachedEnvIds = new Set(attachedEnvRows.map((r) => r.envId));
 	const attachedMcpIds = new Set(attachedMcpRows.map((r) => r.mcpId));
 	const attachedTemplateIds = new Set(attachedTemplateRows.map((r) => r.templateId));
+	const attachedCronById = new Map(attachedCronRows.map((r) => [r.cronId, r]));
 
 	return {
 		agent: agentRow,
@@ -126,7 +153,18 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 			.filter((e) => e.category === 'llm-provider')
 			.map((e) => ({ ...e, attached: attachedEnvIds.has(e.id) })),
 		mcps: allMcps.map((m) => ({ ...m, attached: attachedMcpIds.has(m.id) })),
-		templates: allTemplates.map((t) => ({ ...t, attached: attachedTemplateIds.has(t.id) }))
+		templates: allTemplates.map((t) => ({ ...t, attached: attachedTemplateIds.has(t.id) })),
+		crons: allCrons.map((c) => {
+			const link = attachedCronById.get(c.id);
+			return {
+				...c,
+				attached: Boolean(link),
+				enabled: link?.enabled ?? false,
+				lastStatus: link?.lastStatus ?? null,
+				lastRunAtMs: link?.lastRunAtMs ?? null,
+				nextRunAtMs: link?.nextRunAtMs ?? null
+			};
+		})
 	};
 };
 
@@ -327,6 +365,63 @@ export const actions: Actions = {
 			method: 'PATCH',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ skill_evolution: enabled })
+		});
+		if (!res.ok) return fail(res.status, { error: await res.text() });
+		return {};
+	},
+	toggleHeartbeat: async ({ params, request, locals }) => {
+		if (!locals.session) error(401, 'Unauthorized');
+		const form = await request.formData();
+		const enabled = form.get('enabled')?.toString() === 'true';
+		const res = await fetch(`${API_URL}/agents/${params.id}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ heartbeat_enabled: enabled })
+		});
+		if (!res.ok) return fail(res.status, { hbError: await res.text() });
+		return { hbSuccess: true };
+	},
+	saveHeartbeatInterval: async ({ params, request, locals }) => {
+		if (!locals.session) error(401, 'Unauthorized');
+		const form = await request.formData();
+		const raw = Number(form.get('interval_s'));
+		if (!Number.isFinite(raw) || raw < 60 || raw > 86_400) {
+			return fail(400, { hbError: 'Interval must be between 60 and 86400 seconds' });
+		}
+		const res = await fetch(`${API_URL}/agents/${params.id}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ heartbeat_interval_s: Math.round(raw) })
+		});
+		if (!res.ok) return fail(res.status, { hbError: await res.text() });
+		return { hbSuccess: true };
+	},
+	attachCron: async ({ params, request, locals }) => {
+		if (!locals.session) error(401, 'Unauthorized');
+		const form = await request.formData();
+		const cronId = form.get('cron_id')?.toString();
+		if (!cronId) return fail(400, { error: 'cron_id required' });
+		await fetch(`${API_URL}/agents/${params.id}/crons/${cronId}`, { method: 'POST' });
+		return {};
+	},
+	detachCron: async ({ params, request, locals }) => {
+		if (!locals.session) error(401, 'Unauthorized');
+		const form = await request.formData();
+		const cronId = form.get('cron_id')?.toString();
+		if (!cronId) return fail(400, { error: 'cron_id required' });
+		await fetch(`${API_URL}/agents/${params.id}/crons/${cronId}`, { method: 'DELETE' });
+		return {};
+	},
+	toggleAgentCron: async ({ params, request, locals }) => {
+		if (!locals.session) error(401, 'Unauthorized');
+		const form = await request.formData();
+		const cronId = form.get('cron_id')?.toString();
+		const enabled = form.get('enabled')?.toString() === 'true';
+		if (!cronId) return fail(400, { error: 'cron_id required' });
+		const res = await fetch(`${API_URL}/agents/${params.id}/crons/${cronId}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ enabled })
 		});
 		if (!res.ok) return fail(res.status, { error: await res.text() });
 		return {};

@@ -3,6 +3,7 @@ from uuid import UUID
 import asyncpg
 
 from src.integrations.adapters.out.links.channel_link_repo import ChannelLinkRepo
+from src.integrations.adapters.out.links.cron_link_repo import CronLinkRepo
 from src.integrations.adapters.out.links.env_link_repo import EnvLinkRepo
 from src.integrations.adapters.out.links.mcp_link_repo import McpLinkRepo
 from src.integrations.adapters.out.links.skill_link_repo import SkillLinkRepo
@@ -17,12 +18,14 @@ class LinkService:
         channels: ChannelLinkRepo,
         mcps: McpLinkRepo,
         templates: TemplateLinkRepo,
+        crons: CronLinkRepo,
     ) -> None:
         self._skills = skills
         self._envs = envs
         self._channels = channels
         self._mcps = mcps
         self._templates = templates
+        self._crons = crons
 
     # --- Skills ---
 
@@ -81,3 +84,17 @@ class LinkService:
 
     async def list_templates(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._templates.list_by_agent(agent_id)
+
+    # --- Crons ---
+
+    async def attach_cron(self, agent_id: UUID, cron_id: UUID, enabled: bool = True) -> None:
+        await self._crons.attach(agent_id, cron_id, enabled)
+
+    async def detach_cron(self, agent_id: UUID, cron_id: UUID) -> None:
+        await self._crons.detach(agent_id, cron_id)
+
+    async def set_cron_enabled(self, agent_id: UUID, cron_id: UUID, enabled: bool) -> asyncpg.Record | None:
+        return await self._crons.set_enabled(agent_id, cron_id, enabled)
+
+    async def list_crons(self, agent_id: UUID) -> list[dict]:
+        return await self._crons.list_by_agent(agent_id)

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 from typing import Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 AgentStatus = Literal["idle", "running", "error"]
 
@@ -19,6 +19,8 @@ class AgentUpdate(BaseModel):
     sandbox_id: str | None = None
     avatar_url: str | None = None
     skill_evolution: bool | None = None
+    heartbeat_enabled: bool | None = None
+    heartbeat_interval_s: int | None = Field(default=None, ge=60, le=86_400)
 
 
 class AgentOut(BaseModel):
@@ -32,6 +34,8 @@ class AgentOut(BaseModel):
     is_admin: bool
     avatar_url: str | None
     skill_evolution: bool
+    heartbeat_enabled: bool
+    heartbeat_interval_s: int
     created_at: datetime
     updated_at: datetime
 

@@ -11,6 +11,7 @@
 			mcp: number;
 			knowledge: number;
 			prompts: number;
+			crons: number;
 		};
 	};
 
@@ -21,6 +22,7 @@
 		{ href: `/w/${workspaceId}/workspace/environments`, label: 'Environments', icon: 'oc:configure', count: counts.envs },
 		{ href: `/w/${workspaceId}/workspace/channels`, label: 'Channels', icon: 'oc:log', count: counts.channels },
 		{ href: `/w/${workspaceId}/workspace/mcp`, label: 'MCP Servers', icon: 'oc:memory', count: counts.mcp },
+		{ href: `/w/${workspaceId}/workspace/cron`, label: 'Cron', icon: 'tabler:clock', count: counts.crons },
 		{ href: `/w/${workspaceId}/workspace/knowledge`, label: 'Knowledge', icon: 'oc:memory', count: counts.knowledge },
 		{ href: `/w/${workspaceId}/prompts`, label: 'Prompts', icon: 'tabler:file-text', count: counts.prompts }
 	]);

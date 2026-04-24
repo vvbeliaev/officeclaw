@@ -68,6 +68,19 @@
 	type LlmProvider = { id: string; name: string; attached: boolean };
 	type Mcp         = { id: string; name: string; type: string; attached: boolean };
 	type Template    = { id: string; name: string; templateType: string; attached: boolean };
+	type Cron        = {
+		id: string;
+		name: string;
+		scheduleKind: 'at' | 'every' | 'cron';
+		scheduleEveryMs: number | null;
+		scheduleExpr: string | null;
+		scheduleTz: string | null;
+		attached: boolean;
+		enabled: boolean;
+		lastStatus: 'ok' | 'error' | 'skipped' | null;
+		lastRunAtMs: number | null;
+		nextRunAtMs: number | null;
+	};
 
 	const activeLlm = $derived(
 		(data.llmProviders as LlmProvider[]).find((p) => p.attached) ?? null
@@ -81,6 +94,24 @@
 
 	function fmtDate(d: Date) {
 		return new Date(d).toLocaleDateString('en', { month: 'short', day: 'numeric' });
+	}
+
+	function cronSummary(c: {
+		scheduleKind: 'at' | 'every' | 'cron';
+		scheduleEveryMs: number | null;
+		scheduleExpr: string | null;
+	}): string {
+		if (c.scheduleKind === 'cron') return c.scheduleExpr ?? 'cron';
+		if (c.scheduleKind === 'every' && c.scheduleEveryMs) {
+			const s = Math.round(c.scheduleEveryMs / 1000);
+			if (s < 60) return `${s}s`;
+			const m = Math.round(s / 60);
+			if (m < 60) return `${m}m`;
+			const h = Math.round(m / 60);
+			if (h < 24) return `${h}h`;
+			return `${Math.round(h / 24)}d`;
+		}
+		return 'one-shot';
 	}
 </script>
 
@@ -228,6 +259,67 @@
 						<span class="toggle-knob"></span>
 					</button>
 				</form>
+
+				<form
+					method="POST"
+					action="?/toggleHeartbeat"
+					use:enhance={connEnhance('heartbeat-toggle')}
+					class="toggle-row"
+				>
+					<input
+						type="hidden"
+						name="enabled"
+						value={data.agent.heartbeatEnabled ? 'false' : 'true'}
+					/>
+					<div class="toggle-copy">
+						<span class="toggle-title font-mono">heartbeat</span>
+						<span class="toggle-sub">
+							Periodic wake-up. Checks <span class="inline-code">HEARTBEAT.md</span> and runs pending tasks.
+						</span>
+					</div>
+					<button
+						class="toggle-switch"
+						class:toggle-switch--on={data.agent.heartbeatEnabled}
+						type="submit"
+						aria-pressed={data.agent.heartbeatEnabled}
+						aria-label="Toggle heartbeat"
+						disabled={!!pending['heartbeat-toggle']}
+					>
+						<span class="toggle-knob"></span>
+					</button>
+				</form>
+
+				{#if data.agent.heartbeatEnabled}
+					<form
+						method="POST"
+						action="?/saveHeartbeatInterval"
+						use:enhance={connEnhance('heartbeat-interval')}
+						class="hb-interval-row"
+					>
+						<label class="hb-label font-mono" for="hb-interval">interval</label>
+						<input
+							id="hb-interval"
+							class="hb-input font-mono"
+							type="number"
+							name="interval_s"
+							min="60"
+							max="86400"
+							step="30"
+							value={data.agent.heartbeatIntervalS}
+						/>
+						<span class="hb-unit font-mono">sec</span>
+						<button
+							class="btn-field-save font-mono"
+							type="submit"
+							disabled={!!pending['heartbeat-interval']}
+						>save</button>
+					</form>
+					{#if form?.hbError}
+						<p class="id-feedback id-feedback--err font-mono">{form.hbError}</p>
+					{:else if form?.hbSuccess}
+						<p class="id-feedback id-feedback--ok font-mono">saved</p>
+					{/if}
+				{/if}
 			</div>
 
 			<!-- Danger zone -->
@@ -474,6 +566,59 @@
 								<span class="chip-name">{meta.label}</span>
 								<span class="chip-taken-by font-mono">→ {ch.takenBy}</span>
 							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Cron jobs -->
+			<div class="cap-section">
+				<div class="cap-head">
+					<Icon icon="tabler:clock" width={12} height={12} class="cap-head-icon" />
+					<span class="cap-label font-mono">cron</span>
+					<span class="cap-meta font-mono">{(data.crons as Cron[]).filter(c => c.attached).length} / {(data.crons as Cron[]).length}</span>
+				</div>
+				{#if (data.crons as Cron[]).length === 0}
+					<p class="cap-empty font-mono">No cron jobs in workspace — <a href={`/w/${data.workspace.id}/workspace/cron`} class="cap-link">create one</a></p>
+				{:else}
+					<div class="chip-grid">
+						{#each (data.crons as Cron[]).filter(c => c.attached) as job (job.id)}
+							<div class="chip chip--on">
+								<span class="chip-name">{job.name}</span>
+								<span class="chip-tag font-mono">{cronSummary(job)}</span>
+								<form method="POST" action="?/toggleAgentCron" use:enhance={connEnhance(`toggle:cron:${job.id}`)} style="display:contents">
+									<input type="hidden" name="cron_id" value={job.id} />
+									<input type="hidden" name="enabled" value={job.enabled ? 'false' : 'true'} />
+									<button
+										class="chip-x"
+										type="submit"
+										title={job.enabled ? 'Pause' : 'Resume'}
+										disabled={!!pending[`toggle:cron:${job.id}`]}
+									>
+										{#if pending[`toggle:cron:${job.id}`]}
+											<span class="spinner spinner--xs"></span>
+										{:else}
+											<Icon icon={job.enabled ? 'tabler:player-pause' : 'tabler:player-play'} width={9} height={9} />
+										{/if}
+									</button>
+								</form>
+								<form method="POST" action="?/detachCron" use:enhance={connEnhance(`detach:cron:${job.id}`)} style="display:contents">
+									<input type="hidden" name="cron_id" value={job.id} />
+									<button class="chip-x" type="submit" disabled={!!pending[`detach:cron:${job.id}`]} title="Detach">
+										{#if pending[`detach:cron:${job.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:x" width={9} height={9} />{/if}
+									</button>
+								</form>
+							</div>
+						{/each}
+						{#each (data.crons as Cron[]).filter(c => !c.attached) as job (job.id)}
+							<form method="POST" action="?/attachCron" use:enhance={connEnhance(`attach:cron:${job.id}`)} style="display:contents">
+								<input type="hidden" name="cron_id" value={job.id} />
+								<button class="chip chip--off" type="submit" disabled={!!pending[`attach:cron:${job.id}`]}>
+									<span class="chip-name">{job.name}</span>
+									<span class="chip-tag font-mono">{cronSummary(job)}</span>
+									{#if pending[`attach:cron:${job.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:plus" width={9} height={9} class="chip-plus" />{/if}
+								</button>
+							</form>
 						{/each}
 					</div>
 				{/if}
@@ -752,6 +897,22 @@
 	.btn-save:hover:not(:disabled) { filter: brightness(1.08); }
 	.btn-save:disabled { opacity: 0.6; cursor: not-allowed; }
 
+	.btn-field-save {
+		padding: 0.3rem 0.6rem;
+		background: color-mix(in oklch, var(--muted-foreground) 18%, transparent);
+		color: var(--foreground);
+		font-size: 0.6rem;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		border: 1px solid var(--border);
+		border-radius: 0.2rem;
+		transition: background 150ms ease;
+	}
+	.btn-field-save:hover:not(:disabled) {
+		background: color-mix(in oklch, var(--primary) 25%, transparent);
+	}
+	.btn-field-save:disabled { opacity: 0.55; cursor: not-allowed; }
+
 	.id-feedback {
 		font-size: 0.62rem;
 		letter-spacing: 0.02em;
@@ -877,6 +1038,47 @@
 	}
 
 	.toggle-switch--on .toggle-knob { transform: translateX(13px); }
+
+	/* Heartbeat interval input row */
+	.hb-interval-row {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.35rem 0.1rem 0;
+	}
+	.hb-label {
+		font-size: 0.6rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--muted-foreground);
+		opacity: 0.75;
+	}
+	.hb-input {
+		width: 6.5rem;
+		padding: 0.3rem 0.5rem;
+		font-size: 0.7rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 0.2rem;
+		color: var(--foreground);
+	}
+	.hb-input:focus {
+		outline: none;
+		border-color: color-mix(in oklch, var(--primary) 45%, var(--border));
+	}
+	.hb-unit {
+		font-size: 0.62rem;
+		color: var(--muted-foreground);
+		opacity: 0.7;
+	}
+
+	.inline-code {
+		font-family: var(--font-mono);
+		font-size: 0.62rem;
+		padding: 0.05rem 0.25rem;
+		background: color-mix(in oklch, var(--muted-foreground) 14%, transparent);
+		border-radius: 0.18rem;
+	}
 
 	/* Danger */
 	.id-block--danger {

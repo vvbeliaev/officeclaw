@@ -5,7 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 
 from src.integrations.app import IntegrationsApp
 from src.integrations.core.schema import (
+    AgentCronUpdate, AgentCronWithCronOut,
     ChannelCreate, ChannelConfigOut, ChannelOut, ChannelUpdate,
+    CronCreate, CronOut, CronUpdate,
     EnvCreate, EnvOut, EnvUpdate, EnvValuesOut,
     McpConfigOut, McpCreate, McpOut, McpUpdate,
     TemplateCreate, TemplateOut, TemplateUpdate,
@@ -15,6 +17,7 @@ envs_router = APIRouter()
 channels_router = APIRouter()
 mcp_router = APIRouter()
 templates_router = APIRouter()
+crons_router = APIRouter()
 links_router = APIRouter(prefix="/agents/{agent_id}")
 
 
@@ -269,3 +272,86 @@ async def detach_template(
     deps: IntegrationsApp = Depends(get_integrations),
 ) -> None:
     await deps.detach_template(agent_id, template_id)
+
+
+# ---------- Crons ----------
+
+
+@crons_router.post("", response_model=CronOut, status_code=201)
+async def create_cron(
+    body: CronCreate,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> CronOut:
+    try:
+        record = await deps.create_cron(
+            body.workspace_id, body.name, body.schedule_kind,
+            body.schedule_at_ms, body.schedule_every_ms,
+            body.schedule_expr, body.schedule_tz,
+            body.message, body.deliver, body.channel, body.recipient,
+            body.delete_after_run,
+        )
+    except asyncpg.UniqueViolationError:
+        raise HTTPException(409, "Cron name already exists for this workspace")
+    return CronOut(**dict(record))
+
+
+@crons_router.patch("/{cron_id}", response_model=CronOut)
+async def update_cron(
+    cron_id: UUID,
+    body: CronUpdate,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> CronOut:
+    if not await deps.find_cron(cron_id):
+        raise HTTPException(404, "Cron not found")
+    fields = body.model_dump(exclude_none=True)
+    record = await deps.update_cron(cron_id, **fields)
+    if not record:
+        raise HTTPException(404, "Cron not found")
+    return CronOut(**dict(record))
+
+
+@crons_router.delete("/{cron_id}", status_code=204)
+async def delete_cron(
+    cron_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> None:
+    if not await deps.find_cron(cron_id):
+        raise HTTPException(404, "Cron not found")
+    await deps.delete_cron(cron_id)
+
+
+@links_router.post("/crons/{cron_id}", status_code=204)
+async def attach_cron(
+    agent_id: UUID, cron_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> None:
+    if not await deps.find_cron(cron_id):
+        raise HTTPException(404, "Cron not found")
+    await deps.attach_cron(agent_id, cron_id)
+
+
+@links_router.delete("/crons/{cron_id}", status_code=204)
+async def detach_cron(
+    agent_id: UUID, cron_id: UUID,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> None:
+    await deps.detach_cron(agent_id, cron_id)
+
+
+@links_router.patch("/crons/{cron_id}", response_model=AgentCronWithCronOut)
+async def update_agent_cron(
+    agent_id: UUID, cron_id: UUID,
+    body: AgentCronUpdate,
+    deps: IntegrationsApp = Depends(get_integrations),
+) -> AgentCronWithCronOut:
+    if body.enabled is None:
+        raise HTTPException(400, "No fields to update")
+    updated = await deps.set_agent_cron_enabled(agent_id, cron_id, body.enabled)
+    if not updated:
+        raise HTTPException(404, "Agent-cron attachment not found")
+    # Re-read joined view for response payload.
+    rows = await deps.list_agent_crons(agent_id)
+    for row in rows:
+        if row["id"] == cron_id:
+            return AgentCronWithCronOut(**row)
+    raise HTTPException(404, "Agent-cron attachment vanished")

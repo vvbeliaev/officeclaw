@@ -3,6 +3,7 @@ from uuid import UUID
 import asyncpg
 
 from src.integrations.app.channel_service import ChannelService
+from src.integrations.app.cron_service import CronService
 from src.integrations.app.env_service import EnvService
 from src.integrations.app.link_service import LinkService
 from src.integrations.app.mcp_service import McpService
@@ -16,12 +17,14 @@ class IntegrationsApp:
         channels: ChannelService,
         mcp: McpService,
         templates: TemplateService,
+        crons: CronService,
         links: LinkService,
     ) -> None:
         self._envs = envs
         self._channels = channels
         self._mcp = mcp
         self._templates = templates
+        self._crons = crons
         self._links = links
 
     # --- Env ---
@@ -174,3 +177,53 @@ class IntegrationsApp:
 
     async def list_agent_templates(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._links.list_templates(agent_id)
+
+    # --- Crons ---
+
+    async def create_cron(
+        self,
+        workspace_id: UUID,
+        name: str,
+        schedule_kind: str,
+        schedule_at_ms: int | None,
+        schedule_every_ms: int | None,
+        schedule_expr: str | None,
+        schedule_tz: str | None,
+        message: str,
+        deliver: bool,
+        channel: str | None,
+        recipient: str | None,
+        delete_after_run: bool,
+    ) -> asyncpg.Record:
+        return await self._crons.create(
+            workspace_id, name, schedule_kind, schedule_at_ms, schedule_every_ms,
+            schedule_expr, schedule_tz, message, deliver, channel, recipient, delete_after_run,
+        )
+
+    async def find_cron(self, cron_id: UUID) -> asyncpg.Record | None:
+        return await self._crons.find(cron_id)
+
+    async def list_crons(self, workspace_id: UUID) -> list[asyncpg.Record]:
+        return await self._crons.list(workspace_id)
+
+    async def update_cron(self, cron_id: UUID, **fields) -> asyncpg.Record | None:
+        return await self._crons.update(cron_id, **fields)
+
+    async def delete_cron(self, cron_id: UUID) -> None:
+        await self._crons.delete(cron_id)
+
+    # --- Links: crons ---
+
+    async def attach_cron(self, agent_id: UUID, cron_id: UUID, enabled: bool = True) -> None:
+        await self._links.attach_cron(agent_id, cron_id, enabled)
+
+    async def detach_cron(self, agent_id: UUID, cron_id: UUID) -> None:
+        await self._links.detach_cron(agent_id, cron_id)
+
+    async def set_agent_cron_enabled(
+        self, agent_id: UUID, cron_id: UUID, enabled: bool
+    ) -> asyncpg.Record | None:
+        return await self._links.set_cron_enabled(agent_id, cron_id, enabled)
+
+    async def list_agent_crons(self, agent_id: UUID) -> list[dict]:
+        return await self._links.list_crons(agent_id)
