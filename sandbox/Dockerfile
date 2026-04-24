@@ -69,8 +69,11 @@ RUN curl -fsSL https://github.com/duckdb/duckdb/releases/latest/download/duckdb_
 # ── Python packages (system-wide via uv) ──────────────────────────────────────
 RUN uv pip install --system --break-system-packages \
     httpx pydantic requests \
-    csvkit \
-    git+https://github.com/vvbeliaev/nanobot.git@officeclaw
+    csvkit
+
+# ── nanobot (vendored from monorepo) ──────────────────────────────────────────
+COPY pkgs/py/nanobot /opt/nanobot
+RUN uv pip install --system --break-system-packages /opt/nanobot
 
 # ── Named-volume paths (no-op if volume not mounted) ──────────────────────────
 ENV PATH="/opt/packages/bin:/opt/packages/node/bin:$PATH"

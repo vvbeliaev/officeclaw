@@ -1,0 +1,10 @@
+*
+!sandbox
+!pkgs/py/nanobot
+
+pkgs/py/nanobot/.git
+pkgs/py/nanobot/.venv
+pkgs/py/nanobot/node_modules
+pkgs/py/nanobot/**/__pycache__
+pkgs/py/nanobot/**/*.pyc
+pkgs/py/nanobot/webui

@@ -21,9 +21,9 @@ dev:
 	make dev-api & make dev-web
 
 vm-build:
-	docker build -t $(AGENT_IMAGE) ./sandbox/
+	docker build -t $(AGENT_IMAGE) -f ./sandbox/Dockerfile .
 	docker push $(AGENT_IMAGE)
 
 vm-build-cached:
-	docker build --no-cache -t $(AGENT_IMAGE) ./sandbox/
+	docker build --no-cache -t $(AGENT_IMAGE) -f ./sandbox/Dockerfile .
 	docker push $(AGENT_IMAGE)
