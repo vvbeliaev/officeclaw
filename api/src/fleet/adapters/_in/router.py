@@ -16,6 +16,7 @@ from src.fleet.core.schema import (
     AgentUpdate,
 )
 from src.shared.storage import StoragePort
+from src.workspace.app import WorkspaceApp
 
 router = APIRouter()
 
@@ -26,6 +27,10 @@ def get_fleet(request: Request) -> FleetApp:
 
 def get_storage(request: Request) -> StoragePort:
     return request.app.state.storage
+
+
+def get_workspace(request: Request) -> WorkspaceApp:
+    return request.app.state.workspace
 
 
 @router.post("", response_model=AgentOut, status_code=201)
@@ -69,13 +74,17 @@ async def delete_agent(
 async def start_agent(
     agent_id: UUID,
     fleet: FleetApp = Depends(get_fleet),
+    workspace: WorkspaceApp = Depends(get_workspace),
 ) -> AgentOut:
     record = await fleet.find_agent(agent_id)
     if not record:
         raise HTTPException(404, "Agent not found")
     if record["status"] == "running":
         raise HTTPException(409, "Agent is already running")
-    await fleet.start_sandbox(agent_id)
+    ws = await workspace.find_by_id(record["workspace_id"])
+    if not ws:
+        raise HTTPException(500, "Agent references missing workspace")
+    await fleet.start_sandbox(agent_id, ws["officeclaw_token"])
     updated = await fleet.find_agent(agent_id)
     return AgentOut(**dict(updated))
 

@@ -46,9 +46,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     integrations = integrations_di.build(pool)
     library = library_di.build(pool)
-    fleet, sandbox, watcher = fleet_di.build(pool, integrations, library)
+    fleet, watcher = fleet_di.build(pool, integrations, library)
     workspace = workspace_di.build(pool, fleet, integrations)
-    fleet_di.bind_workspace(sandbox, workspace)
     identity = identity_di.build(pool, workspace)
     knowledge = knowledge_di.build(settings)
 

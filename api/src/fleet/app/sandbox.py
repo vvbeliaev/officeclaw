@@ -1,11 +1,8 @@
-from __future__ import annotations
-
 import asyncio
 import logging
 import shutil
 import socket
 from pathlib import Path
-from typing import TYPE_CHECKING
 from uuid import UUID
 
 import httpx
@@ -15,9 +12,6 @@ from src.fleet.app.vm_payload import build_vm_payload
 from src.integrations.app import IntegrationsApp
 from src.library.app import LibraryApp
 from src.shared.config import get_settings
-
-if TYPE_CHECKING:
-    from src.workspace.app import WorkspaceApp
 
 _log = logging.getLogger(__name__)
 
@@ -243,28 +237,14 @@ class SandboxService:
         self._agents = agents
         self._integrations = integrations
         self._skills = skills
-        # Late-bound to break the fleet↔workspace dependency cycle: workspace_di
-        # receives FleetApp for bootstrap, so fleet cannot receive WorkspaceApp
-        # at construction time. Wired via `bind_workspace` immediately after
-        # workspace_di.build completes in entrypoint.main.lifespan.
-        self._workspace: WorkspaceApp | None = None
 
-    def bind_workspace(self, workspace: WorkspaceApp) -> None:
-        self._workspace = workspace
+    async def start(self, agent_id: UUID, workspace_token: str) -> str:
+        """Build VM payload, write workspace, launch msb sandbox. Returns sandbox_id.
 
-    async def start(self, agent_id: UUID) -> str:
-        """Build VM payload, write workspace, launch msb sandbox. Returns sandbox_id."""
-        if self._workspace is None:
-            raise RuntimeError(
-                "SandboxService.start called before WorkspaceApp was bound"
-            )
-        agent = await self._agents.find_by_id(agent_id)
-        workspace = await self._workspace.find_by_id(agent["workspace_id"])
-        if workspace is None:
-            raise RuntimeError(
-                f"Agent {agent_id} references missing workspace {agent['workspace_id']}"
-            )
-        workspace_token = workspace["officeclaw_token"]
+        `workspace_token` is passed in by the caller (route / MCP handler) after
+        it has resolved the agent's workspace — fleet intentionally does not
+        know how to look up workspaces.
+        """
         payload = await build_vm_payload(
             agent_id, self._agents, self._integrations, self._skills, workspace_token
         )

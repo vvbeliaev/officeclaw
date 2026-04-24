@@ -64,7 +64,7 @@ async def test_mcp_start_stop_agent(mcp_conn_user, fleet_deps):
          patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch("src.fleet.app.sandbox._wait_for_gateway", new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
-        await fleet_deps.start_sandbox(agent_id)
+        await fleet_deps.start_sandbox(agent_id, "tok-test")
     started = await fleet_deps.find_agent(agent_id)
     assert started["status"] == "running"
 

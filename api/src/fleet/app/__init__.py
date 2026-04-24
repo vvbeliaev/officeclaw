@@ -54,8 +54,8 @@ class FleetApp:
     async def list_files(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._agents.list_files(agent_id)
 
-    async def start_sandbox(self, agent_id: UUID) -> str:
-        return await self._sandbox.start(agent_id)
+    async def start_sandbox(self, agent_id: UUID, workspace_token: str) -> str:
+        return await self._sandbox.start(agent_id, workspace_token)
 
     async def stop_sandbox(self, agent_id: UUID) -> None:
         await self._sandbox.stop(agent_id)

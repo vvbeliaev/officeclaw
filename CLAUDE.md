@@ -106,4 +106,4 @@ src/{domain}/
 - Don't import a domain's concrete adapter from another domain
 - Don't run `drizzle-kit push` or `drizzle-kit migrate` — migrations are Python's job
 - Don't add CRUD routes to Python for data that SvelteKit can read via Drizzle
-- Don't read another domain's tables with raw SQL from inside a service — cross-domain reads go through the owning domain's facade (e.g. `SandboxService` reads workspace tokens via `WorkspaceApp.find_by_id`, never `SELECT ... FROM workspaces`)
+- Don't read another domain's tables with raw SQL from inside a service — cross-domain reads either (a) go through the owning domain's facade when the call is part of the same transactional unit, or (b) are resolved by the inbound adapter (route / MCP tool) and passed in as an argument when the downstream service should not know about the other domain at all. Example of (b): `POST /agents/{id}/start` resolves `workspaces.officeclaw_token` via `WorkspaceApp.find_by_id` and passes it into `FleetApp.start_sandbox(agent_id, workspace_token)` — fleet never imports WorkspaceApp, no late-binding cycles.
