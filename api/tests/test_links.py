@@ -55,3 +55,62 @@ async def test_add_mcp(client, setup, integrations_deps):
     assert resp.status_code == 204
     mcps = await integrations_deps.list_agent_mcps(agent_id)
     assert any(str(m["id"]) == str(mcp_id) for m in mcps)
+
+
+async def test_attach_detach_cron(client, setup, integrations_deps):
+    agent_id = UUID(setup["agent_id"])
+    cron = await client.post(
+        "/crons",
+        json={
+            "workspace_id": setup["workspace_id"],
+            "name": "daily-digest",
+            "schedule_kind": "cron",
+            "schedule_expr": "0 9 * * *",
+            "schedule_tz": "UTC",
+            "message": "Summarise yesterday.",
+        },
+    )
+    assert cron.status_code == 201, cron.text
+    cron_id = UUID(cron.json()["id"])
+
+    assert (await client.post(f"/agents/{agent_id}/crons/{cron_id}")).status_code == 204
+    links = await integrations_deps.list_agent_crons(agent_id)
+    assert any(r["id"] == cron_id for r in links)
+    assert all(r["enabled"] for r in links if r["id"] == cron_id)
+
+    # Pause the attachment.
+    patch_resp = await client.patch(
+        f"/agents/{agent_id}/crons/{cron_id}", json={"enabled": False}
+    )
+    assert patch_resp.status_code == 200, patch_resp.text
+    assert patch_resp.json()["enabled"] is False
+
+    assert (await client.delete(f"/agents/{agent_id}/crons/{cron_id}")).status_code == 204
+    links = await integrations_deps.list_agent_crons(agent_id)
+    assert not any(r["id"] == cron_id for r in links)
+
+
+async def test_cron_schedule_validation(client, setup):
+    # 'every' without every_ms → 422
+    bad = await client.post(
+        "/crons",
+        json={
+            "workspace_id": setup["workspace_id"],
+            "name": "bad-1",
+            "schedule_kind": "every",
+        },
+    )
+    assert bad.status_code == 422
+
+    # tz on non-cron schedule → 422
+    bad_tz = await client.post(
+        "/crons",
+        json={
+            "workspace_id": setup["workspace_id"],
+            "name": "bad-2",
+            "schedule_kind": "every",
+            "schedule_every_ms": 60_000,
+            "schedule_tz": "UTC",
+        },
+    )
+    assert bad_tz.status_code == 422

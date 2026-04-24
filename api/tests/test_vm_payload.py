@@ -106,7 +106,69 @@ async def test_vm_payload_structure(client, full_agent, conn):
     assert config["agents"]["defaults"]["skill_evolution"] is False
     assert config["tools"]["web"]["search"]["provider"] == "${OFFICECLAW_WEB_SEARCH_PROVIDER}"
     assert config["tools"]["web"]["search"]["api_key"] == "${OFFICECLAW_WEB_SEARCH_API_KEY}"
+    # Heartbeat defaults pulled from agent row (enabled=False, interval=1800).
+    assert config["gateway"]["heartbeat"]["enabled"] is False
+    assert config["gateway"]["heartbeat"]["intervalS"] == 1800
+    # No crons attached → no jobs.json file.
+    assert not any(f["path"] == "cron/jobs.json" for f in payload["files"])
     assert payload["env"]["OFFICECLAW_TOKEN"] == "tok-test"
+
+
+async def test_vm_payload_renders_heartbeat_and_crons(client, conn):
+    """When agent has heartbeat toggled on and crons attached, config.gateway
+    reflects the column values and files contain cron/jobs.json."""
+    from src.fleet.app.vm_payload import build_vm_payload
+    import src.fleet.di as fleet_di
+    import src.integrations.di as integrations_di
+    import src.library.di as library_di
+
+    body = await register_user(client, conn, "hb-cron@example.com")
+    workspace_id = body["workspace_id"]
+
+    agent = await client.post(
+        "/agents", json={"workspace_id": workspace_id, "name": "PulseBot"}
+    )
+    agent_id = agent.json()["id"]
+
+    await client.patch(
+        f"/agents/{agent_id}",
+        json={"heartbeat_enabled": True, "heartbeat_interval_s": 900},
+    )
+
+    cron = await client.post(
+        "/crons",
+        json={
+            "workspace_id": workspace_id,
+            "name": "hourly-digest",
+            "schedule_kind": "every",
+            "schedule_every_ms": 3_600_000,
+            "message": "Summarise the hour.",
+        },
+    )
+    cron_id = cron.json()["id"]
+    await client.post(f"/agents/{agent_id}/crons/{cron_id}")
+
+    integrations = integrations_di.build(conn)  # type: ignore[arg-type]
+    library = library_di.build(conn)  # type: ignore[arg-type]
+    fleet, _ = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
+
+    payload = await build_vm_payload(
+        agent_id, fleet._agents, integrations, library, "tok-test", "UTC"  # type: ignore[arg-type]
+    )
+    config = json.loads(payload["config_json"])
+    assert config["gateway"]["heartbeat"]["enabled"] is True
+    assert config["gateway"]["heartbeat"]["intervalS"] == 900
+
+    jobs_file = next(f for f in payload["files"] if f["path"] == "cron/jobs.json")
+    jobs = json.loads(jobs_file["content"])
+    assert jobs["version"] == 1
+    assert len(jobs["jobs"]) == 1
+    job = jobs["jobs"][0]
+    assert job["name"] == "hourly-digest"
+    assert job["schedule"]["kind"] == "every"
+    assert job["schedule"]["everyMs"] == 3_600_000
+    assert job["payload"]["message"] == "Summarise the hour."
+    assert job["enabled"] is True
 
 
 async def test_runtime_file_assembled_with_marker_when_template_attached(client, conn):

@@ -20,6 +20,27 @@ async def test_create_agent(client, workspace_id):
     assert body["name"] == "My Agent"
     assert body["status"] == "idle"
     assert body["is_admin"] is False
+    # Defaults for the new nanobot knobs.
+    assert body["skill_evolution"] is False
+    assert body["heartbeat_enabled"] is False
+    assert body["heartbeat_interval_s"] == 1800
+
+
+async def test_update_heartbeat_fields(client, workspace_id):
+    create = await client.post("/agents", json={"workspace_id": workspace_id, "name": "Pulse"})
+    agent_id = create.json()["id"]
+
+    ok = await client.patch(
+        f"/agents/{agent_id}",
+        json={"heartbeat_enabled": True, "heartbeat_interval_s": 600},
+    )
+    assert ok.status_code == 200
+    assert ok.json()["heartbeat_enabled"] is True
+    assert ok.json()["heartbeat_interval_s"] == 600
+
+    # Interval bounds enforced by Pydantic.
+    bad = await client.patch(f"/agents/{agent_id}", json={"heartbeat_interval_s": 10})
+    assert bad.status_code == 422
 
 
 async def test_list_agents_for_user(client, workspace_id, fleet_deps):
