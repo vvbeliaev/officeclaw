@@ -75,6 +75,23 @@ RUN uv pip install --system --break-system-packages \
 COPY pkgs/py/nanobot /opt/nanobot
 RUN uv pip install --system --break-system-packages /opt/nanobot
 
+# ── humanize-browser (vendored from monorepo) ─────────────────────────────────
+# Firefox runtime libs (shared by camoufox's patched Firefox binary)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libasound2t64 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libdbus-glib-1-2 \
+    libdrm2 libgbm1 libgtk-3-0t64 libnspr4 libnss3 libpango-1.0-0 \
+    libx11-xcb1 libxcomposite1 libxdamage1 libxfixes3 libxkbcommon0 libxrandr2 \
+    libxt6t64 libvpx9 libevent-2.1-7t64 libgl1 \
+    libgstreamer-plugins-base1.0-0 libgstreamer1.0-0 \
+    fonts-liberation fonts-unifont \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pkgs/py/humanize-browser /opt/humanize-browser
+RUN uv pip install --system --break-system-packages /opt/humanize-browser \
+    # download camoufox's patched Firefox + GeoIP DB into the image
+    && python3 -m camoufox fetch
+
 # ── Named-volume paths (no-op if volume not mounted) ──────────────────────────
 ENV PATH="/opt/packages/bin:/opt/packages/node/bin:$PATH"
 ENV PYTHONPATH="/opt/packages/py"

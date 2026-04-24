@@ -17,6 +17,7 @@ from src.fleet.app.agents import AgentService
 from src.fleet.core.runtime_files import RUNTIME_FILES, RUNTIME_PATHS, assemble
 from src.integrations.app import IntegrationsApp
 from src.library.app import LibraryApp
+from src.library.app.frontmatter import Frontmatter, prepend as prepend_frontmatter
 from src.shared.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -68,13 +69,31 @@ async def build_vm_payload(
         files.append({"path": path, "content": content})
 
     # 2. Linked skill files → skills/<name>/
+    #    SKILL.md gets a frontmatter block synthesized from the skills row
+    #    (name/description/always/emoji/homepage/requires/...); other files
+    #    pass through unchanged.
     for skill_rec in await integrations.list_agent_skills(agent_id):
         skill_name = skill_rec["name"]
-        for sf in await skills.list_files(skill_rec["id"]):
+        fm = _frontmatter_from_skill(skill_rec)
+        skill_files = await skills.list_files(skill_rec["id"])
+        has_skill_md = False
+        for sf in skill_files:
+            rel_path = sf["path"]
+            if rel_path == "SKILL.md":
+                has_skill_md = True
+                content = prepend_frontmatter(fm, sf["content"])
+            else:
+                content = sf["content"]
+            files.append(
+                {"path": f"skills/{skill_name}/{rel_path}", "content": content}
+            )
+        if not has_skill_md:
+            # nanobot's SkillsLoader won't see the skill without a SKILL.md —
+            # emit a minimal one from DB fields so the skill is still discoverable.
             files.append(
                 {
-                    "path": f"skills/{skill_name}/{sf['path']}",
-                    "content": sf["content"],
+                    "path": f"skills/{skill_name}/SKILL.md",
+                    "content": prepend_frontmatter(fm, ""),
                 }
             )
 
@@ -115,6 +134,32 @@ async def build_vm_payload(
         "env": merged_env,
         "config_json": json.dumps(config, indent=2),
     }
+
+
+def _frontmatter_from_skill(skill_rec) -> Frontmatter:
+    """Build a Frontmatter from a skills row (Record or dict).
+
+    metadata_extra may arrive as a JSON string (asyncpg default for JSONB
+    without a type codec) or a dict (if the repo already decoded it).
+    """
+    raw_extra = skill_rec["metadata_extra"]
+    if isinstance(raw_extra, str):
+        try:
+            metadata_extra = json.loads(raw_extra) or {}
+        except (TypeError, ValueError):
+            metadata_extra = {}
+    else:
+        metadata_extra = raw_extra or {}
+    return Frontmatter(
+        name=skill_rec["name"],
+        description=skill_rec["description"] or None,
+        homepage=skill_rec["homepage"],
+        always=bool(skill_rec["always"]),
+        emoji=skill_rec["emoji"],
+        required_bins=tuple(skill_rec["required_bins"] or ()),
+        required_envs=tuple(skill_rec["required_envs"] or ()),
+        metadata_extra=metadata_extra,
+    )
 
 
 def _render_cron_jobs_json(rows: list[dict]) -> str:

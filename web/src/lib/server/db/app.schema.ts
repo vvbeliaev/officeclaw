@@ -73,6 +73,12 @@ export const skills = pgTable('skills', {
 		.references(() => workspaces.id, { onDelete: 'cascade' }),
 	name: text().notNull(),
 	description: text().default('').notNull(),
+	always: boolean().default(false).notNull(),
+	emoji: text(),
+	homepage: text(),
+	requiredBins: text('required_bins').array().default([]).notNull(),
+	requiredEnvs: text('required_envs').array().default([]).notNull(),
+	metadataExtra: jsonb('metadata_extra').default({}).notNull(),
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 

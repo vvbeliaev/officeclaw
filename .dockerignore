@@ -1,6 +1,7 @@
 *
 !sandbox
 !pkgs/py/nanobot
+!pkgs/py/humanize-browser
 
 pkgs/py/nanobot/.git
 pkgs/py/nanobot/.venv
@@ -12,3 +13,10 @@ pkgs/py/nanobot/case
 pkgs/py/nanobot/docs
 pkgs/py/nanobot/tests
 pkgs/py/nanobot/*.png
+
+pkgs/py/humanize-browser/.git
+pkgs/py/humanize-browser/.venv
+pkgs/py/humanize-browser/**/__pycache__
+pkgs/py/humanize-browser/**/*.pyc
+pkgs/py/humanize-browser/tests
+pkgs/py/humanize-browser/docs

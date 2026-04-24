@@ -5,12 +5,11 @@ from uuid import UUID
 import src.entrypoint.mcp as _pkg
 from fastmcp.server.context import Context
 
+# Body-only template. Structured fields (name / description / always /
+# emoji / homepage / requires) live in DB columns and get synthesized
+# into a `---` block at sandbox assembly — so we don't write a
+# frontmatter block here.
 _SKILL_MD_TEMPLATE = """\
----
-name: {name}
-description: {description}
----
-
 # {name}
 
 {description}
@@ -29,9 +28,22 @@ List the files in this skill and what each one does.
 """
 
 
+def _skill_summary(record: dict) -> dict:
+    return {
+        "id": str(record["id"]),
+        "name": record["name"],
+        "description": record["description"],
+        "always": record["always"],
+        "emoji": record["emoji"],
+        "homepage": record["homepage"],
+        "required_bins": list(record["required_bins"] or ()),
+        "required_envs": list(record["required_envs"] or ()),
+    }
+
+
 @_pkg.admin_mcp.tool()
 async def get_skill(context: Context, skill_id: str) -> dict:
-    """Inspect a skill — metadata and all files with their content."""
+    """Inspect a skill — metadata, files, and all structured fields."""
     await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._library is not None
@@ -40,32 +52,28 @@ async def get_skill(context: Context, skill_id: str) -> dict:
         raise ValueError(f"Skill {skill_id} not found")
     files = await _pkg._library.list_files(UUID(skill_id))
     return {
-        "id": str(record["id"]),
-        "name": record["name"],
-        "description": record["description"],
+        **_skill_summary(record),
         "files": [{"path": f["path"], "content": f["content"]} for f in files],
     }
 
 
 @_pkg.admin_mcp.tool()
 async def list_skills(context: Context) -> list[dict]:
-    """List all skills in the user's library."""
+    """List all skills in the workspace."""
     workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._library is not None
-    records = await _pkg._library.list_by_user(workspace_id)
-    return [
-        {"id": str(r["id"]), "name": r["name"], "description": r["description"]}
-        for r in records
-    ]
+    records = await _pkg._library.list_by_workspace(workspace_id)
+    return [_skill_summary(r) for r in records]
 
 
 @_pkg.admin_mcp.tool()
 async def create_skill(context: Context, name: str, description: str = "") -> dict:
-    """Create a new skill in the user's library.
+    """Create a new skill in the workspace.
 
-    A default SKILL.md is created automatically — edit it with add_skill_file
-    to document what the skill provides and how to use it.
+    A default SKILL.md body is seeded automatically — edit it with
+    `add_skill_file`, and use `set_skill_metadata` to toggle `always`,
+    set `emoji`, declare required bins / envs, etc.
     """
     workspace_id = await _pkg._require_workspace(context)
     _pkg._assert_ready()
@@ -86,15 +94,61 @@ async def add_skill_file(
 ) -> dict:
     """Add or update a file in a skill.
 
-    Use SKILL.md as the main documentation file for the skill.
-    Other files (scripts, configs, markdown guides) can be added at any path —
-    they will be available to the agent at skills/{skill_name}/{path}.
+    When `path` is `SKILL.md`, any `---`-delimited frontmatter block at
+    the top is parsed and absorbed into the skill's structured fields;
+    the stored body is frontmatter-free. For other paths the content
+    is stored verbatim and exposed to the agent at
+    `skills/{skill_name}/{path}` inside the sandbox.
     """
     await _pkg._require_workspace(context)
     _pkg._assert_ready()
     assert _pkg._library is not None
     record = await _pkg._library.upsert_file(UUID(skill_id), path, content)
     return {"skill_id": skill_id, "path": record["path"]}
+
+
+@_pkg.admin_mcp.tool()
+async def set_skill_metadata(
+    context: Context,
+    skill_id: str,
+    name: str | None = None,
+    description: str | None = None,
+    always: bool | None = None,
+    emoji: str | None = None,
+    homepage: str | None = None,
+    required_bins: list[str] | None = None,
+    required_envs: list[str] | None = None,
+) -> dict:
+    """Update structured metadata on a skill.
+
+    Only fields you pass are changed; omit a field to leave it alone.
+    Toggle `always=true` to force nanobot to keep the skill pinned in
+    the system prompt instead of surfacing it via progressive disclosure.
+    """
+    await _pkg._require_workspace(context)
+    _pkg._assert_ready()
+    assert _pkg._library is not None
+    fields: dict = {}
+    if name is not None:
+        fields["name"] = name
+    if description is not None:
+        fields["description"] = description
+    if always is not None:
+        fields["always"] = always
+    if emoji is not None:
+        fields["emoji"] = emoji
+    if homepage is not None:
+        fields["homepage"] = homepage
+    if required_bins is not None:
+        fields["required_bins"] = required_bins
+    if required_envs is not None:
+        fields["required_envs"] = required_envs
+    if not fields:
+        raise ValueError("At least one field must be provided")
+    record = await _pkg._library.update(UUID(skill_id), **fields)
+    if not record:
+        raise ValueError(f"Skill {skill_id} not found")
+    return _skill_summary(record)
 
 
 @_pkg.admin_mcp.tool()
