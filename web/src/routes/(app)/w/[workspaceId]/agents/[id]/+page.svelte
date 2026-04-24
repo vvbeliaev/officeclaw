@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
-	import { invalidateAll } from '$app/navigation';
+	import { invalidate, invalidateAll } from '$app/navigation';
 	import { Chat, type UIMessage } from '@ai-sdk/svelte';
 	import { DefaultChatTransport } from 'ai';
 	import AgentAvatar from '$lib/components/agent-avatar.svelte';
@@ -57,12 +57,14 @@
 		});
 	});
 
-	// After admin responds, re-fetch layout data so the sidebar reflects any new agents.
+	// After admin responds, re-fetch only the agents list so the sidebar reflects any new agents.
+	// Using granular invalidation (not invalidateAll) preserves the derived `chat` instance —
+	// otherwise `data` changes recreate the Chat and wipe just-streamed messages.
 	let prevStatus = $state<string>('ready');
 	$effect(() => {
 		const cur = chat.status;
 		if (data.agent.isAdmin && prevStatus === 'streaming' && cur === 'ready') {
-			invalidateAll();
+			invalidate('app:agents-list');
 		}
 		prevStatus = cur;
 	});

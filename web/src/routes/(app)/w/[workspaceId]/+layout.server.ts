@@ -14,7 +14,8 @@ import type { LayoutServerLoad } from './$types';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const load: LayoutServerLoad = async ({ locals, params }) => {
+export const load: LayoutServerLoad = async ({ locals, params, depends }) => {
+	depends('app:agents-list');
 	const workspaceId = params.workspaceId;
 
 	// Accept both UUID (legacy) and slug in the URL param

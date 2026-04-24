@@ -15,11 +15,11 @@ dev-web:
 down:
 	docker compose -f compose.local.yml down
 
-dev:
-	make infra
-	make migrate
-	make dev-api
-	make dev-web
+dev: infra migrate
+	@trap 'kill 0' INT TERM EXIT; \
+	$(MAKE) dev-api & \
+	$(MAKE) dev-web & \
+	wait
 
 vm-build:
 	docker build -t $(AGENT_IMAGE) -f ./sandbox/Dockerfile .
