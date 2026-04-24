@@ -26,7 +26,14 @@
 
 	const allEnvs = $derived(data.envs as EnvRecord[]);
 	const llmEnvs = $derived(allEnvs.filter((e) => e.category === 'llm-provider'));
-	const genericEnvs = $derived(allEnvs.filter((e) => e.category !== 'llm-provider'));
+	const webSearchEnvs = $derived(allEnvs.filter((e) => e.category === 'web-search'));
+	const genericEnvs = $derived(
+		allEnvs.filter((e) => e.category !== 'llm-provider' && e.category !== 'web-search')
+	);
+
+	// Providers nanobot knows about. duckduckgo is the default and takes no key.
+	const WEB_SEARCH_PROVIDERS = ['duckduckgo', 'brave', 'tavily', 'searxng', 'jina'] as const;
+	type WebSearchProvider = (typeof WEB_SEARCH_PROVIDERS)[number];
 
 	function isLocked(env: EnvRecord): boolean {
 		return env.category === 'system';
@@ -135,6 +142,109 @@
 		}
 	}
 
+	// ── Web-search form state ─────────────────────────────────
+	type WsFields = { provider: WebSearchProvider; apiKey: string };
+	let wsNewOpen = $state(false);
+	let wsNewFields: WsFields = $state({ provider: 'duckduckgo', apiKey: '' });
+	let wsNewName = $state('');
+	let wsNewSaving = $state(false);
+	let wsNewError: string | null = $state(null);
+
+	function openWsNew() {
+		wsNewOpen = true;
+		wsNewFields = { provider: 'duckduckgo', apiKey: '' };
+		wsNewName = '';
+		wsNewError = null;
+	}
+	function closeWsNew() { wsNewOpen = false; }
+
+	async function saveWsNew() {
+		if (!wsNewName.trim()) { wsNewError = 'Name is required'; return; }
+		wsNewSaving = true;
+		wsNewError = null;
+		try {
+			const res = await fetch('/api/envs', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name: wsNewName.trim(),
+					category: 'web-search',
+					workspace_id: data.workspace.id,
+					values: {
+						OFFICECLAW_WEB_SEARCH_PROVIDER: wsNewFields.provider,
+						OFFICECLAW_WEB_SEARCH_API_KEY: wsNewFields.apiKey
+					}
+				})
+			});
+			if (!res.ok) { wsNewError = await res.text(); return; }
+			wsNewOpen = false;
+			await invalidateAll();
+		} catch (e) {
+			wsNewError = e instanceof Error ? e.message : 'Failed to create';
+		} finally {
+			wsNewSaving = false;
+		}
+	}
+
+	// ── Web-search edit ───────────────────────────────────────
+	let wsEditId: string | null = $state(null);
+	let wsEditName = $state('');
+	let wsEditFields: WsFields = $state({ provider: 'duckduckgo', apiKey: '' });
+	let wsEditLoading = $state(false);
+	let wsEditSaving = $state(false);
+	let wsEditError: string | null = $state(null);
+
+	async function openWsEdit(env: EnvRecord) {
+		wsEditId = env.id;
+		wsEditName = env.name;
+		wsEditFields = { provider: 'duckduckgo', apiKey: '' };
+		wsEditLoading = true;
+		wsEditError = null;
+		try {
+			const res = await fetch(`/api/envs/${env.id}/values`);
+			if (!res.ok) throw new Error(await res.text());
+			const { values } = (await res.json()) as { values: Record<string, string> };
+			const provider = (values['OFFICECLAW_WEB_SEARCH_PROVIDER'] ?? 'duckduckgo') as WebSearchProvider;
+			wsEditFields = {
+				provider: (WEB_SEARCH_PROVIDERS as readonly string[]).includes(provider)
+					? provider
+					: 'duckduckgo',
+				apiKey: ''
+			};
+		} catch (e) {
+			wsEditError = e instanceof Error ? e.message : 'Failed to load';
+		} finally {
+			wsEditLoading = false;
+		}
+	}
+	function closeWsEdit() { wsEditId = null; wsEditError = null; }
+
+	async function saveWsEdit() {
+		if (!wsEditId) return;
+		wsEditSaving = true;
+		wsEditError = null;
+		try {
+			const res = await fetch(`/api/envs/${wsEditId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name: wsEditName,
+					values: {
+						OFFICECLAW_WEB_SEARCH_PROVIDER: wsEditFields.provider,
+						OFFICECLAW_WEB_SEARCH_API_KEY: wsEditFields.apiKey
+					}
+				})
+			});
+			if (!res.ok) { wsEditError = await res.text(); return; }
+			wsEditId = null;
+			await invalidateAll();
+		} catch (e) {
+			wsEditError = e instanceof Error ? e.message : 'Failed to save';
+		} finally {
+			wsEditSaving = false;
+		}
+	}
+
 	// ── Generic env new ───────────────────────────────────────
 	let newOpen = $state(false);
 	let newPairs: KvPair[] = $state([kv()]);
@@ -225,6 +335,7 @@
 	function openDelete(env: EnvRecord) {
 		editId = null;
 		llmEditId = null;
+		wsEditId = null;
 		deleteId = env.id;
 		deleteName = env.name;
 		deleteError = null;
@@ -419,6 +530,180 @@
 							{#if deleteId === env.id}
 								<div class="env-panel env-panel--danger">
 									<p class="delete-msg font-mono">Delete <strong>{deleteName}</strong>? Agents using this provider will lose LLM access.</p>
+									{#if deleteError}<p class="form-error font-mono">{deleteError}</p>{/if}
+									<div class="form-actions">
+										<button class="btn-danger font-mono" type="button" onclick={confirmDelete} disabled={deleting}>
+											{#if deleting}<span class="spinner spinner--danger"></span>deleting…{:else}Yes, delete{/if}
+										</button>
+										<button class="btn-ghost font-mono" type="button" onclick={() => { deleteId = null; deleteError = null; }}>Cancel</button>
+									</div>
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</section>
+
+		<div class="section-divider"></div>
+
+		<!-- ════════════════════════════════════════════════════
+		     WEB SEARCH SECTION
+		     ════════════════════════════════════════════════════ -->
+		<section class="section">
+			<div class="section-head">
+				<div class="section-title-row">
+					<div class="section-icon">
+						<Icon icon="tabler:world-search" width={14} height={14} />
+					</div>
+					<div>
+						<h2 class="section-title font-mono">Web Search</h2>
+						<p class="section-sub">Provider nanobot uses for <code class="inline-code font-mono">tools.web.search</code> — DuckDuckGo works without a key.</p>
+					</div>
+				</div>
+				{#if !wsNewOpen}
+					<button class="btn-add font-mono" type="button" onclick={openWsNew}>
+						<Icon icon="oc:spawn" width={11} height={11} />
+						Add provider
+					</button>
+				{/if}
+			</div>
+
+			<!-- New web-search form -->
+			{#if wsNewOpen}
+				<div class="llm-form-card">
+					<div class="llm-form-name-row">
+						<label class="llm-label font-mono" for="ws-new-name">NAME</label>
+						<input
+							id="ws-new-name"
+							class="llm-name-input font-mono"
+							bind:value={wsNewName}
+							placeholder="my-search"
+							spellcheck="false"
+						/>
+					</div>
+					<div class="llm-fields">
+						<div class="llm-field">
+							<label class="llm-label font-mono" for="ws-new-provider">PROVIDER</label>
+							<select
+								id="ws-new-provider"
+								class="llm-input font-mono"
+								bind:value={wsNewFields.provider}
+							>
+								{#each WEB_SEARCH_PROVIDERS as p (p)}
+									<option value={p}>{p}</option>
+								{/each}
+							</select>
+						</div>
+						<div class="llm-field">
+							<label class="llm-label font-mono" for="ws-new-api-key">API KEY {#if wsNewFields.provider === 'duckduckgo'}<span class="kv-hint">(not required)</span>{/if}</label>
+							<input
+								id="ws-new-api-key"
+								class="llm-input font-mono"
+								type="password"
+								bind:value={wsNewFields.apiKey}
+								placeholder={wsNewFields.provider === 'duckduckgo' ? '—' : '••••••••'}
+								spellcheck="false"
+								autocomplete="new-password"
+								disabled={wsNewFields.provider === 'duckduckgo'}
+							/>
+						</div>
+					</div>
+					{#if wsNewError}<p class="form-error font-mono">{wsNewError}</p>{/if}
+					<div class="form-actions">
+						<button class="btn-primary font-mono" type="button" onclick={saveWsNew} disabled={wsNewSaving}>
+							{#if wsNewSaving}<span class="spinner"></span>saving…{:else}Save provider{/if}
+						</button>
+						<button class="btn-ghost font-mono" type="button" onclick={closeWsNew}>Cancel</button>
+					</div>
+				</div>
+			{/if}
+
+			<!-- Web-search provider list -->
+			{#if webSearchEnvs.length === 0 && !wsNewOpen}
+				<div class="llm-empty font-mono">
+					No web-search providers yet — add one to let agents run live web queries.
+				</div>
+			{:else}
+				<div class="llm-list">
+					{#each webSearchEnvs as env (env.id)}
+						<div class="llm-item" class:expanded={wsEditId === env.id || deleteId === env.id}>
+							<div class="llm-row">
+								<div class="llm-row-left">
+									<span class="llm-dot"></span>
+									<span class="llm-name font-mono">{env.name}</span>
+								</div>
+								<div class="llm-row-right">
+									<span class="llm-date font-mono">{relDate(env.createdAt)}</span>
+									<div class="env-actions">
+										<button class="env-btn font-mono" type="button" onclick={() => {
+											if (wsEditId === env.id) { closeWsEdit(); }
+											else { deleteId = null; openWsEdit(env); }
+										}}>
+											{wsEditId === env.id ? 'close' : 'edit'}
+										</button>
+										<button class="env-btn env-btn--danger font-mono" type="button" onclick={() => {
+											closeWsEdit();
+											if (deleteId === env.id) { deleteId = null; }
+											else { openDelete(env); }
+										}}>delete</button>
+									</div>
+								</div>
+							</div>
+
+							{#if wsEditId === env.id}
+								<div class="env-panel">
+									{#if wsEditLoading}
+										<div class="panel-loading font-mono"><span class="spinner spinner--sm"></span> loading…</div>
+									{:else}
+										<div class="llm-fields">
+											<div class="llm-field">
+												<label class="llm-label font-mono" for={`ws-edit-provider-${env.id}`}>PROVIDER</label>
+												<select
+													id={`ws-edit-provider-${env.id}`}
+													class="llm-input font-mono"
+													bind:value={wsEditFields.provider}
+												>
+													{#each WEB_SEARCH_PROVIDERS as p (p)}
+														<option value={p}>{p}</option>
+													{/each}
+												</select>
+											</div>
+											<div class="llm-field">
+												<label class="llm-label font-mono" for={`ws-edit-api-key-${env.id}`}>
+													API KEY
+													{#if wsEditFields.provider === 'duckduckgo'}
+														<span class="kv-hint">(not required)</span>
+													{:else}
+														<span class="kv-hint">(blank = keep)</span>
+													{/if}
+												</label>
+												<input
+													id={`ws-edit-api-key-${env.id}`}
+													class="llm-input font-mono"
+													type="password"
+													bind:value={wsEditFields.apiKey}
+													placeholder={wsEditFields.provider === 'duckduckgo' ? '—' : '••••••••'}
+													spellcheck="false"
+													autocomplete="new-password"
+													disabled={wsEditFields.provider === 'duckduckgo'}
+												/>
+											</div>
+										</div>
+										{#if wsEditError}<p class="form-error font-mono">{wsEditError}</p>{/if}
+										<div class="form-actions">
+											<button class="btn-primary font-mono" type="button" onclick={saveWsEdit} disabled={wsEditSaving}>
+												{#if wsEditSaving}<span class="spinner"></span>saving…{:else}Save changes{/if}
+											</button>
+											<button class="btn-ghost font-mono" type="button" onclick={closeWsEdit}>Cancel</button>
+										</div>
+									{/if}
+								</div>
+							{/if}
+
+							{#if deleteId === env.id}
+								<div class="env-panel env-panel--danger">
+									<p class="delete-msg font-mono">Delete <strong>{deleteName}</strong>? Agents using this preset will fall back to server defaults.</p>
 									{#if deleteError}<p class="form-error font-mono">{deleteError}</p>{/if}
 									<div class="form-actions">
 										<button class="btn-danger font-mono" type="button" onclick={confirmDelete} disabled={deleting}>
@@ -635,6 +920,13 @@
 		margin-bottom: 0.2rem;
 	}
 	.section-sub { font-size: 0.78rem; color: var(--muted-foreground); line-height: 1.5; max-width: 34rem; }
+	.inline-code {
+		font-size: 0.72rem;
+		background: color-mix(in oklch, var(--muted) 55%, transparent);
+		padding: 0.08em 0.32em;
+		border-radius: 0.2rem;
+		color: color-mix(in oklch, var(--primary) 70%, var(--foreground));
+	}
 
 	/* ── LLM provider cards ──────────────────────────────────── */
 	.llm-list { display: flex; flex-direction: column; gap: 0.5rem; }

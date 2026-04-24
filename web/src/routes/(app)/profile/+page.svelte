@@ -17,6 +17,23 @@
 	let nameDirty = $derived(nameEdit.trim() !== (data.user?.name ?? '').trim());
 	let nameError = $state<string | null>(null);
 
+	// Timezone editing — IANA list pulled from the browser's Intl DB so it
+	// stays aligned with whatever the runtime recognises as valid. Falls back
+	// to a sensible short list on older engines without supportedValuesOf.
+	const FALLBACK_TZ = [
+		'UTC', 'Europe/London', 'Europe/Berlin', 'Europe/Moscow',
+		'America/New_York', 'America/Chicago', 'America/Los_Angeles',
+		'Asia/Tokyo', 'Asia/Shanghai', 'Asia/Dubai', 'Australia/Sydney'
+	];
+	const timezones: string[] =
+		typeof Intl.supportedValuesOf === 'function'
+			? Intl.supportedValuesOf('timeZone')
+			: FALLBACK_TZ;
+
+	let tzEdit = $state(data.timezone);
+	let tzSaving = $state(false);
+	let tzDirty = $derived(tzEdit !== data.timezone);
+
 	async function saveName() {
 		if (!nameDirty || nameSaving) return;
 		nameSaving = true;
@@ -104,6 +121,50 @@
 						<span class="field-label font-mono">Email</span>
 						<div class="field-static">{data.user?.email ?? '—'}</div>
 					</div>
+				</div>
+
+				<div class="field">
+					<label class="field-label font-mono" for="timezone-select">Timezone</label>
+					<p class="field-hint">
+						IANA name — agents use it to interpret schedules and timestamps in their runs.
+					</p>
+					<form
+						method="POST"
+						action="?/saveTimezone"
+						use:enhance={() => {
+							tzSaving = true;
+							return async ({ update }) => {
+								await update({ reset: false });
+								await invalidateAll();
+								tzSaving = false;
+							};
+						}}
+						class="field-editable"
+					>
+						<select
+							id="timezone-select"
+							name="timezone"
+							class="field-input"
+							bind:value={tzEdit}
+							disabled={tzSaving}
+						>
+							{#each timezones as tz (tz)}
+								<option value={tz}>{tz}</option>
+							{/each}
+						</select>
+						{#if tzDirty}
+							<button
+								class="btn-field-save font-mono"
+								type="submit"
+								disabled={tzSaving}
+							>
+								{tzSaving ? '…' : 'save'}
+							</button>
+						{/if}
+					</form>
+					{#if form?.tzError}
+						<p class="field-error font-mono">{form.tzError}</p>
+					{/if}
 				</div>
 			</div>
 		</section>

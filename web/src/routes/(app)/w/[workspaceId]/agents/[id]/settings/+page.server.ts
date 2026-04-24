@@ -317,5 +317,18 @@ export const actions: Actions = {
 		if (!templateId) return fail(400, { error: 'template_id required' });
 		await fetch(`${API_URL}/agents/${params.id}/templates/${templateId}`, { method: 'DELETE' });
 		return {};
+	},
+
+	toggleSkillEvolution: async ({ params, request, locals }) => {
+		if (!locals.session) error(401, 'Unauthorized');
+		const form = await request.formData();
+		const enabled = form.get('enabled')?.toString() === 'true';
+		const res = await fetch(`${API_URL}/agents/${params.id}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ skill_evolution: enabled })
+		});
+		if (!res.ok) return fail(res.status, { error: await res.text() });
+		return {};
 	}
 };

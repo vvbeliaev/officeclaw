@@ -197,6 +197,39 @@
 				</div>
 			</div>
 
+			<!-- Behaviour — nanobot-level knobs on the agent itself -->
+			<div class="id-block">
+				<p class="id-block-label font-mono">behaviour</p>
+				<form
+					method="POST"
+					action="?/toggleSkillEvolution"
+					use:enhance={connEnhance('skill-evolution')}
+					class="toggle-row"
+				>
+					<input
+						type="hidden"
+						name="enabled"
+						value={data.agent.skillEvolution ? 'false' : 'true'}
+					/>
+					<div class="toggle-copy">
+						<span class="toggle-title font-mono">skill evolution</span>
+						<span class="toggle-sub">
+							Auto-crystallise reusable skills from qualifying runs.
+						</span>
+					</div>
+					<button
+						class="toggle-switch"
+						class:toggle-switch--on={data.agent.skillEvolution}
+						type="submit"
+						aria-pressed={data.agent.skillEvolution}
+						aria-label="Toggle skill evolution"
+						disabled={!!pending['skill-evolution']}
+					>
+						<span class="toggle-knob"></span>
+					</button>
+				</form>
+			</div>
+
 			<!-- Danger zone -->
 			{#if !data.agent.isAdmin}
 				<div class="id-block id-block--danger">
@@ -777,6 +810,73 @@
 		text-overflow: ellipsis;
 		min-width: 0;
 	}
+
+	/* ── Toggle row (behaviour block) ─────────────────────────── */
+	.toggle-row {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		background: var(--card);
+		border: 1px solid var(--border);
+		border-radius: 0.3rem;
+		padding: 0.6rem 0.7rem;
+	}
+
+	.toggle-copy {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+		min-width: 0;
+	}
+
+	.toggle-title {
+		font-size: 0.65rem;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		color: var(--foreground);
+		opacity: 0.85;
+	}
+
+	.toggle-sub {
+		font-size: 0.66rem;
+		line-height: 1.4;
+		color: var(--muted-foreground);
+		opacity: 0.7;
+	}
+
+	.toggle-switch {
+		position: relative;
+		width: 30px;
+		height: 17px;
+		border-radius: 9999px;
+		background: color-mix(in oklch, var(--muted-foreground) 20%, transparent);
+		border: 1px solid var(--border);
+		flex-shrink: 0;
+		cursor: pointer;
+		transition: background 150ms ease, border-color 150ms ease;
+	}
+
+	.toggle-switch--on {
+		background: color-mix(in oklch, var(--primary) 55%, transparent);
+		border-color: color-mix(in oklch, var(--primary) 60%, var(--border));
+	}
+
+	.toggle-switch:disabled { opacity: 0.6; cursor: not-allowed; }
+
+	.toggle-knob {
+		position: absolute;
+		top: 1px;
+		left: 1px;
+		width: 13px;
+		height: 13px;
+		border-radius: 9999px;
+		background: var(--background);
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+		transition: transform 150ms ease;
+	}
+
+	.toggle-switch--on .toggle-knob { transform: translateX(13px); }
 
 	/* Danger */
 	.id-block--danger {

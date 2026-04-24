@@ -21,15 +21,6 @@ async def create_workspace(
     return WorkspaceOut(**dict(record))
 
 
-@router.get("", response_model=list[WorkspaceOut])
-async def list_workspaces(
-    user_id: UUID,
-    workspace: WorkspaceApp = Depends(get_workspace),
-) -> list[WorkspaceOut]:
-    records = await workspace.list_workspaces(user_id)
-    return [WorkspaceOut(**dict(r)) for r in records]
-
-
 @router.patch("/{workspace_id}", response_model=WorkspaceOut)
 async def update_workspace(
     workspace_id: UUID,
