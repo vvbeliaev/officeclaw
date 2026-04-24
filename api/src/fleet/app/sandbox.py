@@ -8,6 +8,7 @@ from uuid import UUID
 import httpx
 
 from src.fleet.app.agents import AgentService
+from src.fleet.core.runtime_files import RUNTIME_PATHS, extract_override
 from src.fleet.app.vm_payload import build_vm_payload
 from src.integrations.app import IntegrationsApp
 from src.library.app import LibraryApp
@@ -35,13 +36,6 @@ _SYNC_EXCLUDE_TOP = {
     ".git",
     ".gitignore",
     ".traces",
-    # Runtime files are assembled fresh on every start (templates + user override).
-    # Never sync them back — the workspace copy is merged/ephemeral.
-    "SOUL.md",
-    "AGENTS.md",
-    "HEARTBEAT.md",
-    "TOOLS.md",
-    "USER.md",
 }
 _DEFAULT_CPUS = "1"
 _DEFAULT_MEMORY = "512"  # MiB
@@ -178,7 +172,14 @@ async def _is_sandbox_alive(name: str) -> bool:
 
 
 def _read_workspace_files(workdir: Path) -> list[dict]:
-    """Recursively read all workspace files, excluding generated/managed dirs."""
+    """Recursively read all workspace files, excluding generated/managed dirs.
+
+    Runtime files (SOUL.md / USER.md / AGENTS.md / HEARTBEAT.md / TOOLS.md) are
+    split on the template-boundary marker so only the per-agent override is
+    persisted back to agent_files. If the marker is absent (no template
+    attached at start, or the agent wiped the marker), the full body is
+    treated as override.
+    """
     result = []
     for path in sorted(workdir.rglob("*")):
         if not path.is_file():
@@ -190,7 +191,12 @@ def _read_workspace_files(workdir: Path) -> list[dict]:
             content = path.read_text(encoding="utf-8")
         except (UnicodeDecodeError, PermissionError):
             continue
-        result.append({"path": str(rel), "content": content})
+        rel_str = str(rel)
+        if rel_str in RUNTIME_PATHS:
+            content = extract_override(content)
+            if not content:
+                continue
+        result.append({"path": rel_str, "content": content})
     return result
 
 

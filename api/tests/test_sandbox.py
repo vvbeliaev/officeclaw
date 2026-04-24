@@ -136,6 +136,44 @@ async def test_stop_sandbox_updates_db(conn, sandbox_svc, plain_agent):
     assert rec["sandbox_id"] is None
 
 
+def test_read_workspace_files_splits_runtime_on_marker(tmp_path):
+    """Runtime files are split on the boundary marker so only the per-agent
+    override is persisted. Non-runtime files pass through unchanged.
+    """
+    from src.fleet.app.sandbox import _read_workspace_files
+    from src.fleet.core.runtime_files import BOUNDARY_MARKER
+
+    # SOUL.md was assembled with template + override
+    (tmp_path / "SOUL.md").write_text(
+        f"TEMPLATE BODY\n{BOUNDARY_MARKER}\nagent override", encoding="utf-8"
+    )
+    # USER.md had no template attached (no marker) — full body is override
+    (tmp_path / "USER.md").write_text("pure override", encoding="utf-8")
+    # A non-runtime file — always copied verbatim
+    (tmp_path / "notes.md").write_text("free-form notes", encoding="utf-8")
+
+    out = {rec["path"]: rec["content"] for rec in _read_workspace_files(tmp_path)}
+
+    assert out["SOUL.md"] == "agent override"
+    assert out["USER.md"] == "pure override"
+    assert out["notes.md"] == "free-form notes"
+
+
+def test_read_workspace_files_skips_runtime_when_only_template(tmp_path):
+    """A runtime file that contains only the template (no override after the
+    marker) must not create a DB row — otherwise the user would accumulate
+    an empty override record on first stop."""
+    from src.fleet.app.sandbox import _read_workspace_files
+    from src.fleet.core.runtime_files import BOUNDARY_MARKER
+
+    (tmp_path / "SOUL.md").write_text(
+        f"TEMPLATE ONLY\n{BOUNDARY_MARKER}\n", encoding="utf-8"
+    )
+
+    out = {rec["path"]: rec["content"] for rec in _read_workspace_files(tmp_path)}
+    assert "SOUL.md" not in out
+
+
 async def test_stop_sandbox_syncs_mutable_files(conn, sandbox_svc, plain_agent):
     from pathlib import Path
     from src.fleet.adapters.out.repository import AgentFileRepo

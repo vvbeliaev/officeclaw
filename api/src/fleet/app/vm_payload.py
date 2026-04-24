@@ -14,6 +14,7 @@ import logging
 from uuid import UUID
 
 from src.fleet.app.agents import AgentService
+from src.fleet.core.runtime_files import RUNTIME_FILES, RUNTIME_PATHS, assemble
 from src.integrations.app import IntegrationsApp
 from src.library.app import LibraryApp
 from src.shared.config import get_settings
@@ -24,17 +25,6 @@ logger = logging.getLogger(__name__)
 # is absent. nanobot resolves ${OFFICECLAW_LLM_MODEL} from the sandbox
 # env vars; see _build_config_json below.
 _FALLBACK_MODEL = "${OFFICECLAW_LLM_MODEL}"
-
-# Maps template_type to the nanobot runtime filename it controls.
-# When a user_template of a given type is attached to an agent, its content
-# is prepended to the corresponding agent file (separated by "---").
-_RUNTIME_FILES: dict[str, str] = {
-    "user":      "USER.md",
-    "soul":      "SOUL.md",
-    "agents":    "AGENTS.md",
-    "heartbeat": "HEARTBEAT.md",
-    "tools":     "TOOLS.md",
-}
 
 
 async def build_vm_payload(
@@ -53,31 +43,25 @@ async def build_vm_payload(
     # 1. Agent workspace files — split runtime files from regular files
     files: list[dict] = []
     agent_runtime: dict[str, str] = {}  # path → content for the 5 runtime file types
-    runtime_paths = set(_RUNTIME_FILES.values())
 
     for rec in await agents.list_files(agent_id):
-        if rec["path"] in runtime_paths:
+        if rec["path"] in RUNTIME_PATHS:
             agent_runtime[rec["path"]] = rec["content"]
         else:
             files.append({"path": rec["path"], "content": rec["content"]})
 
-    # 1b. Attached user_templates → prepend to the matching runtime file.
-    #     template content + "\n---\n" + agent override (either part may be absent).
+    # 1b. Attached user_templates → join with the matching runtime file using
+    #     a unique boundary marker (see core/runtime_files.py). Either side may be
+    #     absent. At sandbox stop the sync layer splits on the same marker so
+    #     the template never gets persisted back into agent_files.
     attached_templates = await integrations.list_agent_templates(agent_id)
     template_by_type: dict[str, str] = {
         t["template_type"]: t["content"] for t in attached_templates
     }
 
-    for ttype, path in _RUNTIME_FILES.items():
-        tpl = template_by_type.get(ttype)
-        override = agent_runtime.get(path)
-        if tpl and override:
-            content = tpl + "\n---\n" + override
-        elif tpl:
-            content = tpl
-        elif override:
-            content = override
-        else:
+    for ttype, path in RUNTIME_FILES.items():
+        content = assemble(template_by_type.get(ttype), agent_runtime.get(path))
+        if content is None:
             continue
         files.append({"path": path, "content": content})
 

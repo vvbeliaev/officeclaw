@@ -301,7 +301,7 @@
 <style>
 	.shell {
 		display: flex;
-		min-height: 100vh;
+		height: 100vh;
 	}
 
 	.sidebar {

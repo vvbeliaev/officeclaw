@@ -107,3 +107,48 @@ async def test_vm_payload_structure(client, full_agent, conn):
     assert config["tools"]["web"]["search"]["provider"] == "${OFFICECLAW_WEB_SEARCH_PROVIDER}"
     assert config["tools"]["web"]["search"]["api_key"] == "${OFFICECLAW_WEB_SEARCH_API_KEY}"
     assert payload["env"]["OFFICECLAW_TOKEN"] == "tok-test"
+
+
+async def test_runtime_file_assembled_with_marker_when_template_attached(client, conn):
+    """When a template + per-agent override both exist, the assembled body
+    must contain the boundary marker — sandbox sync relies on it to strip the
+    template before persisting the override back to agent_files.
+    """
+    from src.fleet.app.vm_payload import build_vm_payload
+    from src.fleet.core.runtime_files import BOUNDARY_MARKER
+    import src.fleet.di as fleet_di
+    import src.integrations.di as integrations_di
+    import src.library.di as library_di
+
+    body = await register_user(client, conn, "marker-test@example.com")
+    workspace_id = body["workspace_id"]
+
+    agent = await client.post(
+        "/agents", json={"workspace_id": workspace_id, "name": "MarkerAgent"}
+    )
+    agent_id = agent.json()["id"]
+
+    await client.put(
+        f"/agents/{agent_id}/files",
+        json={"path": "SOUL.md", "content": "AGENT OVERRIDE"},
+    )
+    tpl = await client.post(
+        "/templates",
+        json={
+            "workspace_id": workspace_id,
+            "name": "shared-soul",
+            "template_type": "soul",
+            "content": "SHARED TEMPLATE",
+        },
+    )
+    await client.post(f"/agents/{agent_id}/templates/{tpl.json()['id']}")
+
+    integrations = integrations_di.build(conn)  # type: ignore[arg-type]
+    library = library_di.build(conn)  # type: ignore[arg-type]
+    fleet, _ = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
+
+    payload = await build_vm_payload(
+        agent_id, fleet._agents, integrations, library, "tok-test", "UTC"  # type: ignore[arg-type]
+    )
+    soul = next(f for f in payload["files"] if f["path"] == "SOUL.md")
+    assert soul["content"] == f"SHARED TEMPLATE\n{BOUNDARY_MARKER}\nAGENT OVERRIDE"
