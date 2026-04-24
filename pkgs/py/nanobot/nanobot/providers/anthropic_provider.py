@@ -167,9 +167,7 @@ class AnthropicProvider(LLMProvider):
             "type": "tool_result",
             "tool_use_id": msg.get("tool_call_id", ""),
         }
-        if isinstance(content, list):
-            block["content"] = AnthropicProvider._convert_user_content(content)
-        elif isinstance(content, str):
+        if isinstance(content, (str, list)):
             block["content"] = content
         else:
             block["content"] = str(content) if content else ""
@@ -210,8 +208,7 @@ class AnthropicProvider(LLMProvider):
 
         return blocks or [{"type": "text", "text": ""}]
 
-    @staticmethod
-    def _convert_user_content(content: Any) -> Any:
+    def _convert_user_content(self, content: Any) -> Any:
         """Convert user message content, translating image_url blocks."""
         if isinstance(content, str) or content is None:
             return content or "(empty)"
@@ -224,7 +221,7 @@ class AnthropicProvider(LLMProvider):
                 result.append({"type": "text", "text": str(item)})
                 continue
             if item.get("type") == "image_url":
-                converted = AnthropicProvider._convert_image_block(item)
+                converted = self._convert_image_block(item)
                 if converted:
                     result.append(converted)
                 continue
@@ -249,40 +246,8 @@ class AnthropicProvider(LLMProvider):
         }
 
     @staticmethod
-    def _has_tool_use(msg: dict[str, Any]) -> bool:
-        """True if ``msg.content`` carries any ``tool_use`` block.
-
-        Anthropic forbids ``tool_use`` inside ``user`` turns, so messages that
-        issued a tool call cannot be safely rerouted when we patch the role.
-        """
-        content = msg.get("content")
-        if not isinstance(content, list):
-            return False
-        return any(
-            isinstance(block, dict) and block.get("type") == "tool_use"
-            for block in content
-        )
-
-    @staticmethod
     def _merge_consecutive(msgs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-        """Normalize a message sequence for Anthropic's ``/messages`` endpoint.
-
-        Anthropic's contract is stricter than OpenAI's:
-
-        1. Consecutive same-role turns must be collapsed into one.
-        2. The conversation cannot end with an ``assistant`` turn — Anthropic
-           does not support assistant-message prefill and returns 400.
-        3. The conversation cannot start with an ``assistant`` turn — the
-           first message must be ``user``.
-
-        Rules 2 and 3 mirror ``LLMProvider._enforce_role_alternation`` in
-        ``base.py``, which applies the equivalent invariants to OpenAI-compat
-        providers.  The only Anthropic-specific wrinkle: ``tool_use`` blocks
-        live inside ``content`` (not a separate ``tool_calls`` field) and are
-        invalid inside ``user`` turns, so the recovery paths below must skip
-        any message carrying them rather than silently producing a malformed
-        request.
-        """
+        """Anthropic requires alternating user/assistant roles."""
         merged: list[dict[str, Any]] = []
         for msg in msgs:
             if merged and merged[-1]["role"] == msg["role"]:
@@ -297,36 +262,6 @@ class AnthropicProvider(LLMProvider):
                 merged[-1]["content"] = prev_c
             else:
                 merged.append(msg)
-
-        # Rule 2: strip trailing assistant turns — Anthropic rejects prefill.
-        last_popped: dict[str, Any] | None = None
-        while merged and merged[-1].get("role") == "assistant":
-            last_popped = merged.pop()
-
-        # Recovery for rule 2: if stripping removed every turn, reroute the
-        # last popped assistant as a user turn so upstream code still gets a
-        # valid request instead of a secondary "messages array empty" 400.
-        # Skip when the message carried ``tool_use`` blocks (see _has_tool_use).
-        if (
-            not merged
-            and last_popped is not None
-            and not AnthropicProvider._has_tool_use(last_popped)
-        ):
-            merged.append({"role": "user", "content": last_popped.get("content")})
-
-        # Rule 3: prepend a synthetic opener if the first surviving turn is an
-        # assistant (e.g. upstream history truncation dropped the original
-        # user request).  ``tool_use``-carrying assistants are left alone —
-        # that message will still fail validation, but injecting an opener
-        # before it would orphan the tool_use/tool_result pair that follows,
-        # turning a recoverable 400 into a harder-to-diagnose one.
-        if (
-            merged
-            and merged[0].get("role") == "assistant"
-            and not AnthropicProvider._has_tool_use(merged[0])
-        ):
-            merged.insert(0, {"role": "user", "content": "(conversation continued)"})
-
         return merged
 
     # ------------------------------------------------------------------
@@ -436,10 +371,6 @@ class AnthropicProvider(LLMProvider):
         max_tokens = max(1, max_tokens)
         thinking_enabled = bool(reasoning_effort)
 
-        # claude-opus-4-7 deprecated the `temperature` parameter entirely — the
-        # API returns 400 if it is present, on any code path.
-        omit_temperature = "opus-4-7" in model_name
-
         kwargs: dict[str, Any] = {
             "model": model_name,
             "messages": anthropic_msgs,
@@ -454,16 +385,14 @@ class AnthropicProvider(LLMProvider):
             # Supported on claude-sonnet-4-6 and claude-opus-4-6.
             # Also auto-enables interleaved thinking between tool calls.
             kwargs["thinking"] = {"type": "adaptive"}
-            if not omit_temperature:
-                kwargs["temperature"] = 1.0
+            kwargs["temperature"] = 1.0
         elif thinking_enabled:
             budget_map = {"low": 1024, "medium": 4096, "high": max(8192, max_tokens)}
             budget = budget_map.get(reasoning_effort.lower(), 4096)
             kwargs["thinking"] = {"type": "enabled", "budget_tokens": budget}
             kwargs["max_tokens"] = max(max_tokens, budget + 4096)
-            if not omit_temperature:
-                kwargs["temperature"] = 1.0
-        elif not omit_temperature:
+            kwargs["temperature"] = 1.0
+        else:
             kwargs["temperature"] = temperature
 
         if anthropic_tools:

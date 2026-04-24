@@ -24,8 +24,6 @@ class BaseChannel(ABC):
     display_name: str = "Base"
     transcription_provider: str = "groq"
     transcription_api_key: str = ""
-    transcription_api_base: str = ""
-    transcription_language: str | None = None
 
     def __init__(self, config: Any, bus: MessageBus):
         """
@@ -46,18 +44,10 @@ class BaseChannel(ABC):
         try:
             if self.transcription_provider == "openai":
                 from nanobot.providers.transcription import OpenAITranscriptionProvider
-                provider = OpenAITranscriptionProvider(
-                    api_key=self.transcription_api_key,
-                    api_base=self.transcription_api_base or None,
-                    language=self.transcription_language or None,
-                )
+                provider = OpenAITranscriptionProvider(api_key=self.transcription_api_key)
             else:
                 from nanobot.providers.transcription import GroqTranscriptionProvider
-                provider = GroqTranscriptionProvider(
-                    api_key=self.transcription_api_key,
-                    api_base=self.transcription_api_base or None,
-                    language=self.transcription_language or None,
-                )
+                provider = GroqTranscriptionProvider(api_key=self.transcription_api_key)
             return await provider.transcribe(file_path)
         except Exception as e:
             logger.warning("{}: audio transcription failed: {}", self.name, e)
@@ -126,19 +116,21 @@ class BaseChannel(ABC):
 
     def is_allowed(self, sender_id: str) -> bool:
         """Check if *sender_id* is permitted.  Empty list → deny all; ``"*"`` → allow all."""
-        if isinstance(self.config, dict):
-            if "allow_from" in self.config:
-                allow_list = self.config.get("allow_from")
-            else:
-                allow_list = self.config.get("allowFrom", [])
-        else:
-            allow_list = getattr(self.config, "allow_from", [])
+        allow_list = getattr(self.config, "allow_from", [])
         if not allow_list:
             logger.warning("{}: allow_from is empty — all access denied", self.name)
             return False
         if "*" in allow_list:
             return True
         return str(sender_id) in allow_list
+
+    def resolve_role(self, sender_id: str) -> str:
+        """Return 'operator' if sender_id is in the operators list, else 'client'."""
+        operators = getattr(self.config, "operators", [])
+        sid = str(sender_id)
+        # Handle "id|username" format used by Telegram channel
+        numeric_id = sid.split("|", 1)[0] if "|" in sid else sid
+        return "operator" if sid in operators or numeric_id in operators else "client"
 
     async def _handle_message(
         self,
@@ -179,6 +171,7 @@ class BaseChannel(ABC):
             sender_id=str(sender_id),
             chat_id=str(chat_id),
             content=content,
+            role=self.resolve_role(sender_id),
             media=media or [],
             metadata=meta,
             session_key_override=session_key,
