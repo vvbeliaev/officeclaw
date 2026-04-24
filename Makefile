@@ -18,7 +18,8 @@ down:
 dev:
 	make infra
 	make migrate
-	make dev-api & make dev-web
+	make dev-api
+	make dev-web
 
 vm-build:
 	docker build -t $(AGENT_IMAGE) -f ./sandbox/Dockerfile .

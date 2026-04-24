@@ -8,3 +8,7 @@ pkgs/py/nanobot/node_modules
 pkgs/py/nanobot/**/__pycache__
 pkgs/py/nanobot/**/*.pyc
 pkgs/py/nanobot/webui
+pkgs/py/nanobot/case
+pkgs/py/nanobot/docs
+pkgs/py/nanobot/tests
+pkgs/py/nanobot/*.png
