@@ -70,7 +70,7 @@ async def test_start_sandbox_calls_msb(sandbox_svc, plain_agent):
          patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
-        await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN)
+        await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN, "UTC")
     args = mock_exec.call_args[0]
     assert args[0] == "msb"
     assert "run" in args
@@ -86,7 +86,7 @@ async def test_start_sandbox_updates_db(conn, sandbox_svc, plain_agent):
          patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
-        await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN)
+        await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN, "UTC")
     rec = await AgentRepo(conn).find_by_id(plain_agent)
     assert rec["status"] == "running"
     assert rec["sandbox_id"] == f"agent-{plain_agent}"
@@ -100,7 +100,7 @@ async def test_start_sandbox_raises_on_failure(sandbox_svc, plain_agent):
          patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch("builtins.open", MagicMock()):
         with pytest.raises(RuntimeError, match="msb run failed"):
-            await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN)
+            await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN, "UTC")
 
 
 async def test_stop_sandbox_calls_msb_stop_and_rm(sandbox_svc, plain_agent):
@@ -110,7 +110,7 @@ async def test_stop_sandbox_calls_msb_stop_and_rm(sandbox_svc, plain_agent):
          patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
-        await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN)
+        await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN, "UTC")
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()) as mock_exec, \
          patch("src.fleet.app.sandbox.shutil.rmtree"):
         await sandbox_svc.stop_sandbox(plain_agent)
@@ -127,7 +127,7 @@ async def test_stop_sandbox_updates_db(conn, sandbox_svc, plain_agent):
          patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
-        await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN)
+        await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN, "UTC")
     with patch("src.fleet.app.sandbox.asyncio.create_subprocess_exec", return_value=_proc()), \
          patch("src.fleet.app.sandbox.shutil.rmtree"):
         await sandbox_svc.stop_sandbox(plain_agent)
@@ -145,7 +145,7 @@ async def test_stop_sandbox_syncs_mutable_files(conn, sandbox_svc, plain_agent):
          patch("src.fleet.app.sandbox.Path.exists", return_value=False), \
          patch(_WAIT_GW, new_callable=AsyncMock), \
          patch("builtins.open", MagicMock()):
-        await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN)
+        await sandbox_svc.start_sandbox(plain_agent, _FAKE_TOKEN, "UTC")
 
     memory_content = "# Memory\nRemembered something."
 

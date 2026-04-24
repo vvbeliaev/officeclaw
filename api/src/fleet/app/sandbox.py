@@ -238,15 +238,22 @@ class SandboxService:
         self._integrations = integrations
         self._skills = skills
 
-    async def start(self, agent_id: UUID, workspace_token: str) -> str:
+    async def start(
+        self, agent_id: UUID, workspace_token: str, timezone: str
+    ) -> str:
         """Build VM payload, write workspace, launch msb sandbox. Returns sandbox_id.
 
-        `workspace_token` is passed in by the caller (route / MCP handler) after
-        it has resolved the agent's workspace — fleet intentionally does not
-        know how to look up workspaces.
+        `workspace_token` and `timezone` are passed in by the caller (route /
+        MCP handler) after it has resolved the agent's workspace and owning
+        user — fleet intentionally does not know how to look those up.
         """
         payload = await build_vm_payload(
-            agent_id, self._agents, self._integrations, self._skills, workspace_token
+            agent_id,
+            self._agents,
+            self._integrations,
+            self._skills,
+            workspace_token,
+            timezone,
         )
 
         workdir = _sandbox_workdir(agent_id)

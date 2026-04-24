@@ -15,6 +15,7 @@ from src.fleet.core.schema import (
     AgentOut,
     AgentUpdate,
 )
+from src.identity.app import IdentityApp
 from src.shared.storage import StoragePort
 from src.workspace.app import WorkspaceApp
 
@@ -31,6 +32,10 @@ def get_storage(request: Request) -> StoragePort:
 
 def get_workspace(request: Request) -> WorkspaceApp:
     return request.app.state.workspace
+
+
+def get_identity(request: Request) -> IdentityApp:
+    return request.app.state.identity
 
 
 @router.post("", response_model=AgentOut, status_code=201)
@@ -75,6 +80,7 @@ async def start_agent(
     agent_id: UUID,
     fleet: FleetApp = Depends(get_fleet),
     workspace: WorkspaceApp = Depends(get_workspace),
+    identity: IdentityApp = Depends(get_identity),
 ) -> AgentOut:
     record = await fleet.find_agent(agent_id)
     if not record:
@@ -84,7 +90,10 @@ async def start_agent(
     ws = await workspace.find_by_id(record["workspace_id"])
     if not ws:
         raise HTTPException(500, "Agent references missing workspace")
-    await fleet.start_sandbox(agent_id, ws["officeclaw_token"])
+    owner = await identity.find_by_id(ws["user_id"])
+    if not owner:
+        raise HTTPException(500, "Workspace references missing user")
+    await fleet.start_sandbox(agent_id, ws["officeclaw_token"], owner["timezone"])
     updated = await fleet.find_agent(agent_id)
     return AgentOut(**dict(updated))
 

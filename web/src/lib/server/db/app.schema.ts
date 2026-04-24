@@ -43,6 +43,7 @@ export const agents = pgTable('agents', {
 	isAdmin: boolean('is_admin').default(false).notNull(),
 	avatarUrl: text('avatar_url'),
 	gatewayPort: integer('gateway_port'),
+	skillEvolution: boolean('skill_evolution').default(false).notNull(),
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 	updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
 });

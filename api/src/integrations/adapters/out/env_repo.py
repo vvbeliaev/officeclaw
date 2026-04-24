@@ -38,6 +38,16 @@ class EnvRepo:
             workspace_id,
         )
 
+    async def find_web_search_by_workspace(self, workspace_id: UUID) -> asyncpg.Record | None:
+        """Return the first web-search env for the workspace (prefers 'default-web-search')."""
+        return await self._conn.fetchrow(
+            "SELECT id, workspace_id, name, category, created_at FROM workspace_envs"
+            " WHERE workspace_id = $1 AND category = 'web-search'"
+            " ORDER BY (name = 'default-web-search') DESC, created_at ASC"
+            " LIMIT 1",
+            workspace_id,
+        )
+
     async def get_decrypted_values(self, env_id: UUID) -> dict:
         record = await self._conn.fetchrow(
             "SELECT values_encrypted FROM workspace_envs WHERE id = $1", env_id

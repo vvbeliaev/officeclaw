@@ -18,6 +18,7 @@ class AgentUpdate(BaseModel):
     status: AgentStatus | None = None
     sandbox_id: str | None = None
     avatar_url: str | None = None
+    skill_evolution: bool | None = None
 
 
 class AgentOut(BaseModel):
@@ -30,6 +31,7 @@ class AgentOut(BaseModel):
     image: str
     is_admin: bool
     avatar_url: str | None
+    skill_evolution: bool
     created_at: datetime
     updated_at: datetime
 

@@ -3,7 +3,7 @@ import asyncpg
 
 
 _ALLOWED_UPDATE_FIELDS = frozenset(
-    {"name", "status", "sandbox_id", "gateway_port", "avatar_url"}
+    {"name", "status", "sandbox_id", "gateway_port", "avatar_url", "skill_evolution"}
 )
 
 

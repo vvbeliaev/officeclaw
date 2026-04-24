@@ -43,7 +43,13 @@ async def build_vm_payload(
     integrations: IntegrationsApp,
     skills: LibraryApp,
     workspace_token: str,
+    timezone: str,
 ) -> dict:
+    agent_record = await agents.find_by_id(agent_id)
+    if not agent_record:
+        raise ValueError(f"Agent {agent_id} not found")
+    skill_evolution = bool(agent_record["skill_evolution"])
+
     # 1. Agent workspace files — split runtime files from regular files
     files: list[dict] = []
     agent_runtime: dict[str, str] = {}  # path → content for the 5 runtime file types
@@ -101,7 +107,9 @@ async def build_vm_payload(
         env_vars = {**env_vars, **values}
 
     # 4. Build config.json
-    config, extra_env = await _build_config_json(agent_id, integrations, env_vars)
+    config, extra_env = await _build_config_json(
+        agent_id, integrations, env_vars, timezone, skill_evolution
+    )
     extra_env["OFFICECLAW_TOKEN"] = workspace_token
     merged_env = {**env_vars, **extra_env}
 
@@ -116,6 +124,8 @@ async def _build_config_json(
     agent_id: UUID,
     integrations: IntegrationsApp,
     env_vars: dict,
+    timezone: str,
+    skill_evolution: bool,
 ) -> tuple[dict, dict]:
     # Single OpenAI-compatible provider slot. nanobot's `custom` entry in
     # the provider registry is a direct OpenAI-compat client — we force
@@ -172,16 +182,18 @@ async def _build_config_json(
                 "allowFrom": cfg.get("allow_from", ["*"]),
             }
 
-    # Ensure LLM vars are present — fall back to server-wide defaults if the
-    # agent's linked envs didn't supply them (e.g. bootstrapped before defaults
-    # were configured, or user wiped the default-llm env).
+    # Ensure LLM + web-search vars are present — fall back to server-wide
+    # defaults if the agent's linked envs didn't supply them (e.g. bootstrapped
+    # before defaults were configured, or user wiped the default env).
     settings = get_settings()
-    llm_defaults = {
+    server_defaults = {
         "OFFICECLAW_LLM_API_KEY": settings.default_llm_api_key,
         "OFFICECLAW_LLM_BASE_URL": settings.default_llm_base_url,
         "OFFICECLAW_LLM_MODEL": settings.default_llm_model,
+        "OFFICECLAW_WEB_SEARCH_PROVIDER": settings.default_web_search_provider,
+        "OFFICECLAW_WEB_SEARCH_API_KEY": settings.default_web_search_api_key,
     }
-    for key, val in llm_defaults.items():
+    for key, val in server_defaults.items():
         if not env_vars.get(key) and val:
             extra_env[key] = val
 
@@ -201,6 +213,8 @@ async def _build_config_json(
                 "workspace": "/workspace",
                 "model": _FALLBACK_MODEL,
                 "provider": "custom",
+                "timezone": timezone,
+                "skill_evolution": skill_evolution,
                 "dream": {
                     "intervalH": 2,
                     "maxBatchSize": 20,
@@ -212,6 +226,13 @@ async def _build_config_json(
         "channels": channels_config,
         "tools": {
             "exec": {"enable": True},
+            "web": {
+                "enable": True,
+                "search": {
+                    "provider": "${OFFICECLAW_WEB_SEARCH_PROVIDER}",
+                    "api_key": "${OFFICECLAW_WEB_SEARCH_API_KEY}",
+                },
+            },
             "mcpServers": mcp_servers,
         },
         "gateway": {

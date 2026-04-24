@@ -49,6 +49,9 @@ class IntegrationsApp:
     async def find_llm_provider(self, workspace_id: UUID) -> asyncpg.Record | None:
         return await self._envs.find_llm_provider(workspace_id)
 
+    async def find_web_search(self, workspace_id: UUID) -> asyncpg.Record | None:
+        return await self._envs.find_web_search(workspace_id)
+
     # --- Channel ---
 
     async def create_channel(self, workspace_id: UUID, name: str, type_: str, config: dict) -> asyncpg.Record:

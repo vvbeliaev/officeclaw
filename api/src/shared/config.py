@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     default_llm_base_url: str = ""
     default_llm_model: str = "gpt-4o-mini"
 
+    # Default web-search provider for new agents. Seeded into a per-workspace
+    # "default-web-search" env on bootstrap; nanobot's tools.web.search reads
+    # ${OFFICECLAW_WEB_SEARCH_*} from sandbox env so keys stay out of config.json.
+    # Supported providers: duckduckgo, brave, tavily, searxng, jina.
+    # duckduckgo needs no key — leave default_web_search_api_key blank.
+    default_web_search_provider: str = "duckduckgo"
+    default_web_search_api_key: str = ""
+
     # Knowledge graph (LightRAG) — LLM for entity extraction at ingest
     knowledge_llm_api_key: str = ""
     knowledge_llm_base_url: str = "https://api.openai.com/v1"

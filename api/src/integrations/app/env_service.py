@@ -31,3 +31,6 @@ class EnvService:
 
     async def find_llm_provider(self, workspace_id: UUID) -> asyncpg.Record | None:
         return await self._repo.find_llm_provider_by_workspace(workspace_id)
+
+    async def find_web_search(self, workspace_id: UUID) -> asyncpg.Record | None:
+        return await self._repo.find_web_search_by_workspace(workspace_id)

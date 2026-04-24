@@ -139,6 +139,16 @@ class WorkspaceService:
             category="llm-provider",
         )
 
+        default_web_search_env = await self._integrations.create_env(
+            workspace_id,
+            "default-web-search",
+            {
+                "OFFICECLAW_WEB_SEARCH_PROVIDER": settings.default_web_search_provider,
+                "OFFICECLAW_WEB_SEARCH_API_KEY": settings.default_web_search_api_key,
+            },
+            category="web-search",
+        )
+
         agent_record = await self._fleet.create_agent(
             workspace_id, "Admin", "localhost:5005/officeclaw/agent:latest", is_admin=True
         )
@@ -173,3 +183,4 @@ class WorkspaceService:
 
         await self._integrations.attach_mcp(agent_id, mcp_record["id"])
         await self._integrations.attach_env(agent_id, default_llm_env["id"])
+        await self._integrations.attach_env(agent_id, default_web_search_env["id"])

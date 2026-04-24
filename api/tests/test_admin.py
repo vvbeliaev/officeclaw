@@ -49,6 +49,8 @@ async def test_admin_agent_has_env_linked(client, conn, fleet_deps, integrations
     agent_id = next(a["id"] for a in agents if a["is_admin"])
     envs = await integrations_deps.list_agent_envs(agent_id)
     names = {e["name"] for e in envs}
-    # Bootstrap now seeds two envs: the officeclaw token env and the
-    # default-llm env that feeds ${OFFICECLAW_LLM_*} into the sandbox.
-    assert names == {"officeclaw", "default-llm"}
+    # Bootstrap seeds two envs on the Admin agent: default-llm (feeds
+    # ${OFFICECLAW_LLM_*}) and default-web-search (feeds ${OFFICECLAW_WEB_SEARCH_*}).
+    # The workspace token itself is injected as OFFICECLAW_TOKEN at sandbox
+    # start time, not stored in a workspace_envs row.
+    assert names == {"default-llm", "default-web-search"}

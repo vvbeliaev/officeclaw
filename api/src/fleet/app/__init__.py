@@ -31,6 +31,9 @@ class FleetApp:
             llm_env = await self._integrations.find_llm_provider(workspace_id)
             if llm_env:
                 await self._integrations.attach_env(record["id"], llm_env["id"])
+            web_search_env = await self._integrations.find_web_search(workspace_id)
+            if web_search_env:
+                await self._integrations.attach_env(record["id"], web_search_env["id"])
         return record
 
     async def find_agent(self, agent_id: UUID) -> asyncpg.Record | None:
@@ -54,8 +57,10 @@ class FleetApp:
     async def list_files(self, agent_id: UUID) -> list[asyncpg.Record]:
         return await self._agents.list_files(agent_id)
 
-    async def start_sandbox(self, agent_id: UUID, workspace_token: str) -> str:
-        return await self._sandbox.start(agent_id, workspace_token)
+    async def start_sandbox(
+        self, agent_id: UUID, workspace_token: str, timezone: str
+    ) -> str:
+        return await self._sandbox.start(agent_id, workspace_token, timezone)
 
     async def stop_sandbox(self, agent_id: UUID) -> None:
         await self._sandbox.stop(agent_id)

@@ -77,7 +77,9 @@ async def test_vm_payload_structure(client, full_agent, conn):
     library = library_di.build(conn)  # type: ignore[arg-type]
     fleet, _ = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
 
-    payload = await build_vm_payload(full_agent, fleet._agents, integrations, library)  # type: ignore[arg-type]
+    payload = await build_vm_payload(
+        full_agent, fleet._agents, integrations, library, "tok-test", "Europe/Berlin"  # type: ignore[arg-type]
+    )
 
     # Files
     paths = {f["path"] for f in payload["files"]}
@@ -100,3 +102,8 @@ async def test_vm_payload_structure(client, full_agent, conn):
     assert config["providers"]["custom"]["api_base"] == "${OFFICECLAW_LLM_BASE_URL}"
     assert config["channels"]["telegram"]["token"] == "${TELEGRAM_TOKEN}"
     assert config["tools"]["mcpServers"]["officeclaw"]["url"] == "http://mcp:8700/mcp"
+    assert config["agents"]["defaults"]["timezone"] == "Europe/Berlin"
+    assert config["agents"]["defaults"]["skill_evolution"] is False
+    assert config["tools"]["web"]["search"]["provider"] == "${OFFICECLAW_WEB_SEARCH_PROVIDER}"
+    assert config["tools"]["web"]["search"]["api_key"] == "${OFFICECLAW_WEB_SEARCH_API_KEY}"
+    assert payload["env"]["OFFICECLAW_TOKEN"] == "tok-test"
