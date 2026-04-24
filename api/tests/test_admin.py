@@ -1,28 +1,28 @@
 # api/tests/test_admin.py
 from uuid import UUID
 
+from tests.conftest import register_user
 
-async def test_create_user_returns_token(client):
-    resp = await client.post("/users", json={"email": "admin-test@example.com"})
-    assert resp.status_code == 201
-    body = resp.json()
+
+async def test_bootstrap_returns_token(client, conn):
+    body = await register_user(client, conn, "admin-test@example.com")
     assert "officeclaw_token" in body
     assert "workspace_id" in body
     assert len(body["officeclaw_token"]) > 20
 
 
-async def test_create_user_creates_admin_agent(client, fleet_deps):
-    resp = await client.post("/users", json={"email": "admin-agent@example.com"})
-    workspace_id = UUID(resp.json()["workspace_id"])
+async def test_bootstrap_creates_admin_agent(client, conn, fleet_deps):
+    body = await register_user(client, conn, "admin-agent@example.com")
+    workspace_id = UUID(body["workspace_id"])
     agents = await fleet_deps.list_agents(workspace_id)
     admin_agents = [a for a in agents if a["is_admin"]]
     assert len(admin_agents) == 1
     assert admin_agents[0]["name"] == "Admin"
 
 
-async def test_admin_agent_has_seed_files(client, fleet_deps):
-    resp = await client.post("/users", json={"email": "admin-files@example.com"})
-    workspace_id = UUID(resp.json()["workspace_id"])
+async def test_admin_agent_has_seed_files(client, conn, fleet_deps):
+    body = await register_user(client, conn, "admin-files@example.com")
+    workspace_id = UUID(body["workspace_id"])
     agents = await fleet_deps.list_agents(workspace_id)
     agent_id = next(a["id"] for a in agents if a["is_admin"])
     files = await fleet_deps.list_files(agent_id)
@@ -32,9 +32,9 @@ async def test_admin_agent_has_seed_files(client, fleet_deps):
     assert "TOOLS.md" in paths
 
 
-async def test_admin_agent_has_mcp_config(client, fleet_deps, integrations_deps):
-    resp = await client.post("/users", json={"email": "admin-mcp@example.com"})
-    workspace_id = UUID(resp.json()["workspace_id"])
+async def test_admin_agent_has_mcp_config(client, conn, fleet_deps, integrations_deps):
+    body = await register_user(client, conn, "admin-mcp@example.com")
+    workspace_id = UUID(body["workspace_id"])
     agents = await fleet_deps.list_agents(workspace_id)
     agent_id = next(a["id"] for a in agents if a["is_admin"])
     mcp_list = await integrations_deps.list_agent_mcps(agent_id)
@@ -42,9 +42,9 @@ async def test_admin_agent_has_mcp_config(client, fleet_deps, integrations_deps)
     assert any("officeclaw" in name for name in names)
 
 
-async def test_admin_agent_has_env_linked(client, fleet_deps, integrations_deps):
-    resp = await client.post("/users", json={"email": "admin-env@example.com"})
-    workspace_id = UUID(resp.json()["workspace_id"])
+async def test_admin_agent_has_env_linked(client, conn, fleet_deps, integrations_deps):
+    body = await register_user(client, conn, "admin-env@example.com")
+    workspace_id = UUID(body["workspace_id"])
     agents = await fleet_deps.list_agents(workspace_id)
     agent_id = next(a["id"] for a in agents if a["is_admin"])
     envs = await integrations_deps.list_agent_envs(agent_id)

@@ -15,9 +15,6 @@ class IdentityApp:
     def __init__(self, service: UserService) -> None:
         self._service = service
 
-    async def register(self, email: str) -> tuple[asyncpg.Record, asyncpg.Record]:
-        return await self._service.register(email)
-
     async def find_by_id(self, user_id: UUID) -> asyncpg.Record | None:
         return await self._service.find_by_id(user_id)
 

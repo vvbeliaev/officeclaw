@@ -15,6 +15,9 @@ class WorkspaceApp:
     async def list_workspaces(self, user_id: UUID) -> list[asyncpg.Record]:
         return await self._service.list_workspaces(user_id)
 
+    async def find_by_id(self, workspace_id: UUID) -> asyncpg.Record | None:
+        return await self._service.find_by_id(workspace_id)
+
     async def find_by_token(self, token: str) -> asyncpg.Record | None:
         return await self._service.find_by_token(token)
 

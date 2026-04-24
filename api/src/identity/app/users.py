@@ -17,21 +17,19 @@ class UserService:
         self._users = user_repo
         self._workspace = workspace
 
-    async def create(self, email: str) -> asyncpg.Record:
-        return await self._users.create(email)
-
     async def find_by_id(self, user_id: UUID) -> asyncpg.Record | None:
         return await self._users.find_by_id(user_id)
 
-    async def register(self, email: str) -> tuple[asyncpg.Record, asyncpg.Record]:
-        """Create user + bootstrap default workspace. Returns (user_record, workspace_record)."""
-        user = await self._users.create(email)
-        workspace = await self._workspace.create_workspace(user["id"], "Personal")
-        return user, workspace
-
     async def bootstrap(self, user_id: UUID) -> asyncpg.Record:
-        """Bootstrap Personal workspace for a user created by better-auth. Returns workspace record."""
+        """Idempotently bootstrap a Personal workspace for a user created by
+        better-auth. If the user already has a workspace (e.g. a previous
+        request succeeded but its response was lost and the web hook retried),
+        return the existing one instead of creating a duplicate.
+        """
         user = await self._users.find_by_id(user_id)
         if not user:
             raise ValueError(f"User {user_id} not found")
+        existing = await self._workspace.list_workspaces(user_id)
+        if existing:
+            return existing[0]
         return await self._workspace.create_workspace(user_id, "Personal")

@@ -73,8 +73,9 @@ async def client(conn: asyncpg.Connection) -> AsyncGenerator[AsyncClient, None]:
     pool = conn  # type: ignore[assignment]
     integrations = integrations_di.build(pool)  # type: ignore[arg-type]
     library = library_di.build(pool)  # type: ignore[arg-type]
-    fleet, _ = fleet_di.build(pool, integrations, library)  # type: ignore[arg-type]
+    fleet, sandbox, _ = fleet_di.build(pool, integrations, library)  # type: ignore[arg-type]
     workspace = workspace_di.build(pool, fleet, integrations)  # type: ignore[arg-type]
+    fleet_di.bind_workspace(sandbox, workspace)
     identity = identity_di.build(pool, workspace)  # type: ignore[arg-type]
 
     app.state.pool = pool
@@ -101,11 +102,29 @@ async def client(conn: asyncpg.Connection) -> AsyncGenerator[AsyncClient, None]:
         yield c
 
 
-@pytest.fixture
-async def mcp_user(client):
-    """Create a user and return (user_id, workspace_id, token)."""
-    resp = await client.post("/users", json={"email": "mcp-user@example.com"})
+async def register_user(client, conn: asyncpg.Connection, email: str) -> dict:
+    """Mirror the production signup path used in tests:
+    insert a row into "user" (the table better-auth owns) and call
+    /users/{id}/bootstrap. Returns {id, workspace_id, officeclaw_token}.
+    """
+    row = await conn.fetchrow(
+        'INSERT INTO "user" (email) VALUES ($1) RETURNING id', email
+    )
+    user_id = row["id"]
+    resp = await client.post(f"/users/{user_id}/bootstrap")
+    assert resp.status_code == 201, resp.text
     body = resp.json()
+    return {
+        "id": str(user_id),
+        "workspace_id": body["workspace_id"],
+        "officeclaw_token": body["officeclaw_token"],
+    }
+
+
+@pytest.fixture
+async def mcp_user(client, conn):
+    """Create a user and return (user_id, workspace_id, token)."""
+    body = await register_user(client, conn, "mcp-user@example.com")
     return body["id"], body["workspace_id"], body["officeclaw_token"]
 
 
@@ -128,10 +147,15 @@ def library_deps(conn):
 
 @pytest.fixture
 def fleet_deps(conn, integrations_deps, library_deps):
-    fleet, _ = fleet_di.build(conn, integrations_deps, library_deps)  # type: ignore[arg-type]
+    fleet, sandbox, _ = fleet_di.build(conn, integrations_deps, library_deps)  # type: ignore[arg-type]
+    workspace = workspace_di.build(conn, fleet, integrations_deps)  # type: ignore[arg-type]
+    fleet_di.bind_workspace(sandbox, workspace)
     return fleet
 
 
 @pytest.fixture
-def workspace_deps(conn, fleet_deps, integrations_deps):
-    return workspace_di.build(conn, fleet_deps, integrations_deps)  # type: ignore[arg-type]
+def workspace_deps(conn, integrations_deps, library_deps):
+    fleet, sandbox, _ = fleet_di.build(conn, integrations_deps, library_deps)  # type: ignore[arg-type]
+    workspace = workspace_di.build(conn, fleet, integrations_deps)  # type: ignore[arg-type]
+    fleet_di.bind_workspace(sandbox, workspace)
+    return workspace

@@ -2,12 +2,14 @@
 import pytest
 import json
 
+from tests.conftest import register_user
+
 
 @pytest.fixture
-async def full_agent(client):
+async def full_agent(client, conn):
     """Create user -> agent -> files -> skill -> env -> channel -> mcp."""
-    user = await client.post("/users", json={"email": "payload@example.com"})
-    workspace_id = user.json()["workspace_id"]
+    body = await register_user(client, conn, "payload@example.com")
+    workspace_id = body["workspace_id"]
 
     agent = await client.post("/agents", json={"workspace_id": workspace_id, "name": "Agent"})
     agent_id = agent.json()["id"]
@@ -73,7 +75,7 @@ async def test_vm_payload_structure(client, full_agent, conn):
 
     integrations = integrations_di.build(conn)  # type: ignore[arg-type]
     library = library_di.build(conn)  # type: ignore[arg-type]
-    fleet, _ = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
+    fleet, _, _ = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
 
     payload = await build_vm_payload(full_agent, fleet._agents, integrations, library)  # type: ignore[arg-type]
 

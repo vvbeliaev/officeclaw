@@ -1,0 +1,14 @@
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+  environment:
+    SANDBOX_RUNNER: docker
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    environment:
+      SANDBOX_RUNNER: docker

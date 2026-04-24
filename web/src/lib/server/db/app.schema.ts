@@ -27,7 +27,7 @@ export const workspaces = pgTable('workspaces', {
 		.references(() => user.id, { onDelete: 'cascade' }),
 	name: text().notNull(),
 	slug: text().notNull().unique(),
-	officeclawToken: text('officeclaw_token').unique(),
+	officeclawToken: text('officeclaw_token').notNull().unique(),
 	createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull()
 });
 

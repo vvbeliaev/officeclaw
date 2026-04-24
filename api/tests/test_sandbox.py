@@ -8,6 +8,7 @@ import pytest
 import src.fleet.di as fleet_di
 import src.integrations.di as integrations_di
 import src.library.di as library_di
+import src.workspace.di as workspace_di
 from src.shared.config import get_settings
 
 _WAIT_GW = "src.fleet.app.sandbox._wait_for_gateway"
@@ -50,7 +51,9 @@ async def plain_agent(conn) -> UUID:
 def sandbox_svc(conn):
     integrations = integrations_di.build(conn)  # type: ignore[arg-type]
     library = library_di.build(conn)  # type: ignore[arg-type]
-    fleet, _ = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
+    fleet, sandbox, _ = fleet_di.build(conn, integrations, library)  # type: ignore[arg-type]
+    workspace = workspace_di.build(conn, fleet, integrations)  # type: ignore[arg-type]
+    fleet_di.bind_workspace(sandbox, workspace)
     return fleet
 
 

@@ -20,14 +20,14 @@ Stack: SvelteKit (web) + Python/FastAPI (api) + Postgres + Docker (sandbox conta
 
 - **better-auth** owns the user lifecycle (registration, sessions, OAuth, OTP)
 - better-auth tables (`user`, `session`, `account`, `verification`) live in Postgres alongside app tables
-- `user.officeclaw_token` is a custom field — a Python-generated bearer token for MCP clients
-- MCP auth uses `officeclaw_token` directly (queries `"user"` table) — completely separate from session cookies
+- `officeclaw_token` is **per workspace**, stored on `workspaces.officeclaw_token` (NOT on `"user"`). One user → N workspaces → N tokens.
+- MCP auth reads the bearer token and queries `workspaces` (see `WorkspaceApp.find_by_token`) — completely separate from session cookies
 
 ### Bootstrap flow
 
-1. better-auth creates a user row
-2. `databaseHooks.user.create.after` in `web/src/lib/server/auth.ts` calls `POST /users/{id}/bootstrap`
-3. Python generates `officeclaw_token`, creates Admin agent, wires up SOUL.md / AGENTS.md / TOOLS.md / MCP config
+1. better-auth creates a user row in `"user"`
+2. `databaseHooks.user.create.after` in `web/src/lib/server/auth.ts` calls `POST /users/{id}/bootstrap` (with retry + hard-throw on final failure — never swallowed)
+3. Python `WorkspaceService.create_workspace` runs atomically: creates workspace row with token, seeds `default-llm` env, `Admin` agent, seed files (`SOUL.md` / `AGENTS.md` / `TOOLS.md`), two MCP configs (`officeclaw-admin`, `officeclaw-knowledge`), and wires `agent_mcp` / `agent_envs` links. On any step failure the workspace row is deleted → FK cascade cleans up every partial artifact.
 
 ---
 
@@ -67,7 +67,7 @@ src/{domain}/
 
 ### Migrations
 
-- **Single source of truth**: `api/migrations/versions/001_initial_schema.sql` (raw SQL, applied by Python)
+- **Single source of truth**: `api/migrations/versions/*.py` (Alembic revisions issuing raw SQL via `op.execute`, applied by Python)
 - Drizzle **never runs migrations** — it is a read-only typed client in `web/`
 - If schema changes: update the SQL migration AND `web/src/lib/server/db/auth.schema.ts` / `app.schema.ts`
 
@@ -106,3 +106,4 @@ src/{domain}/
 - Don't import a domain's concrete adapter from another domain
 - Don't run `drizzle-kit push` or `drizzle-kit migrate` — migrations are Python's job
 - Don't add CRUD routes to Python for data that SvelteKit can read via Drizzle
+- Don't read another domain's tables with raw SQL from inside a service — cross-domain reads go through the owning domain's facade (e.g. `SandboxService` reads workspace tokens via `WorkspaceApp.find_by_id`, never `SELECT ... FROM workspaces`)

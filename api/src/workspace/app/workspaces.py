@@ -83,15 +83,28 @@ class WorkspaceService:
         self._integrations = integrations
 
     async def create_workspace(self, user_id: UUID, name: str) -> asyncpg.Record:
-        """Create workspace + run full bootstrap. Returns workspace record with token."""
+        """Create workspace + run full bootstrap. Returns workspace record with token.
+
+        Atomicity is achieved by compensating delete: the workspace row is the
+        root, and every seed resource (envs, agent, mcp, links) has
+        ON DELETE CASCADE back to it. If any seed step fails we remove the
+        workspace and the cascade cleans up partial state — from the caller's
+        perspective either everything was created or nothing was.
+        """
         token = secrets.token_urlsafe(32)
         workspace = await self._repo.create(user_id, name, token)
-        workspace_id = workspace["id"]
-        await self._bootstrap(workspace_id, token)
+        try:
+            await self._bootstrap(workspace["id"], token)
+        except Exception:
+            await self._repo.delete(workspace["id"])
+            raise
         return workspace
 
     async def list_workspaces(self, user_id: UUID) -> list[asyncpg.Record]:
         return await self._repo.list_by_user(user_id)
+
+    async def find_by_id(self, workspace_id: UUID) -> asyncpg.Record | None:
+        return await self._repo.find_by_id(workspace_id)
 
     async def find_by_token(self, token: str) -> asyncpg.Record | None:
         return await self._repo.find_by_token(token)

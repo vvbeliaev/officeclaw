@@ -4,10 +4,13 @@ from uuid import UUID
 import pytest
 
 
+from tests.conftest import register_user
+
+
 @pytest.fixture
-async def workspace_id(client):
-    resp = await client.post("/users", json={"email": "agent-owner@example.com"})
-    return resp.json()["workspace_id"]
+async def workspace_id(client, conn):
+    body = await register_user(client, conn, "agent-owner@example.com")
+    return body["workspace_id"]
 
 
 async def test_create_agent(client, workspace_id):
