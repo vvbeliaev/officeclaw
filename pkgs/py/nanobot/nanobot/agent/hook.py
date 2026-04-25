@@ -7,7 +7,7 @@ from typing import Any
 
 from loguru import logger
 
-from nanobot.providers.base import LLMResponse, ToolCallRequest
+from nanobot.providers.base import LLMResponse, ToolCallDelta, ToolCallRequest
 
 
 @dataclass(slots=True)
@@ -41,6 +41,40 @@ class AgentHook:
         pass
 
     async def on_stream_end(self, context: AgentHookContext, *, resuming: bool) -> None:
+        pass
+
+    async def on_tool_call_delta(
+        self, context: AgentHookContext, delta: ToolCallDelta
+    ) -> None:
+        """Streaming chunk of a tool call (incremental name/arguments)."""
+        pass
+
+    async def on_tool_call_finalized(
+        self, context: AgentHookContext, tool_call: ToolCallRequest
+    ) -> None:
+        """Tool call payload is fully parsed, about to be dispatched."""
+        pass
+
+    async def on_tool_execution_start(
+        self, context: AgentHookContext, tool_call: ToolCallRequest
+    ) -> None:
+        """Tool execution is about to begin (after dispatch decision)."""
+        pass
+
+    async def on_tool_result(
+        self,
+        context: AgentHookContext,
+        tool_call: ToolCallRequest,
+        result: str,
+        error: str | None,
+    ) -> None:
+        """Tool execution finished — *result* is the serialized output."""
+        pass
+
+    async def on_reasoning_delta(
+        self, context: AgentHookContext, delta: str
+    ) -> None:
+        """Streaming chunk of model reasoning (Kimi/DeepSeek-R1/Anthropic thinking)."""
         pass
 
     async def before_execute_tools(self, context: AgentHookContext) -> None:
@@ -84,6 +118,35 @@ class CompositeHook(AgentHook):
 
     async def on_stream_end(self, context: AgentHookContext, *, resuming: bool) -> None:
         await self._for_each_hook_safe("on_stream_end", context, resuming=resuming)
+
+    async def on_tool_call_delta(
+        self, context: AgentHookContext, delta: ToolCallDelta
+    ) -> None:
+        await self._for_each_hook_safe("on_tool_call_delta", context, delta)
+
+    async def on_tool_call_finalized(
+        self, context: AgentHookContext, tool_call: ToolCallRequest
+    ) -> None:
+        await self._for_each_hook_safe("on_tool_call_finalized", context, tool_call)
+
+    async def on_tool_execution_start(
+        self, context: AgentHookContext, tool_call: ToolCallRequest
+    ) -> None:
+        await self._for_each_hook_safe("on_tool_execution_start", context, tool_call)
+
+    async def on_tool_result(
+        self,
+        context: AgentHookContext,
+        tool_call: ToolCallRequest,
+        result: str,
+        error: str | None,
+    ) -> None:
+        await self._for_each_hook_safe("on_tool_result", context, tool_call, result, error)
+
+    async def on_reasoning_delta(
+        self, context: AgentHookContext, delta: str
+    ) -> None:
+        await self._for_each_hook_safe("on_reasoning_delta", context, delta)
 
     async def before_execute_tools(self, context: AgentHookContext) -> None:
         await self._for_each_hook_safe("before_execute_tools", context)

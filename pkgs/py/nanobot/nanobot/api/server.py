@@ -69,6 +69,49 @@ def _chat_completion_delta(
     }
 
 
+def _chat_completion_tool_call_delta(
+    completion_id: str,
+    created: int,
+    model: str,
+    *,
+    index: int,
+    call_id: str | None = None,
+    name: str | None = None,
+    arguments_delta: str | None = None,
+) -> dict[str, Any]:
+    """Build a standard OpenAI streaming chunk that carries a tool-call delta.
+
+    Mirrors ``chunk.choices[0].delta.tool_calls[]`` so AI-SDK / OpenAI-SDK
+    consumers parse it natively into a tool-X part with ``input-streaming``
+    state.
+    """
+    function: dict[str, Any] = {}
+    if name is not None:
+        function["name"] = name
+    if arguments_delta is not None:
+        function["arguments"] = arguments_delta
+
+    tool_call: dict[str, Any] = {"index": index, "type": "function"}
+    if call_id is not None:
+        tool_call["id"] = call_id
+    if function:
+        tool_call["function"] = function
+
+    return {
+        "id": completion_id,
+        "object": "chat.completion.chunk",
+        "created": created,
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "delta": {"tool_calls": [tool_call]},
+                "finish_reason": None,
+            }
+        ],
+    }
+
+
 def _response_text(value: Any) -> str:
     """Normalize process_direct output to plain assistant text."""
     if value is None:
@@ -201,6 +244,18 @@ async def _handle_streaming(
     async def emit(chunk: dict[str, Any]) -> None:
         await sse.write(f"data: {json.dumps(chunk)}\n\n".encode())
 
+    async def emit_named(event: str, payload: dict[str, Any]) -> None:
+        """Emit a custom SSE event (outside OpenAI spec).
+
+        Standard OpenAI / AI-SDK consumers will silently ignore named events
+        they don't subscribe to; bespoke transformers can opt in by name.
+        """
+        body = (
+            f"event: {event}\n"
+            f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+        )
+        await sse.write(body.encode())
+
     # Initial chunk with role
     await emit(_chat_completion_delta(completion_id, created, model_name, role="assistant"))
 
@@ -209,6 +264,40 @@ async def _handle_streaming(
 
     async def on_stream_end(*, resuming: bool = False) -> None:
         pass  # we send the finish chunk after process_direct returns
+
+    async def on_tool_call_delta(delta: Any) -> None:
+        # ``delta`` is nanobot.providers.base.ToolCallDelta
+        await emit(_chat_completion_tool_call_delta(
+            completion_id, created, model_name,
+            index=delta.index,
+            call_id=delta.id,
+            name=delta.name,
+            arguments_delta=delta.arguments_delta,
+        ))
+
+    async def on_tool_execution_start(tool_call: Any) -> None:
+        await emit_named(
+            "nanobot.tool_execution_start",
+            {
+                "call_id": tool_call.id,
+                "name": tool_call.name,
+                "arguments": tool_call.arguments,
+            },
+        )
+
+    async def on_tool_result(tool_call: Any, result: str, error: str | None) -> None:
+        await emit_named(
+            "nanobot.tool_result",
+            {
+                "call_id": tool_call.id,
+                "name": tool_call.name,
+                "result": result,
+                "error": error,
+            },
+        )
+
+    async def on_reasoning_delta(delta: str) -> None:
+        await emit_named("nanobot.reasoning_delta", {"delta": delta})
 
     async with session_lock:
         try:
@@ -220,6 +309,10 @@ async def _handle_streaming(
                     chat_id=API_CHAT_ID,
                     on_stream=on_stream,
                     on_stream_end=on_stream_end,
+                    on_tool_call_delta=on_tool_call_delta,
+                    on_tool_execution_start=on_tool_execution_start,
+                    on_tool_result=on_tool_result,
+                    on_reasoning_delta=on_reasoning_delta,
                 ),
                 timeout=timeout_s,
             )

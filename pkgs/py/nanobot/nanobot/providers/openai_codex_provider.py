@@ -97,7 +97,10 @@ class OpenAICodexProvider(LLMProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_tool_call_delta: Callable[..., Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> LLMResponse:
+        # Extended streaming callbacks not yet wired for codex; only text deltas stream.
         return await self._call_codex(messages, tools, model, reasoning_effort, tool_choice, on_content_delta)
 
     def get_default_model(self) -> str:

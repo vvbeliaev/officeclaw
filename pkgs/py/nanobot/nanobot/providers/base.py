@@ -16,6 +16,21 @@ from nanobot.utils.helpers import image_placeholder_text
 
 
 @dataclass
+class ToolCallDelta:
+    """Streaming chunk of a tool call as it's emitted by the model.
+
+    Mirrors OpenAI's ``chunk.choices[0].delta.tool_calls[]`` shape:
+    each chunk references a tool call by ``index`` (and optionally ``id``)
+    and carries an incremental piece of the function name and/or arguments.
+    """
+
+    index: int
+    id: str | None = None
+    name: str | None = None
+    arguments_delta: str | None = None
+
+
+@dataclass
 class ToolCallRequest:
     """A tool call request from the LLM."""
     id: str
@@ -394,13 +409,21 @@ class LLMProvider(ABC):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_tool_call_delta: Callable[[ToolCallDelta], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> LLMResponse:
-        """Stream a chat completion, calling *on_content_delta* for each text chunk.
+        """Stream a chat completion, calling callbacks per delta chunk.
 
-        Returns the same ``LLMResponse`` as :meth:`chat`.  The default
-        implementation falls back to a non-streaming call and delivers the
-        full content as a single delta.  Providers that support native
-        streaming should override this method.
+        - ``on_content_delta``: called for each text chunk.
+        - ``on_tool_call_delta``: called for each ``ToolCallDelta`` (incremental
+          tool-call payload — ``arguments_delta`` is appended per chunk).
+        - ``on_reasoning_delta``: called for reasoning-content chunks
+          (Kimi/DeepSeek-R1/MiMo "reasoning_content" or Anthropic thinking).
+
+        Returns the same ``LLMResponse`` as :meth:`chat`. Default
+        implementation falls back to a non-streaming call and delivers any
+        content/tool-calls/reasoning as a single delta — providers with
+        native streaming should override.
         """
         response = await self.chat(
             messages=messages, tools=tools, model=model,
@@ -409,6 +432,16 @@ class LLMProvider(ABC):
         )
         if on_content_delta and response.content:
             await on_content_delta(response.content)
+        if on_tool_call_delta and response.tool_calls:
+            for index, tc in enumerate(response.tool_calls):
+                await on_tool_call_delta(ToolCallDelta(
+                    index=index,
+                    id=tc.id,
+                    name=tc.name,
+                    arguments_delta=json.dumps(tc.arguments, ensure_ascii=False),
+                ))
+        if on_reasoning_delta and response.reasoning_content:
+            await on_reasoning_delta(response.reasoning_content)
         return response
 
     async def _safe_chat_stream(self, **kwargs: Any) -> LLMResponse:
@@ -430,6 +463,8 @@ class LLMProvider(ABC):
         reasoning_effort: object = _SENTINEL,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_tool_call_delta: Callable[[ToolCallDelta], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
         retry_mode: str = "standard",
         on_retry_wait: Callable[[str], Awaitable[None]] | None = None,
     ) -> LLMResponse:
@@ -446,6 +481,8 @@ class LLMProvider(ABC):
             max_tokens=max_tokens, temperature=temperature,
             reasoning_effort=reasoning_effort, tool_choice=tool_choice,
             on_content_delta=on_content_delta,
+            on_tool_call_delta=on_tool_call_delta,
+            on_reasoning_delta=on_reasoning_delta,
         )
         return await self._run_with_retry(
             self._safe_chat_stream,

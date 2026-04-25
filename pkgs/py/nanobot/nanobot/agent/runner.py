@@ -12,7 +12,7 @@ from loguru import logger
 from nanobot.agent.hook import AgentHook, AgentHookContext
 from nanobot.utils.prompt_templates import render_template
 from nanobot.agent.tools.registry import ToolRegistry
-from nanobot.providers.base import LLMProvider, ToolCallRequest
+from nanobot.providers.base import LLMProvider, ToolCallDelta, ToolCallRequest
 from nanobot.utils.helpers import (
     build_assistant_message,
     estimate_message_tokens,
@@ -146,12 +146,17 @@ class AgentRunner:
                     },
                 )
 
+                for tool_call in response.tool_calls:
+                    await hook.on_tool_call_finalized(context, tool_call)
+
                 await hook.before_execute_tools(context)
 
                 results, new_events, fatal_error = await self._execute_tools(
                     spec,
                     response.tool_calls,
                     external_lookup_counts,
+                    hook=hook,
+                    hook_context=context,
                 )
                 tool_events.extend(new_events)
                 context.tool_results = list(results)
@@ -357,9 +362,17 @@ class AgentRunner:
             async def _stream(delta: str) -> None:
                 await hook.on_stream(context, delta)
 
+            async def _tool_call_delta(delta: ToolCallDelta) -> None:
+                await hook.on_tool_call_delta(context, delta)
+
+            async def _reasoning(delta: str) -> None:
+                await hook.on_reasoning_delta(context, delta)
+
             return await self.provider.chat_stream_with_retry(
                 **kwargs,
                 on_content_delta=_stream,
+                on_tool_call_delta=_tool_call_delta,
+                on_reasoning_delta=_reasoning,
             )
         return await self.provider.chat_with_retry(**kwargs)
 
@@ -402,18 +415,27 @@ class AgentRunner:
         spec: AgentRunSpec,
         tool_calls: list[ToolCallRequest],
         external_lookup_counts: dict[str, int],
+        *,
+        hook: AgentHook | None = None,
+        hook_context: AgentHookContext | None = None,
     ) -> tuple[list[Any], list[dict[str, str]], BaseException | None]:
         batches = self._partition_tool_batches(spec, tool_calls)
         tool_results: list[tuple[Any, dict[str, str], BaseException | None]] = []
         for batch in batches:
             if spec.concurrent_tools and len(batch) > 1:
                 tool_results.extend(await asyncio.gather(*(
-                    self._run_tool(spec, tool_call, external_lookup_counts)
+                    self._run_tool(
+                        spec, tool_call, external_lookup_counts,
+                        hook=hook, hook_context=hook_context,
+                    )
                     for tool_call in batch
                 )))
             else:
                 for tool_call in batch:
-                    tool_results.append(await self._run_tool(spec, tool_call, external_lookup_counts))
+                    tool_results.append(await self._run_tool(
+                        spec, tool_call, external_lookup_counts,
+                        hook=hook, hook_context=hook_context,
+                    ))
 
         results: list[Any] = []
         events: list[dict[str, str]] = []
@@ -430,8 +452,29 @@ class AgentRunner:
         spec: AgentRunSpec,
         tool_call: ToolCallRequest,
         external_lookup_counts: dict[str, int],
+        *,
+        hook: AgentHook | None = None,
+        hook_context: AgentHookContext | None = None,
     ) -> tuple[Any, dict[str, str], BaseException | None]:
         _HINT = "\n\n[Analyze the error above and try a different approach.]"
+
+        async def _notify_result(
+            return_value: Any,
+            error_text: str | None,
+        ) -> None:
+            if hook is not None and hook_context is not None:
+                try:
+                    await hook.on_tool_result(
+                        hook_context,
+                        tool_call,
+                        "" if return_value is None else str(return_value),
+                        error_text,
+                    )
+                except Exception:
+                    logger.exception(
+                        "AgentHook.on_tool_result error for {}", tool_call.name
+                    )
+
         lookup_error = repeated_external_lookup_error(
             tool_call.name,
             tool_call.arguments,
@@ -443,6 +486,7 @@ class AgentRunner:
                 "status": "error",
                 "detail": "repeated external lookup blocked",
             }
+            await _notify_result(lookup_error + _HINT, lookup_error)
             if spec.fail_on_tool_error:
                 return lookup_error + _HINT, event, RuntimeError(lookup_error)
             return lookup_error + _HINT, event, None
@@ -461,7 +505,17 @@ class AgentRunner:
                 "status": "error",
                 "detail": prep_error.split(": ", 1)[-1][:120],
             }
+            await _notify_result(prep_error + _HINT, prep_error)
             return prep_error + _HINT, event, RuntimeError(prep_error) if spec.fail_on_tool_error else None
+
+        if hook is not None and hook_context is not None:
+            try:
+                await hook.on_tool_execution_start(hook_context, tool_call)
+            except Exception:
+                logger.exception(
+                    "AgentHook.on_tool_execution_start error for {}", tool_call.name
+                )
+
         try:
             if tool is not None:
                 result = await tool.execute(**params)
@@ -475,9 +529,11 @@ class AgentRunner:
                 "status": "error",
                 "detail": str(exc),
             }
+            err_text = f"Error: {type(exc).__name__}: {exc}"
+            await _notify_result(err_text, err_text)
             if spec.fail_on_tool_error:
-                return f"Error: {type(exc).__name__}: {exc}", event, exc
-            return f"Error: {type(exc).__name__}: {exc}", event, None
+                return err_text, event, exc
+            return err_text, event, None
 
         if isinstance(result, str) and result.startswith("Error"):
             event = {
@@ -485,6 +541,7 @@ class AgentRunner:
                 "status": "error",
                 "detail": result.replace("\n", " ").strip()[:120],
             }
+            await _notify_result(result + _HINT, result)
             if spec.fail_on_tool_error:
                 return result + _HINT, event, RuntimeError(result)
             return result + _HINT, event, None
@@ -495,6 +552,7 @@ class AgentRunner:
             detail = "(empty)"
         elif len(detail) > 120:
             detail = detail[:120] + "..."
+        await _notify_result(result, None)
         return result, {"name": tool_call.name, "status": "ok", "detail": detail}, None
 
     async def _emit_checkpoint(

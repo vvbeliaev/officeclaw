@@ -35,7 +35,7 @@ from nanobot.bus.events import InboundMessage, OutboundMessage
 from nanobot.command import CommandContext, CommandRouter, register_builtin_commands
 from nanobot.bus.queue import MessageBus
 from nanobot.config.schema import AgentDefaults
-from nanobot.providers.base import LLMProvider
+from nanobot.providers.base import LLMProvider, ToolCallDelta, ToolCallRequest
 from nanobot.session.manager import Session, SessionManager
 from nanobot.utils.helpers import image_placeholder_text, truncate_text
 from nanobot.utils.runtime import EMPTY_FINAL_RESPONSE_MESSAGE
@@ -58,6 +58,11 @@ class _LoopHook(AgentHook):
         channel: str = "cli",
         chat_id: str = "direct",
         message_id: str | None = None,
+        on_tool_call_delta: Callable[[ToolCallDelta], Awaitable[None]] | None = None,
+        on_tool_call_finalized: Callable[[ToolCallRequest], Awaitable[None]] | None = None,
+        on_tool_execution_start: Callable[[ToolCallRequest], Awaitable[None]] | None = None,
+        on_tool_result: Callable[[ToolCallRequest, str, str | None], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self._loop = agent_loop
         self._on_progress = on_progress
@@ -67,9 +72,20 @@ class _LoopHook(AgentHook):
         self._chat_id = chat_id
         self._message_id = message_id
         self._stream_buf = ""
+        self._on_tool_call_delta = on_tool_call_delta
+        self._on_tool_call_finalized = on_tool_call_finalized
+        self._on_tool_execution_start = on_tool_execution_start
+        self._on_tool_result = on_tool_result
+        self._on_reasoning_delta = on_reasoning_delta
 
     def wants_streaming(self) -> bool:
-        return self._on_stream is not None
+        # Any extended-streaming subscriber forces streaming mode so the runner
+        # picks the streaming code path that fans these callbacks out.
+        return (
+            self._on_stream is not None
+            or self._on_tool_call_delta is not None
+            or self._on_reasoning_delta is not None
+        )
 
     async def on_stream(self, context: AgentHookContext, delta: str) -> None:
         from nanobot.utils.helpers import strip_think
@@ -85,6 +101,40 @@ class _LoopHook(AgentHook):
         if self._on_stream_end:
             await self._on_stream_end(resuming=resuming)
         self._stream_buf = ""
+
+    async def on_tool_call_delta(
+        self, context: AgentHookContext, delta: ToolCallDelta
+    ) -> None:
+        if self._on_tool_call_delta:
+            await self._on_tool_call_delta(delta)
+
+    async def on_tool_call_finalized(
+        self, context: AgentHookContext, tool_call: ToolCallRequest
+    ) -> None:
+        if self._on_tool_call_finalized:
+            await self._on_tool_call_finalized(tool_call)
+
+    async def on_tool_execution_start(
+        self, context: AgentHookContext, tool_call: ToolCallRequest
+    ) -> None:
+        if self._on_tool_execution_start:
+            await self._on_tool_execution_start(tool_call)
+
+    async def on_tool_result(
+        self,
+        context: AgentHookContext,
+        tool_call: ToolCallRequest,
+        result: str,
+        error: str | None,
+    ) -> None:
+        if self._on_tool_result:
+            await self._on_tool_result(tool_call, result, error)
+
+    async def on_reasoning_delta(
+        self, context: AgentHookContext, delta: str
+    ) -> None:
+        if self._on_reasoning_delta:
+            await self._on_reasoning_delta(delta)
 
     async def before_execute_tools(self, context: AgentHookContext) -> None:
         if self._on_progress:
@@ -145,6 +195,40 @@ class _LoopHookChain(AgentHook):
     async def on_stream_end(self, context: AgentHookContext, *, resuming: bool) -> None:
         await self._primary.on_stream_end(context, resuming=resuming)
         await self._extras.on_stream_end(context, resuming=resuming)
+
+    async def on_tool_call_delta(
+        self, context: AgentHookContext, delta: ToolCallDelta
+    ) -> None:
+        await self._primary.on_tool_call_delta(context, delta)
+        await self._extras.on_tool_call_delta(context, delta)
+
+    async def on_tool_call_finalized(
+        self, context: AgentHookContext, tool_call: ToolCallRequest
+    ) -> None:
+        await self._primary.on_tool_call_finalized(context, tool_call)
+        await self._extras.on_tool_call_finalized(context, tool_call)
+
+    async def on_tool_execution_start(
+        self, context: AgentHookContext, tool_call: ToolCallRequest
+    ) -> None:
+        await self._primary.on_tool_execution_start(context, tool_call)
+        await self._extras.on_tool_execution_start(context, tool_call)
+
+    async def on_tool_result(
+        self,
+        context: AgentHookContext,
+        tool_call: ToolCallRequest,
+        result: str,
+        error: str | None,
+    ) -> None:
+        await self._primary.on_tool_result(context, tool_call, result, error)
+        await self._extras.on_tool_result(context, tool_call, result, error)
+
+    async def on_reasoning_delta(
+        self, context: AgentHookContext, delta: str
+    ) -> None:
+        await self._primary.on_reasoning_delta(context, delta)
+        await self._extras.on_reasoning_delta(context, delta)
 
     async def before_execute_tools(self, context: AgentHookContext) -> None:
         await self._primary.before_execute_tools(context)
@@ -385,6 +469,11 @@ class AgentLoop:
         channel: str = "cli",
         chat_id: str = "direct",
         message_id: str | None = None,
+        on_tool_call_delta: Callable[[ToolCallDelta], Awaitable[None]] | None = None,
+        on_tool_call_finalized: Callable[[ToolCallRequest], Awaitable[None]] | None = None,
+        on_tool_execution_start: Callable[[ToolCallRequest], Awaitable[None]] | None = None,
+        on_tool_result: Callable[[ToolCallRequest, str, str | None], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> tuple[str | None, list[str], list[dict]]:
         """Run the agent iteration loop.
 
@@ -392,6 +481,10 @@ class AgentLoop:
         *on_stream_end(resuming)*: called when a streaming session finishes.
         ``resuming=True`` means tool calls follow (spinner should restart);
         ``resuming=False`` means this is the final response.
+
+        Extended streaming callbacks (per-tool lifecycle and reasoning)
+        force the streaming code path even when *on_stream* is None — set
+        any of them to subscribe to richer agent activity.
         """
         loop_hook = _LoopHook(
             self,
@@ -401,6 +494,11 @@ class AgentLoop:
             channel=channel,
             chat_id=chat_id,
             message_id=message_id,
+            on_tool_call_delta=on_tool_call_delta,
+            on_tool_call_finalized=on_tool_call_finalized,
+            on_tool_execution_start=on_tool_execution_start,
+            on_tool_result=on_tool_result,
+            on_reasoning_delta=on_reasoning_delta,
         )
         hook: AgentHook = (
             _LoopHookChain(loop_hook, self._extra_hooks)
@@ -584,6 +682,11 @@ class AgentLoop:
         on_progress: Callable[[str], Awaitable[None]] | None = None,
         on_stream: Callable[[str], Awaitable[None]] | None = None,
         on_stream_end: Callable[..., Awaitable[None]] | None = None,
+        on_tool_call_delta: Callable[[ToolCallDelta], Awaitable[None]] | None = None,
+        on_tool_call_finalized: Callable[[ToolCallRequest], Awaitable[None]] | None = None,
+        on_tool_execution_start: Callable[[ToolCallRequest], Awaitable[None]] | None = None,
+        on_tool_result: Callable[[ToolCallRequest, str, str | None], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> OutboundMessage | None:
         """Process a single inbound message and return the response."""
         # System messages: parse origin from chat_id ("channel:chat_id")
@@ -683,6 +786,11 @@ class AgentLoop:
             channel=msg.channel,
             chat_id=msg.chat_id,
             message_id=msg.metadata.get("message_id"),
+            on_tool_call_delta=on_tool_call_delta,
+            on_tool_call_finalized=on_tool_call_finalized,
+            on_tool_execution_start=on_tool_execution_start,
+            on_tool_result=on_tool_result,
+            on_reasoning_delta=on_reasoning_delta,
         )
 
         if final_content is None or not final_content.strip():
@@ -888,6 +996,11 @@ class AgentLoop:
         on_progress: Callable[[str], Awaitable[None]] | None = None,
         on_stream: Callable[[str], Awaitable[None]] | None = None,
         on_stream_end: Callable[..., Awaitable[None]] | None = None,
+        on_tool_call_delta: Callable[[ToolCallDelta], Awaitable[None]] | None = None,
+        on_tool_call_finalized: Callable[[ToolCallRequest], Awaitable[None]] | None = None,
+        on_tool_execution_start: Callable[[ToolCallRequest], Awaitable[None]] | None = None,
+        on_tool_result: Callable[[ToolCallRequest, str, str | None], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> OutboundMessage | None:
         """Process a message directly and return the outbound payload."""
         await self._connect_mcp()
@@ -900,4 +1013,9 @@ class AgentLoop:
             on_progress=on_progress,
             on_stream=on_stream,
             on_stream_end=on_stream_end,
+            on_tool_call_delta=on_tool_call_delta,
+            on_tool_call_finalized=on_tool_call_finalized,
+            on_tool_execution_start=on_tool_execution_start,
+            on_tool_result=on_tool_result,
+            on_reasoning_delta=on_reasoning_delta,
         )

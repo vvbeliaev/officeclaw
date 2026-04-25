@@ -264,6 +264,31 @@ export const agentChannels = pgTable(
 	]
 );
 
+// One agent = one chat (matches nanobot's per-session model). Rows hold
+// Vercel AI SDK UIMessage snapshots: `parts` is the typed payload
+// (text / tool-X / reasoning) rendered by the chat UI.
+export const agentChatMessages = pgTable(
+	'agent_chat_messages',
+	{
+		id: uuid().defaultRandom().primaryKey().notNull(),
+		agentId: uuid('agent_id')
+			.notNull()
+			.references(() => agents.id, { onDelete: 'cascade' }),
+		messageId: text('message_id').notNull(),
+		role: text().notNull(), // 'user' | 'assistant' | 'system' (DB CHECK enforces)
+		parts: jsonb().notNull(),
+		metadata: jsonb(),
+		status: text().default('complete').notNull(), // 'pending' | 'complete' | 'failed'
+		model: text(),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull()
+	},
+	(t) => [
+		unique('agent_chat_messages_agent_id_message_id_key').on(t.agentId, t.messageId),
+		index('agent_chat_messages_agent_id_created_at_idx').on(t.agentId, t.createdAt)
+	]
+);
+
 // Relations
 export const workspacesRelations = relations(workspaces, ({ one, many }) => ({
 	user: one(user, { fields: [workspaces.userId], references: [user.id] }),
@@ -283,7 +308,12 @@ export const agentsRelations = relations(agents, ({ one, many }) => ({
 	channels: many(agentChannels),
 	mcp: many(agentMcp),
 	templates: many(agentUserTemplates),
-	crons: many(agentCrons)
+	crons: many(agentCrons),
+	chatMessages: many(agentChatMessages)
+}));
+
+export const agentChatMessagesRelations = relations(agentChatMessages, ({ one }) => ({
+	agent: one(agents, { fields: [agentChatMessages.agentId], references: [agents.id] })
 }));
 
 export const workspaceCronsRelations = relations(workspaceCrons, ({ one, many }) => ({

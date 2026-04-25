@@ -5,7 +5,20 @@
 	import { DefaultChatTransport } from 'ai';
 	import AgentAvatar from '$lib/components/agent-avatar.svelte';
 	import Markdown from '$lib/components/markdown.svelte';
+	import ToolPart from '$lib/components/tool-part.svelte';
 	import { Icon } from '$lib/icons';
+
+	type Part = NonNullable<UIMessage['parts']>[number];
+
+	function isTextPart(p: Part): p is Part & { type: 'text'; text: string } {
+		return p.type === 'text';
+	}
+	function isReasoningPart(p: Part): p is Part & { type: 'reasoning'; text: string } {
+		return p.type === 'reasoning';
+	}
+	function isToolPart(p: Part): boolean {
+		return typeof p.type === 'string' && p.type.startsWith('tool-');
+	}
 
 	let { data } = $props();
 
@@ -29,19 +42,25 @@
 	// gets a fresh reference (e.g. after `invalidate('app:agents-list')`
 	// reruns the layout) — even when `data.agent.id` is unchanged. That
 	// drops in-flight stream chunks. Compare by value, not reference.
-	function makeChat(agentId: string): Chat<UIMessage> {
+	function makeChat(agentId: string, initial: UIMessage[]): Chat<UIMessage> {
 		return new Chat<UIMessage>({
 			id: agentId,
+			messages: initial,
 			transport: new DefaultChatTransport({ api: `/api/agents/${agentId}/chat` }),
 			onError: (err) => console.error('[chat] error:', err)
 		});
 	}
-	let chat = $state.raw<Chat<UIMessage>>(makeChat(untrack(() => data.agent.id)));
+	let chat = $state.raw<Chat<UIMessage>>(
+		makeChat(
+			untrack(() => data.agent.id),
+			untrack(() => data.initialMessages ?? [])
+		)
+	);
 	let chatAgentId: string = untrack(() => data.agent.id);
 	$effect.pre(() => {
 		const id = data.agent.id;
 		if (id !== chatAgentId) {
-			chat = makeChat(id);
+			chat = makeChat(id, data.initialMessages ?? []);
 			chatAgentId = id;
 		}
 	});
@@ -321,11 +340,10 @@
 				{/if}
 
 				{#each chat.messages as message (message.id)}
-					{@const text = messageText(message)}
 					{@const isLast = message.id === lastMessageId}
 					{#if message.role === 'user'}
 						<article class="msg user-msg">
-							<div class="user-bubble">{text}</div>
+							<div class="user-bubble">{messageText(message)}</div>
 						</article>
 					{:else}
 						<article class="msg agent-msg">
@@ -339,7 +357,20 @@
 							</div>
 							<div class="agent-body">
 								<div class="agent-name-tag font-display">{data.agent.name}</div>
-								<Markdown {text} streaming={isStreaming && isLast} />
+								<div class="agent-parts">
+									{#each message.parts as part, partIdx (partIdx)}
+										{#if isTextPart(part)}
+											<Markdown text={part.text} streaming={isStreaming && isLast} />
+										{:else if isReasoningPart(part)}
+											<details class="reasoning-block">
+												<summary class="font-mono">thinking</summary>
+												<div class="reasoning-body">{part.text}</div>
+											</details>
+										{:else if isToolPart(part)}
+											<ToolPart {part} />
+										{/if}
+									{/each}
+								</div>
 							</div>
 						</article>
 					{/if}
@@ -862,6 +893,39 @@
 		color: color-mix(in oklch, var(--primary) 65%, var(--foreground));
 		letter-spacing: 0.01em;
 		margin-bottom: 0.35rem;
+	}
+
+	.agent-parts {
+		display: flex;
+		flex-direction: column;
+		gap: 0.55rem;
+	}
+
+	.reasoning-block {
+		border: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+		border-radius: 0.4rem;
+		padding: 0.4rem 0.55rem;
+		background: color-mix(in oklch, var(--card) 50%, transparent);
+		font-size: 0.78rem;
+	}
+	.reasoning-block summary {
+		font-size: 0.62rem;
+		text-transform: uppercase;
+		letter-spacing: 0.12em;
+		color: var(--muted-foreground);
+		cursor: pointer;
+		list-style: none;
+	}
+	.reasoning-block summary::-webkit-details-marker {
+		display: none;
+	}
+	.reasoning-body {
+		margin-top: 0.4rem;
+		font-family: var(--font-mono);
+		font-size: 0.7rem;
+		line-height: 1.5;
+		color: color-mix(in oklch, var(--foreground) 75%, transparent);
+		white-space: pre-wrap;
 	}
 
 	/* Thinking dots */

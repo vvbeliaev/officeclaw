@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 import secrets
@@ -12,7 +13,7 @@ from typing import Any
 
 import json_repair
 
-from nanobot.providers.base import LLMProvider, LLMResponse, ToolCallRequest
+from nanobot.providers.base import LLMProvider, LLMResponse, ToolCallDelta, ToolCallRequest
 
 _ALNUM = string.ascii_letters + string.digits
 
@@ -496,6 +497,8 @@ class AnthropicProvider(LLMProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_tool_call_delta: Callable[[ToolCallDelta], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> LLMResponse:
         kwargs = self._build_kwargs(
             messages, tools, model, max_tokens, temperature,
@@ -519,7 +522,19 @@ class AnthropicProvider(LLMProvider):
                     stream.get_final_message(),
                     timeout=idle_timeout_s,
                 )
-            return self._parse_response(response)
+            parsed = self._parse_response(response)
+            # Best-effort post-stream emission (no per-event Anthropic mapping yet).
+            if on_tool_call_delta and parsed.tool_calls:
+                for index, tc in enumerate(parsed.tool_calls):
+                    await on_tool_call_delta(ToolCallDelta(
+                        index=index,
+                        id=tc.id,
+                        name=tc.name,
+                        arguments_delta=json.dumps(tc.arguments, ensure_ascii=False),
+                    ))
+            if on_reasoning_delta and parsed.reasoning_content:
+                await on_reasoning_delta(parsed.reasoning_content)
+            return parsed
         except asyncio.TimeoutError:
             return LLMResponse(
                 content=(

@@ -25,7 +25,7 @@ else:
         )
     from openai import AsyncOpenAI
 
-from nanobot.providers.base import LLMProvider, LLMResponse, ToolCallRequest
+from nanobot.providers.base import LLMProvider, LLMResponse, ToolCallDelta, ToolCallRequest
 
 if TYPE_CHECKING:
     from nanobot.providers.registry import ProviderSpec
@@ -750,6 +750,8 @@ class OpenAICompatProvider(LLMProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_tool_call_delta: Callable[[ToolCallDelta], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> LLMResponse:
         kwargs = self._build_kwargs(
             messages, tools, model, max_tokens, temperature,
@@ -771,10 +773,27 @@ class OpenAICompatProvider(LLMProvider):
                 except StopAsyncIteration:
                     break
                 chunks.append(chunk)
-                if on_content_delta and chunk.choices:
-                    text = getattr(chunk.choices[0].delta, "content", None)
+                if not chunk.choices:
+                    continue
+                delta = chunk.choices[0].delta
+                if on_content_delta:
+                    text = getattr(delta, "content", None)
                     if text:
                         await on_content_delta(text)
+                if on_tool_call_delta:
+                    tool_calls = getattr(delta, "tool_calls", None) or []
+                    for tc in tool_calls:
+                        fn = getattr(tc, "function", None)
+                        await on_tool_call_delta(ToolCallDelta(
+                            index=getattr(tc, "index", 0) or 0,
+                            id=getattr(tc, "id", None),
+                            name=getattr(fn, "name", None) if fn else None,
+                            arguments_delta=getattr(fn, "arguments", None) if fn else None,
+                        ))
+                if on_reasoning_delta:
+                    reasoning = getattr(delta, "reasoning_content", None)
+                    if reasoning:
+                        await on_reasoning_delta(reasoning)
             return self._parse_chunks(chunks)
         except asyncio.TimeoutError:
             return LLMResponse(

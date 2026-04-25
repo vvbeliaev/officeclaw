@@ -7,13 +7,14 @@ helpers from :mod:`nanobot.providers.openai_responses`.
 
 from __future__ import annotations
 
+import json
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from openai import AsyncOpenAI
 
-from nanobot.providers.base import LLMProvider, LLMResponse
+from nanobot.providers.base import LLMProvider, LLMResponse, ToolCallDelta
 from nanobot.providers.openai_responses import (
     consume_sdk_stream,
     convert_messages,
@@ -157,6 +158,8 @@ class AzureOpenAIProvider(LLMProvider):
         reasoning_effort: str | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         on_content_delta: Callable[[str], Awaitable[None]] | None = None,
+        on_tool_call_delta: Callable[[ToolCallDelta], Awaitable[None]] | None = None,
+        on_reasoning_delta: Callable[[str], Awaitable[None]] | None = None,
     ) -> LLMResponse:
         body = self._build_body(
             messages, tools, model, max_tokens, temperature,
@@ -169,6 +172,16 @@ class AzureOpenAIProvider(LLMProvider):
             content, tool_calls, finish_reason, usage, reasoning_content = (
                 await consume_sdk_stream(stream, on_content_delta)
             )
+            if on_tool_call_delta and tool_calls:
+                for index, tc in enumerate(tool_calls):
+                    await on_tool_call_delta(ToolCallDelta(
+                        index=index,
+                        id=tc.id,
+                        name=tc.name,
+                        arguments_delta=json.dumps(tc.arguments, ensure_ascii=False),
+                    ))
+            if on_reasoning_delta and reasoning_content:
+                await on_reasoning_delta(reasoning_content)
             return LLMResponse(
                 content=content or None,
                 tool_calls=tool_calls,

@@ -1,7 +1,8 @@
 import { error } from '@sveltejs/kit';
 import { db } from '$lib/server/db';
-import { agents } from '$lib/server/db/app.schema';
-import { and, eq } from 'drizzle-orm';
+import { agents, agentChatMessages } from '$lib/server/db/app.schema';
+import { and, asc, eq } from 'drizzle-orm';
+import type { UIMessage } from 'ai';
 import { resolveWorkspaceId } from '$lib/server/workspace-token';
 import type { PageServerLoad } from './$types';
 
@@ -24,5 +25,23 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 		error(404, 'Agent not found');
 	}
 
-	return { agent };
+	const rows = await db
+		.select({
+			messageId: agentChatMessages.messageId,
+			role: agentChatMessages.role,
+			parts: agentChatMessages.parts,
+			metadata: agentChatMessages.metadata
+		})
+		.from(agentChatMessages)
+		.where(eq(agentChatMessages.agentId, agent.id))
+		.orderBy(asc(agentChatMessages.createdAt));
+
+	const initialMessages: UIMessage[] = rows.map((r) => ({
+		id: r.messageId,
+		role: r.role as UIMessage['role'],
+		parts: (r.parts ?? []) as UIMessage['parts'],
+		metadata: r.metadata ?? undefined
+	}));
+
+	return { agent, initialMessages };
 };
