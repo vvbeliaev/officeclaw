@@ -89,7 +89,7 @@ class LightRAGStore:
                     ),
                     kv_storage="PGKVStorage",
                     vector_storage="PGVectorStorage",
-                    graph_storage="NetworkXStorage",
+                    graph_storage="PGGraphStorage",
                     doc_status_storage="PGDocStatusStorage",
                     addon_params={
                         "host": pg["host"],

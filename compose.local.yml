@@ -6,17 +6,23 @@ services:
     restart: unless-stopped
 
   db:
-    image: pgvector/pgvector:pg18
+    build:
+      context: ./db
+      dockerfile: Dockerfile
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=age
     ports:
       - "5434:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
+      POSTGRES_DB: officeclaw
     volumes:
-      - ./postgres:/var/lib/postgresql
+      - ./db/postgres:/var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d officeclaw"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -65,7 +71,6 @@ services:
       STORAGE_ENDPOINT: http://minio:9000
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./api/data/kg:/app/data/kg
     depends_on:
       db:
         condition: service_healthy
