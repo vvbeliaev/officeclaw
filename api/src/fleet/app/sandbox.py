@@ -8,8 +8,9 @@ from uuid import UUID
 import httpx
 
 from src.fleet.app.agents import AgentService
-from src.fleet.core.runtime_files import RUNTIME_PATHS, extract_override
 from src.fleet.app.vm_payload import build_vm_payload
+from src.fleet.core.ports.out import ISandboxRunner
+from src.fleet.core.runtime_files import RUNTIME_PATHS, extract_override
 from src.integrations.app import IntegrationsApp
 from src.library.app import LibraryApp
 from src.shared.config import get_settings
@@ -18,18 +19,6 @@ _log = logging.getLogger(__name__)
 
 _DEFAULT_IMAGE = "localhost:5005/officeclaw/agent:latest"
 
-
-def _sandbox_workdir(agent_id: UUID) -> Path:
-    """Return the resolved host path for an agent's sandbox workspace.
-
-    `Path.expanduser()` handles a leading ~, and `.resolve()` follows any
-    symlinks (important on macOS where /tmp → /private/tmp — Docker Desktop's
-    file-sharing list matches by real path).
-    """
-    root = Path(get_settings().sandbox_workdir).expanduser().resolve()
-    return root / str(agent_id)
-
-
 _SYNC_EXCLUDE_TOP = {
     "config.json",
     "skills",
@@ -37,65 +26,18 @@ _SYNC_EXCLUDE_TOP = {
     ".gitignore",
     ".traces",
 }
-_DEFAULT_CPUS = "1"
-_DEFAULT_MEMORY = "512"  # MiB
-_GATEWAY_READY_TIMEOUT = 60  # seconds to wait for nanobot gateway to be ready
+_GATEWAY_READY_TIMEOUT = 60
 _GATEWAY_READY_INTERVAL = 0.5
 
 
-def _run_cmd(
-    image: str, name: str, workdir: Path, gateway_port: int, env: dict
-) -> list[str]:
-    runner = get_settings().sandbox_runner
-    if runner == "docker":
-        cmd = [
-            "docker",
-            "run",
-            "--name",
-            name,
-            "--detach",
-            "--volume",
-            f"{workdir}:/workspace",
-            "--cpus",
-            _DEFAULT_CPUS,
-            "--memory",
-            f"{_DEFAULT_MEMORY}m",  # Docker expects "512m"
-            "-p",
-            f"{gateway_port}:18790",
-        ]
-        for k, v in env.items():
-            cmd += ["-e", f"{k}={v}"]
-        cmd.append(image)
-    else:
-        cmd = [
-            "msb",
-            "run",
-            image,
-            "--name",
-            name,
-            "--detach",
-            "--volume",
-            f"{workdir}:/workspace",
-            "--cpus",
-            _DEFAULT_CPUS,
-            "--memory",
-            _DEFAULT_MEMORY,  # msb expects plain integer
-            "-p",
-            f"{gateway_port}:18790",
-        ]
-        for k, v in env.items():
-            cmd += ["-e", f"{k}={v}"]
-    return cmd
+def _sandbox_workdir(agent_id: UUID) -> Path:
+    """Resolved host path for an agent's sandbox workspace.
 
-
-def _stop_cmd(name: str) -> list[str]:
-    runner = get_settings().sandbox_runner
-    return ["docker", "stop", name] if runner == "docker" else ["msb", "stop", name]
-
-
-def _rm_cmd(name: str) -> list[str]:
-    runner = get_settings().sandbox_runner
-    return ["docker", "rm", name] if runner == "docker" else ["msb", "rm", name]
+    `.resolve()` follows symlinks (matters on macOS where /tmp → /private/tmp,
+    which Docker Desktop's file-sharing matches by real path).
+    """
+    root = Path(get_settings().sandbox_workdir).expanduser().resolve()
+    return root / str(agent_id)
 
 
 def _find_free_port() -> int:
@@ -105,78 +47,16 @@ def _find_free_port() -> int:
         return s.getsockname()[1]
 
 
-def _force_rm_cmd(name: str) -> list[str]:
-    """Command to force-remove a sandbox by name, regardless of its state."""
-    runner = get_settings().sandbox_runner
-    if runner == "docker":
-        return ["docker", "rm", "-f", name]
-    return ["msb", "rm", "--force", name]
-
-
-async def _force_rm_sandbox(name: str) -> None:
-    """Best-effort removal of an existing sandbox with the given name.
-
-    Used before `start` to clean up orphans left behind by a previous
-    crashed or aborted run. Ignores failures — the target may not exist.
-    """
-    proc = await asyncio.create_subprocess_exec(
-        *_force_rm_cmd(name),
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-    )
-    await proc.communicate()
-
-
 def gateway_base_url(port: int) -> str:
-    """Return the base URL to reach a nanobot gateway at the given port."""
     return f"http://{get_settings().sandbox_gateway_host}:{port}"
 
 
-async def _capture_logs(name: str, tail: int = 80) -> str:
-    """Best-effort fetch of container/sandbox logs for error reporting."""
-    runner = get_settings().sandbox_runner
-    if runner == "docker":
-        cmd = ["docker", "logs", "--tail", str(tail), name]
-    else:
-        cmd = ["msb", "logs", "--tail", str(tail), name]
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        stdout, _ = await proc.communicate()
-        return stdout.decode(errors="replace").strip() or "(no output)"
-    except Exception as exc:
-        return f"(failed to collect logs: {exc})"
-
-
-async def _is_sandbox_alive(name: str) -> bool:
-    """Return True if the named container is in the 'running' state."""
-    runner = get_settings().sandbox_runner
-    if runner == "docker":
-        cmd = ["docker", "inspect", "--format", "{{.State.Status}}", name]
-    else:
-        # msb: exits 0 and prints "running" when alive, non-zero otherwise
-        cmd = ["msb", "inspect", "--format", "{{.State.Status}}", name]
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        stdout, _ = await proc.communicate()
-        return proc.returncode == 0 and stdout.decode().strip() == "running"
-    except Exception:
-        return False
-
-
 def _read_workspace_files(workdir: Path) -> list[dict]:
-    """Recursively read all workspace files, excluding generated/managed dirs.
+    """Recursively read mutable workspace files, excluding generated dirs.
 
-    Runtime files (SOUL.md / USER.md / AGENTS.md / HEARTBEAT.md / TOOLS.md) are
-    split on the template-boundary marker so only the per-agent override is
-    persisted back to agent_files. If the marker is absent (no template
+    Runtime files (SOUL.md / USER.md / AGENTS.md / HEARTBEAT.md / TOOLS.md)
+    are split on the template-boundary marker so only the per-agent override
+    is persisted back to agent_files. If the marker is absent (no template
     attached at start, or the agent wiped the marker), the full body is
     treated as override.
     """
@@ -200,7 +80,9 @@ def _read_workspace_files(workdir: Path) -> list[dict]:
     return result
 
 
-async def _wait_for_gateway(port: int, sandbox_name: str) -> None:
+async def _wait_for_gateway(
+    runner: ISandboxRunner, port: int, sandbox_name: str
+) -> None:
     """Poll nanobot gateway until it accepts an HTTP response or times out.
 
     During boot we tolerate any transport-level failure — `ConnectError`
@@ -220,10 +102,10 @@ async def _wait_for_gateway(port: int, sandbox_name: str) -> None:
                 httpx.ReadError,
                 httpx.RemoteProtocolError,
                 httpx.ReadTimeout,
-            ) as exc:
-                last_error = exc
+            ) as err:
+                last_error = err
                 await asyncio.sleep(_GATEWAY_READY_INTERVAL)
-    logs = await _capture_logs(sandbox_name)
+    logs = await runner.capture_logs(sandbox_name)
     raise RuntimeError(
         f"Gateway on port {port} did not become ready in "
         f"{_GATEWAY_READY_TIMEOUT}s (last error: {last_error}).\n\n"
@@ -232,22 +114,24 @@ async def _wait_for_gateway(port: int, sandbox_name: str) -> None:
 
 
 class SandboxService:
-    """App-layer service: manages sandbox lifecycle via msb CLI."""
+    """App-layer service: manages sandbox lifecycle via an ISandboxRunner."""
 
     def __init__(
         self,
         agents: AgentService,
         integrations: IntegrationsApp,
         skills: LibraryApp,
+        runner: ISandboxRunner,
     ) -> None:
         self._agents = agents
         self._integrations = integrations
         self._skills = skills
+        self._runner = runner
 
     async def start(
         self, agent_id: UUID, workspace_token: str, timezone: str
     ) -> str:
-        """Build VM payload, write workspace, launch msb sandbox. Returns sandbox_id.
+        """Build VM payload, write workspace, launch sandbox. Returns sandbox_id.
 
         `workspace_token` and `timezone` are passed in by the caller (route /
         MCP handler) after it has resolved the agent's workspace and owning
@@ -273,7 +157,7 @@ class SandboxService:
                     fh.write(f["content"])
             with open(tmp_workdir / "config.json", "w") as fh:
                 fh.write(payload["config_json"])
-            # Atomic swap: remove stale workdir (orphan from a previous crash),
+            # Atomic swap: drop stale workdir (orphan from a previous crash),
             # then rename tmp into place — rename() is atomic on POSIX.
             if workdir.exists():
                 shutil.rmtree(workdir)
@@ -284,35 +168,25 @@ class SandboxService:
 
         sandbox_name = f"agent-{agent_id}"
 
-        # Clean up any orphan container from a previous crashed / aborted
-        # run — otherwise `docker run --name X` fails with a name conflict.
-        await _force_rm_sandbox(sandbox_name)
+        # Best-effort cleanup of any orphan sandbox under the same name —
+        # otherwise `start` will collide on the name.
+        await self._runner.force_remove(sandbox_name)
 
         gateway_port = _find_free_port()
-        cmd = _run_cmd(
-            image=_DEFAULT_IMAGE,
+        await self._runner.start(
             name=sandbox_name,
+            image=_DEFAULT_IMAGE,
             workdir=workdir,
             gateway_port=gateway_port,
             env=payload["env"],
         )
 
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            runner = get_settings().sandbox_runner
-            raise RuntimeError(f"{runner} run failed: {stderr.decode()}")
-
-        # If the gateway never comes up, tear the container down before
-        # surfacing the error so we don't leave a broken sandbox behind.
+        # If the gateway never comes up, tear the sandbox down before
+        # surfacing the error so we don't leave a broken VM behind.
         try:
-            await _wait_for_gateway(gateway_port, sandbox_name)
+            await _wait_for_gateway(self._runner, gateway_port, sandbox_name)
         except Exception:
-            await _force_rm_sandbox(sandbox_name)
+            await self._runner.force_remove(sandbox_name)
             raise
 
         await self._agents.update(
@@ -324,19 +198,13 @@ class SandboxService:
         return sandbox_name
 
     async def stop(self, agent_id: UUID) -> None:
-        """Stop sandbox, sync mutable files back to Postgres, remove sandbox and workspace."""
+        """Stop sandbox, sync mutable files back to Postgres, remove sandbox + workspace."""
         record = await self._agents.find_by_id(agent_id)
         if not record or not record["sandbox_id"]:
             raise ValueError(f"Agent {agent_id} has no running sandbox")
 
         sandbox_name = record["sandbox_id"]
-
-        proc = await asyncio.create_subprocess_exec(
-            *_stop_cmd(sandbox_name),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        await proc.communicate()
+        await self._runner.stop(sandbox_name)
 
         # Sync mutable workspace files back to Postgres — best-effort, must not
         # block the cleanup steps that follow.
@@ -350,12 +218,7 @@ class SandboxService:
                 "Failed to sync workspace files for agent %s during stop", agent_id
             )
 
-        proc = await asyncio.create_subprocess_exec(
-            *_rm_cmd(sandbox_name),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        await proc.communicate()
+        await self._runner.remove(sandbox_name)
 
         if workdir.exists():
             shutil.rmtree(workdir, ignore_errors=True)
@@ -365,7 +228,6 @@ class SandboxService:
         )
 
     async def _sync_agent_files(self, agent_id: UUID) -> None:
-        """Read mutable workspace files from disk and upsert into Postgres."""
         workdir = _sandbox_workdir(agent_id)
         files = _read_workspace_files(workdir)
         if files:
@@ -378,7 +240,7 @@ class SandboxService:
             sandbox_name = agent["sandbox_id"]
             if not sandbox_name:
                 continue
-            if await _is_sandbox_alive(sandbox_name):
+            if await self._runner.is_alive(sandbox_name):
                 continue
             agent_id: UUID = agent["id"]
             _log.warning(
@@ -388,7 +250,7 @@ class SandboxService:
                 await self._sync_agent_files(agent_id)
             except Exception:
                 _log.exception("Failed to sync files for crashed agent %s", agent_id)
-            await _force_rm_sandbox(sandbox_name)
+            await self._runner.force_remove(sandbox_name)
             workdir = _sandbox_workdir(agent_id)
             if workdir.exists():
                 shutil.rmtree(workdir, ignore_errors=True)

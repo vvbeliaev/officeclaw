@@ -1,5 +1,35 @@
+from pathlib import Path
 from typing import Protocol
 from uuid import UUID
+
+
+class ISandboxRunner(Protocol):
+    """Out-port: sandbox lifecycle backend (Docker for dev, microsandbox for prod).
+
+    Implementations own the runner-specific protocol (subprocess, Python SDK).
+    SandboxService talks only to this interface — no runner-specific code in
+    the app layer.
+    """
+
+    async def start(
+        self,
+        *,
+        name: str,
+        image: str,
+        workdir: Path,
+        gateway_port: int,
+        env: dict[str, str],
+    ) -> None: ...
+
+    async def stop(self, name: str) -> None: ...
+
+    async def remove(self, name: str) -> None: ...
+
+    async def force_remove(self, name: str) -> None: ...
+
+    async def is_alive(self, name: str) -> bool: ...
+
+    async def capture_logs(self, name: str, tail: int = 80) -> str: ...
 
 
 class IAgentRepo(Protocol):

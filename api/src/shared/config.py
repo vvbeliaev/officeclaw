@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     mcp_base_url: str = "http://localhost:8000"
 
     # Sandbox runner: "docker" for local dev (macOS/Intel), "msb" for
-    # production (Linux with KVM-backed microVMs).
+    # production (microsandbox Python SDK — Linux x86_64/aarch64 or macOS
+    # arm64, KVM-backed microVMs). The "msb" runner requires the optional
+    # `microsandbox` extra (`pip install -e "./api[microsandbox]"`).
     sandbox_runner: Literal["docker", "msb"] = "msb"
 
     # Host to reach the nanobot gateway once a sandbox is up.

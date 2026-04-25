@@ -1,10 +1,17 @@
 services:
   api:
+    privileged: true
+    devices:
+      - /dev/kvm:/dev/kvm
+    volumes:
+      - /var/lib/msb:/var/lib/msb
+      # - /path/to/kernels:/kernels:ro
     build:
       context: ./api
       dockerfile: Dockerfile
   environment:
-    SANDBOX_RUNNER: docker
+    SANDBOX_RUNNER: msb
+    SANDBOX_GATEWAY_HOST: localhost
 
   web:
     build:

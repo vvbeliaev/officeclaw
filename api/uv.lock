@@ -205,6 +205,9 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
+microsandbox = [
+    { name = "microsandbox" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -216,6 +219,7 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=2.3" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "lightrag-hku", specifier = ">=1.3" },
+    { name = "microsandbox", marker = "extra == 'microsandbox'", specifier = ">=0.3.14" },
     { name = "openai", specifier = ">=1.0" },
     { name = "pgvector", specifier = ">=0.3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
@@ -230,7 +234,7 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "microsandbox"]
 
 [[package]]
 name = "ascii-colors"
@@ -1323,6 +1327,16 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d6/54/cfe61301667036ec958cb99bd3efefba235e65cdeb9c84d24a8293ba1d90/mdurl-0.1.2.tar.gz", hash = "sha256:bb413d29f5eea38f31dd4754dd7377d4465116fb207585f97bf925588687c1ba", size = 8729, upload-time = "2022-08-14T12:40:10.846Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
+]
+
+[[package]]
+name = "microsandbox"
+version = "0.3.14"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a5/cf/3d084ae0e7c7c25bd345797983d3618cf16684ac1f4d4e283e7e1b79b4e2/microsandbox-0.3.14-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:2ead24bc78d01bf81f37bf48155173adae4104a7676ea94e55b95c6ad089a8a7", size = 39820605, upload-time = "2026-04-18T05:51:25.747Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/a3/41921821e3c04bb27f5db54011576686e18d50b933affb226010c9bdc5be/microsandbox-0.3.14-cp310-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:343c70cb3cbb7fca1d8c1f557e33a982802b098c12c452e735ee3b3ba8a8187d", size = 55369283, upload-time = "2026-04-18T05:51:22.22Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/40/af8f21cbaf4cf4d5e1cf19266f4b5f9ce87e5bbe522d7e48af201c2e9dd6/microsandbox-0.3.14-cp310-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:2a77091a774e8fc0d27ecd0050913292cd234f3bb4bc37c7da7987557c7bd2bf", size = 41379152, upload-time = "2026-04-18T05:51:18.232Z" },
 ]
 
 [[package]]
