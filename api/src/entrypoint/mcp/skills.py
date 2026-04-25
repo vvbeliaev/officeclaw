@@ -1,9 +1,13 @@
 """Skill library tools — create skills, manage skill files, and attach to agents."""
 
+import logging
 from uuid import UUID
 
 import src.entrypoint.mcp as _pkg
 from fastmcp.server.context import Context
+from src.library.app import ClawhubImportError
+
+logger = logging.getLogger(__name__)
 
 # Body-only template. Structured fields (name / description / always /
 # emoji / homepage / requires) live in DB columns and get synthesized
@@ -159,3 +163,33 @@ async def attach_skill(context: Context, agent_id: str, skill_id: str) -> dict:
     assert _pkg._integrations is not None
     await _pkg._integrations.attach_skill(UUID(agent_id), UUID(skill_id))
     return {"agent_id": agent_id, "skill_id": skill_id, "attached": True}
+
+
+@_pkg.admin_mcp.tool()
+async def import_skill_from_clawhub(context: Context, url: str) -> dict:
+    """Import a skill from clawhub.ai into the workspace skill library.
+
+    `url` must look like `https://clawhub.ai/<owner>/<slug>`. The remote
+    archive is fetched, validated, and unpacked server-side; SKILL.md
+    frontmatter is absorbed into the skill row, and every other file
+    is stored verbatim. The new skill is NOT auto-attached to any
+    agent — call `attach_skill` afterwards if needed.
+    """
+    workspace_id = await _pkg._require_workspace(context)
+    _pkg._assert_ready()
+    assert _pkg._library is not None
+    try:
+        record = await _pkg._library.import_from_clawhub(workspace_id, url)
+    except ClawhubImportError as exc:
+        # User-facing message — surface verbatim.
+        raise ValueError(str(exc)) from exc
+    except Exception as exc:
+        # Anything else is a server bug or upstream flake. Log the full
+        # stack trace, but return a short, non-leaky message to the agent
+        # so the FastMCP layer doesn't degrade to opaque `McpError`.
+        logger.exception("import_skill_from_clawhub failed for %r", url)
+        raise ValueError(
+            f"ClawHub import failed ({type(exc).__name__}): {exc}. "
+            "See API server logs for details."
+        ) from exc
+    return _skill_summary(record)

@@ -21,3 +21,21 @@ export async function getWorkspaceToken(
 		.limit(1);
 	return ws?.token ?? null;
 }
+
+/** Returns the workspace UUID for a workspace the user owns. Accepts either a UUID
+ *  or a slug. Returns null if the user does not own a matching workspace. */
+export async function resolveWorkspaceId(
+	workspaceId: string,
+	userId: string
+): Promise<string | null> {
+	const idCondition = UUID_RE.test(workspaceId)
+		? or(eq(workspaces.id, workspaceId), eq(workspaces.slug, workspaceId))
+		: eq(workspaces.slug, workspaceId);
+
+	const [ws] = await db
+		.select({ id: workspaces.id })
+		.from(workspaces)
+		.where(and(idCondition, eq(workspaces.userId, userId)))
+		.limit(1);
+	return ws?.id ?? null;
+}

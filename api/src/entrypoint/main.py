@@ -28,8 +28,15 @@ from src.workspace.adapters._in.router import router as workspaces_router
 
 from .mcp import admin_mcp, knowledge_mcp, setup as mcp_setup
 
-_admin_mcp_asgi = admin_mcp.http_app(path="/")
-_knowledge_mcp_asgi = knowledge_mcp.http_app(path="/")
+# `stateless_http=True` — every POST builds a fresh transport instead of
+# binding to an `mcp-session-id`. With stateful sessions (the default),
+# any server restart, tool exception, or transport hiccup leaves the
+# client holding a session ID the server no longer knows, and FastMCP
+# returns 404 on every subsequent request until the client reinitializes.
+# Our tools are short, synchronous, and don't need cross-call SSE
+# notifications — stateless is the correct trade-off here.
+_admin_mcp_asgi = admin_mcp.http_app(path="/", stateless_http=True)
+_knowledge_mcp_asgi = knowledge_mcp.http_app(path="/", stateless_http=True)
 
 
 @asynccontextmanager
@@ -48,7 +55,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     integrations = integrations_di.build(pool)
     library = library_di.build(pool)
     fleet, watcher = fleet_di.build(pool, integrations, library)
-    workspace = workspace_di.build(pool, fleet, integrations)
+    workspace = workspace_di.build(pool, fleet, integrations, library)
     identity = identity_di.build(pool, workspace)
     knowledge = knowledge_di.build(settings)
 

@@ -9,10 +9,12 @@ from uuid import UUID
 import asyncpg
 
 from src.shared.config import get_settings
+from src.workspace.app.seed import seed_workspace_skills
 
 if TYPE_CHECKING:
     from src.fleet.app import FleetApp
     from src.integrations.app import IntegrationsApp
+    from src.library.app import LibraryApp
     from src.workspace.core.ports.outbound import IWorkspaceRepo
 
 _SOUL_MD = """
@@ -77,10 +79,12 @@ class WorkspaceService:
         repo: IWorkspaceRepo,
         fleet: FleetApp,
         integrations: IntegrationsApp,
+        library: LibraryApp,
     ) -> None:
         self._repo = repo
         self._fleet = fleet
         self._integrations = integrations
+        self._library = library
 
     async def create_workspace(self, user_id: UUID, name: str) -> asyncpg.Record:
         """Create workspace + run full bootstrap. Returns workspace record with token.
@@ -184,3 +188,7 @@ class WorkspaceService:
         await self._integrations.attach_mcp(agent_id, mcp_record["id"])
         await self._integrations.attach_env(agent_id, default_llm_env["id"])
         await self._integrations.attach_env(agent_id, default_web_search_env["id"])
+
+        await seed_workspace_skills(
+            workspace_id, agent_id, self._library, self._integrations
+        )

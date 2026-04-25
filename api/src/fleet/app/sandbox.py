@@ -22,6 +22,7 @@ _DEFAULT_IMAGE = "localhost:5005/officeclaw/agent:latest"
 _SYNC_EXCLUDE_TOP = {
     "config.json",
     "skills",
+    "cron",
     ".git",
     ".gitignore",
     ".traces",

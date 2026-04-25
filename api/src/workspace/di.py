@@ -11,13 +11,15 @@ from src.workspace.app.workspaces import WorkspaceService
 if TYPE_CHECKING:
     from src.fleet.app import FleetApp
     from src.integrations.app import IntegrationsApp
+    from src.library.app import LibraryApp
 
 
 def build(
     pool: asyncpg.Pool,
     fleet: FleetApp,
     integrations: IntegrationsApp,
+    library: LibraryApp,
 ) -> WorkspaceApp:
     repo = WorkspaceRepo(pool)
-    service = WorkspaceService(repo, fleet, integrations)
+    service = WorkspaceService(repo, fleet, integrations, library)
     return WorkspaceApp(service)

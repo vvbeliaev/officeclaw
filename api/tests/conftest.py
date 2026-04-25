@@ -74,7 +74,7 @@ async def client(conn: asyncpg.Connection) -> AsyncGenerator[AsyncClient, None]:
     integrations = integrations_di.build(pool)  # type: ignore[arg-type]
     library = library_di.build(pool)  # type: ignore[arg-type]
     fleet, _ = fleet_di.build(pool, integrations, library)  # type: ignore[arg-type]
-    workspace = workspace_di.build(pool, fleet, integrations)  # type: ignore[arg-type]
+    workspace = workspace_di.build(pool, fleet, integrations, library)  # type: ignore[arg-type]
     identity = identity_di.build(pool, workspace)  # type: ignore[arg-type]
 
     app.state.pool = pool
@@ -153,4 +153,4 @@ def fleet_deps(conn, integrations_deps, library_deps):
 @pytest.fixture
 def workspace_deps(conn, integrations_deps, library_deps):
     fleet, _ = fleet_di.build(conn, integrations_deps, library_deps)  # type: ignore[arg-type]
-    return workspace_di.build(conn, fleet, integrations_deps)  # type: ignore[arg-type]
+    return workspace_di.build(conn, fleet, integrations_deps, library_deps)  # type: ignore[arg-type]

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { invalidate, invalidateAll } from '$app/navigation';
 	import { Chat, type UIMessage } from '@ai-sdk/svelte';
 	import { DefaultChatTransport } from 'ai';
@@ -24,17 +24,27 @@
 		}
 	});
 
-	const chat = $derived(
-		new Chat<UIMessage>({
-			id: data.agent.id,
-			transport: new DefaultChatTransport({
-				api: `/api/agents/${data.agent.id}/chat`
-			}),
-			onError: (err) => {
-				console.error('[chat] error:', err);
-			}
-		})
-	);
+	// Stabilize the Chat instance against unrelated `data` updates.
+	// `$derived(new Chat(...))` would recreate the instance any time `data`
+	// gets a fresh reference (e.g. after `invalidate('app:agents-list')`
+	// reruns the layout) — even when `data.agent.id` is unchanged. That
+	// drops in-flight stream chunks. Compare by value, not reference.
+	function makeChat(agentId: string): Chat<UIMessage> {
+		return new Chat<UIMessage>({
+			id: agentId,
+			transport: new DefaultChatTransport({ api: `/api/agents/${agentId}/chat` }),
+			onError: (err) => console.error('[chat] error:', err)
+		});
+	}
+	let chat = $state.raw<Chat<UIMessage>>(makeChat(untrack(() => data.agent.id)));
+	let chatAgentId: string = untrack(() => data.agent.id);
+	$effect.pre(() => {
+		const id = data.agent.id;
+		if (id !== chatAgentId) {
+			chat = makeChat(id);
+			chatAgentId = id;
+		}
+	});
 
 	let input = $state('');
 	let composer: HTMLTextAreaElement | null = $state(null);
