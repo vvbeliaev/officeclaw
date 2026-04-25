@@ -16,6 +16,7 @@ from src.fleet.core.schema import (
     AgentUpdate,
 )
 from src.identity.app import IdentityApp
+from src.integrations.app import IntegrationsApp
 from src.shared.storage import StoragePort
 from src.workspace.app import WorkspaceApp
 
@@ -36,6 +37,10 @@ def get_workspace(request: Request) -> WorkspaceApp:
 
 def get_identity(request: Request) -> IdentityApp:
     return request.app.state.identity
+
+
+def get_integrations(request: Request) -> IntegrationsApp:
+    return request.app.state.integrations
 
 
 @router.post("", response_model=AgentOut, status_code=201)
@@ -205,3 +210,47 @@ async def upsert_file(
         raise HTTPException(409, "Cannot edit files while agent is running — stop the agent first")
     record = await fleet.upsert_file(agent_id, body.path, body.content)
     return AgentFileOut(**dict(record))
+
+
+@router.get("/{agent_id}/diagnostics")
+async def diagnose_agent(
+    agent_id: UUID,
+    fleet: FleetApp = Depends(get_fleet),
+    integrations: IntegrationsApp = Depends(get_integrations),
+) -> dict:
+    """Report unmet skill requirements for an agent.
+
+    For every attached skill, list declared `required_envs` / `required_bins`
+    and which envs are currently unsatisfied. An env is "satisfied" when at
+    least one attached env contains a value-key matching the requirement.
+    Bins are reported but not validated (sandbox-image scope).
+    """
+    agent = await fleet.find_agent(agent_id)
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+
+    attached_skills = await integrations.list_agent_skills(agent_id)
+    attached_envs = await integrations.list_agent_envs(agent_id)
+
+    provided_keys: set[str] = set()
+    for env in attached_envs:
+        try:
+            values = await integrations.get_decrypted_env(env["id"])
+        except ValueError:
+            continue
+        provided_keys.update(values.keys())
+
+    skills_diag: list[dict] = []
+    for skill in attached_skills:
+        required_envs: list[str] = list(skill["required_envs"] or [])
+        required_bins: list[str] = list(skill["required_bins"] or [])
+        missing_envs = [k for k in required_envs if k not in provided_keys]
+        skills_diag.append({
+            "skill_id": str(skill["id"]),
+            "skill_name": skill["name"],
+            "required_envs": required_envs,
+            "missing_envs": missing_envs,
+            "required_bins": required_bins,
+        })
+
+    return {"skills": skills_diag}

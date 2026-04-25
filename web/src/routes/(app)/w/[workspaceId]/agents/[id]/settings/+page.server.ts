@@ -135,6 +135,27 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 	const attachedTemplateIds = new Set(attachedTemplateRows.map((r) => r.templateId));
 	const attachedCronById = new Map(attachedCronRows.map((r) => [r.cronId, r]));
 
+	// Skill diagnostics — what each attached skill needs vs what is provided.
+	type SkillDiag = {
+		skill_id: string;
+		skill_name: string;
+		required_envs: string[];
+		missing_envs: string[];
+		required_bins: string[];
+	};
+	const diagBySkillId = new Map<string, SkillDiag>();
+	try {
+		const diagRes = await fetch(`${API_URL}/agents/${params.id}/diagnostics`);
+		if (diagRes.ok) {
+			const payload = (await diagRes.json()) as { skills: SkillDiag[] };
+			for (const d of payload.skills) {
+				diagBySkillId.set(d.skill_id, d);
+			}
+		}
+	} catch {
+		// Diagnostics are best-effort; render the page even if the API is down.
+	}
+
 	return {
 		agent: agentRow,
 		channels: allChannels.map((c) => {
@@ -145,7 +166,16 @@ export const load: PageServerLoad = async ({ params, parent }) => {
 				takenBy: assignment && assignment.agentId !== params.id ? assignment.agentName : null
 			};
 		}),
-		skills: allSkills.map((s) => ({ ...s, attached: attachedSkillIds.has(s.id) })),
+		skills: allSkills.map((s) => {
+			const diag = diagBySkillId.get(s.id);
+			return {
+				...s,
+				attached: attachedSkillIds.has(s.id),
+				requiredEnvs: diag?.required_envs ?? [],
+				missingEnvs: diag?.missing_envs ?? [],
+				requiredBins: diag?.required_bins ?? []
+			};
+		}),
 		envs: allEnvs
 			.filter((e) => e.category !== 'llm-provider')
 			.map((e) => ({ ...e, attached: attachedEnvIds.has(e.id) })),

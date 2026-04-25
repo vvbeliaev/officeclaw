@@ -63,7 +63,14 @@
 	}
 
 	type Channel     = { id: string; type: string; createdAt: Date; attached: boolean; takenBy: string | null };
-	type Skill       = { id: string; name: string; attached: boolean };
+	type Skill       = {
+		id: string;
+		name: string;
+		attached: boolean;
+		requiredEnvs: string[];
+		missingEnvs: string[];
+		requiredBins: string[];
+	};
 	type Env         = { id: string; name: string; category: string | null; attached: boolean };
 	type LlmProvider = { id: string; name: string; attached: boolean };
 	type Mcp         = { id: string; name: string; type: string; attached: boolean };
@@ -458,14 +465,45 @@
 				{:else}
 					<div class="chip-grid">
 						{#each (data.skills as Skill[]).filter(s => s.attached) as skill (skill.id)}
-							<div class="chip chip--on">
-								<span class="chip-name">{skill.name}</span>
-								<form method="POST" action="?/detachSkill" use:enhance={connEnhance(`detach:skill:${skill.id}`)} style="display:contents">
-									<input type="hidden" name="skill_id" value={skill.id} />
-									<button class="chip-x" type="submit" disabled={!!pending[`detach:skill:${skill.id}`]} title="Detach">
-										{#if pending[`detach:skill:${skill.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:x" width={9} height={9} />{/if}
-									</button>
-								</form>
+							{@const needsCount = skill.missingEnvs.length}
+							<div class="skill-block">
+								<div class="chip chip--on" class:chip--warn={needsCount > 0}>
+									<span class="chip-name">{skill.name}</span>
+									{#if needsCount > 0}
+										<span class="chip-warn-badge font-mono" title="Missing requirements">
+											<Icon icon="tabler:alert-triangle" width={9} height={9} />
+											{needsCount} need{needsCount === 1 ? '' : 's'}
+										</span>
+									{/if}
+									<form method="POST" action="?/detachSkill" use:enhance={connEnhance(`detach:skill:${skill.id}`)} style="display:contents">
+										<input type="hidden" name="skill_id" value={skill.id} />
+										<button class="chip-x" type="submit" disabled={!!pending[`detach:skill:${skill.id}`]} title="Detach">
+											{#if pending[`detach:skill:${skill.id}`]}<span class="spinner spinner--xs"></span>{:else}<Icon icon="tabler:x" width={9} height={9} />{/if}
+										</button>
+									</form>
+								</div>
+								{#if needsCount > 0}
+									<ul class="needs-list font-mono">
+										{#each skill.missingEnvs as key (key)}
+											<li class="needs-row">
+												<Icon icon="tabler:key" width={9} height={9} class="needs-icon" />
+												<span class="needs-key">{key}</span>
+												<a
+													class="needs-cta"
+													href={`/w/${data.workspace.id}/workspace/environments?addKey=${encodeURIComponent(key)}`}
+												>
+													<Icon icon="tabler:plus" width={9} height={9} /> add
+												</a>
+											</li>
+										{/each}
+									</ul>
+								{/if}
+								{#if skill.requiredBins.length > 0}
+									<p class="needs-note font-mono">
+										<Icon icon="tabler:terminal-2" width={9} height={9} />
+										needs bin: {skill.requiredBins.join(', ')}
+									</p>
+								{/if}
 							</div>
 						{/each}
 						{#each (data.skills as Skill[]).filter(s => !s.attached) as skill (skill.id)}
@@ -1385,6 +1423,87 @@
 		color: var(--destructive);
 		letter-spacing: 0.02em;
 		padding-left: 0.6rem;
+	}
+
+	/* ── Skill diagnostics: missing envs / bins ─────────────── */
+	.skill-block {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		max-width: 100%;
+	}
+
+	.chip--warn {
+		border-color: color-mix(in oklch, oklch(0.78 0.16 75) 45%, transparent);
+		background: color-mix(in oklch, oklch(0.78 0.16 75) 8%, var(--card));
+	}
+
+	.chip-warn-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.18rem;
+		font-size: 0.55rem;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: oklch(0.62 0.16 75);
+		background: color-mix(in oklch, oklch(0.78 0.16 75) 14%, transparent);
+		padding: 0.06rem 0.3rem;
+		border-radius: 2px;
+	}
+
+	.needs-list {
+		list-style: none;
+		display: flex;
+		flex-direction: column;
+		gap: 0.18rem;
+		padding: 0.18rem 0 0 0.55rem;
+		margin: 0;
+	}
+
+	.needs-row {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.6rem;
+		color: var(--muted-foreground);
+	}
+
+	:global(.needs-icon) {
+		opacity: 0.55;
+	}
+
+	.needs-key {
+		color: var(--foreground);
+		opacity: 0.75;
+		letter-spacing: 0.02em;
+	}
+
+	.needs-cta {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.15rem;
+		padding: 0.05rem 0.32rem;
+		border-radius: 2px;
+		color: var(--primary);
+		text-decoration: none;
+		background: color-mix(in oklch, var(--primary) 8%, transparent);
+		border: 1px solid color-mix(in oklch, var(--primary) 22%, transparent);
+		transition: background 120ms ease;
+	}
+
+	.needs-cta:hover {
+		background: color-mix(in oklch, var(--primary) 16%, transparent);
+	}
+
+	.needs-note {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.58rem;
+		color: var(--muted-foreground);
+		opacity: 0.55;
+		padding-left: 0.55rem;
+		margin: 0;
 	}
 
 	/* ── Spinners ─────────────────────────────────────────────── */

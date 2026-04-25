@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { invalidateAll } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import { goto, invalidateAll } from '$app/navigation';
+	import { page } from '$app/state';
 	import { Icon } from '$lib/icons';
 
 	let { data } = $props();
@@ -253,8 +255,22 @@
 
 	const newDerivedName = $derived(newPairs[0]?.key.trim() ?? '');
 
-	function openNew() { newOpen = true; newPairs = [kv()]; newError = null; }
+	function openNew(prefillKey: string = '') {
+		newOpen = true;
+		newPairs = [kv(prefillKey, '', '')];
+		newError = null;
+	}
 	function closeNew() { newOpen = false; }
+
+	onMount(() => {
+		const addKey = page.url.searchParams.get('addKey');
+		if (addKey) {
+			openNew(addKey);
+			const url = new URL(page.url);
+			url.searchParams.delete('addKey');
+			goto(url.pathname + (url.search || ''), { replaceState: true, noScroll: true });
+		}
+	});
 
 	async function saveNew() {
 		const name = newDerivedName;
@@ -736,7 +752,7 @@
 					</div>
 				</div>
 				{#if !newOpen}
-					<button class="btn-add font-mono" type="button" onclick={openNew}>
+					<button class="btn-add font-mono" type="button" onclick={() => openNew()}>
 						<Icon icon="oc:spawn" width={11} height={11} />
 						New environment
 					</button>
