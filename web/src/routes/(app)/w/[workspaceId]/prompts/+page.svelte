@@ -16,72 +16,58 @@
 	const TYPES = ['soul', 'agents', 'heartbeat', 'tools'] as const;
 	type TemplateType = (typeof TYPES)[number];
 
-	const TYPE_META: Record<TemplateType, { label: string; hint: string }> = {
-		soul:      { label: 'soul',      hint: 'Identity, personality, persistent goals' },
-		agents:    { label: 'agents',    hint: 'Sub-agents the agent can spawn' },
-		heartbeat: { label: 'heartbeat', hint: 'Scheduled / recurring tasks' },
-		tools:     { label: 'tools',     hint: 'Tool configuration and guidance' }
+	const TYPE_META: Record<TemplateType, { label: string; hint: string; description: string }> = {
+		soul: {
+			label: 'soul',
+			hint: 'Identity, personality, persistent goals',
+			description: "Defines who the agent is — its name, purpose, voice, and the goals it carries between sessions."
+		},
+		agents: {
+			label: 'agents',
+			hint: 'Sub-agents the agent can spawn',
+			description: 'Catalogues the sub-agents this agent can spawn and how to delegate work to them.'
+		},
+		heartbeat: {
+			label: 'heartbeat',
+			hint: 'Scheduled / recurring tasks',
+			description: 'Recurring tasks the agent runs on a schedule — checkins, reports, polling jobs.'
+		},
+		tools: {
+			label: 'tools',
+			hint: 'Tool configuration and guidance',
+			description: 'How the agent should think about its tools — when to use which, edge cases, and traps.'
+		}
 	};
 
-	// ── Create form ──────────────────────────────────────────────
-	let creating = $state(false);
-	let newName = $state('');
-	let newType = $state<TemplateType>('soul');
-	let newContent = $state('');
-	let createError: string | null = $state(null);
-	let createSaving = $state(false);
+	const templates = $derived(data.templates as Template[]);
 
-	function openCreate() {
-		creating = true;
-		newName = '';
-		newType = 'soul';
-		newContent = '';
-		createError = null;
-	}
+	// ── Selection / draft state ──────────────────────────────────
+	let selectedId: string | null = $state(null);
+	let drafting = $state(false);
 
-	function cancelCreate() {
-		creating = false;
-	}
+	const selectedTemplate = $derived(
+		selectedId ? (templates.find((t) => t.id === selectedId) ?? null) : null
+	);
 
-	async function submitCreate() {
-		if (!newName.trim() || createSaving) return;
-		createSaving = true;
-		createError = null;
-		try {
-			const res = await fetch('/api/templates', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ name: newName.trim(), template_type: newType, content: newContent, workspace_id: data.workspace.id })
-			});
-			if (!res.ok) { createError = await res.text(); return; }
-			creating = false;
-			await invalidateAll();
-		} catch (e) {
-			createError = e instanceof Error ? e.message : 'Failed to create';
-		} finally {
-			createSaving = false;
-		}
-	}
-
-	// ── Edit state ───────────────────────────────────────────────
-	let expandedId: string | null = $state(null);
+	// Edit buffers, keyed per template
 	let editContent: Record<string, string> = $state({});
+	let editName: Record<string, string> = $state({});
 	let editSaving: Record<string, boolean> = $state({});
 	let editError: Record<string, string | null> = $state({});
 
-	function toggleExpand(t: Template) {
-		if (expandedId === t.id) {
-			expandedId = null;
-		} else {
-			expandedId = t.id;
-			if (!(t.id in editContent)) {
-				editContent = { ...editContent, [t.id]: t.content };
-			}
+	function selectTemplate(t: Template) {
+		drafting = false;
+		selectedId = t.id;
+		if (!(t.id in editContent)) {
+			editContent = { ...editContent, [t.id]: t.content };
+			editName = { ...editName, [t.id]: t.name };
 		}
 	}
 
 	function isDirty(t: Template) {
-		return editContent[t.id] !== undefined && editContent[t.id] !== t.content;
+		const c = editContent[t.id];
+		const n = editName[t.id];
+		return (c !== undefined && c !== t.content) || (n !== undefined && n.trim() !== t.name);
 	}
 
 	async function saveTemplate(t: Template) {
@@ -89,12 +75,21 @@
 		editSaving = { ...editSaving, [t.id]: true };
 		editError = { ...editError, [t.id]: null };
 		try {
+			const body: Record<string, string> = {};
+			if (editContent[t.id] !== undefined && editContent[t.id] !== t.content)
+				body.content = editContent[t.id];
+			if (editName[t.id] !== undefined && editName[t.id].trim() !== t.name)
+				body.name = editName[t.id].trim();
+
 			const res = await fetch(`/api/templates/${t.id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ content: editContent[t.id] })
+				body: JSON.stringify(body)
 			});
-			if (!res.ok) { editError = { ...editError, [t.id]: await res.text() }; return; }
+			if (!res.ok) {
+				editError = { ...editError, [t.id]: await res.text() };
+				return;
+			}
 			await invalidateAll();
 		} catch (e) {
 			editError = { ...editError, [t.id]: e instanceof Error ? e.message : 'Failed' };
@@ -107,452 +102,966 @@
 		if (!confirm(`Delete "${t.name}"?`)) return;
 		const res = await fetch(`/api/templates/${t.id}`, { method: 'DELETE' });
 		if (res.ok || res.status === 204) {
-			if (expandedId === t.id) expandedId = null;
+			if (selectedId === t.id) selectedId = null;
 			await invalidateAll();
 		}
 	}
 
-	const templates = $derived(data.templates as Template[]);
+	// ── Draft (create) state ─────────────────────────────────────
+	let draftName = $state('');
+	let draftType = $state<TemplateType>('soul');
+	let draftContent = $state('');
+	let draftError: string | null = $state(null);
+	let draftSaving = $state(false);
+
+	function openDraft(prefilledType: TemplateType = 'soul') {
+		drafting = true;
+		selectedId = null;
+		draftName = '';
+		draftType = prefilledType;
+		draftContent = '';
+		draftError = null;
+	}
+
+	function closeDraft() {
+		drafting = false;
+	}
+
+	async function submitDraft() {
+		if (!draftName.trim() || draftSaving) return;
+		draftSaving = true;
+		draftError = null;
+		try {
+			const res = await fetch('/api/templates', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					name: draftName.trim(),
+					template_type: draftType,
+					content: draftContent,
+					workspace_id: data.workspace.id
+				})
+			});
+			if (!res.ok) {
+				draftError = await res.text();
+				return;
+			}
+			const created = await res.json();
+			drafting = false;
+			await invalidateAll();
+			selectedId = created.id ?? null;
+		} catch (e) {
+			draftError = e instanceof Error ? e.message : 'Failed to create';
+		} finally {
+			draftSaving = false;
+		}
+	}
+
+	function focusOnMount(node: HTMLElement) {
+		node.focus();
+	}
+
+	function fmtDate(d: Date | string | undefined): string {
+		if (!d) return '';
+		const date = typeof d === 'string' ? new Date(d) : d;
+		return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+	}
 </script>
 
 <div class="shell">
-	<header class="page-head">
-		<div class="crumb font-mono">workspace / prompts</div>
-		<div class="head-row">
-			<div>
-				<h1 class="page-title font-display">Prompts</h1>
-				<p class="page-sub">Typed instruction templates for your agents. Attach one per type in agent settings.</p>
-			</div>
-			<button class="btn-new" onclick={openCreate}>
-				<Icon icon="tabler:plus" width={13} height={13} />
-				New template
-			</button>
-		</div>
-	</header>
-
-	<div class="body">
-		<!-- Create form -->
-		{#if creating}
-			<div class="create-card">
-				<div class="create-row">
-					<input
-						class="create-name font-mono"
-						placeholder="template name…"
-						bind:value={newName}
-						maxlength={80}
-						autofocus
-					/>
-					<select class="create-type font-mono" bind:value={newType}>
-						{#each TYPES as t}
-							<option value={t}>{t}</option>
-						{/each}
-					</select>
-					<button class="btn-cancel font-mono" onclick={cancelCreate}>cancel</button>
+	<!-- ── Left rail: list ───────────────────────────────────── -->
+	<aside class="rail">
+		<header class="rail-head">
+			<div class="rail-head-row">
+				<div class="rail-titles">
+					<div class="crumb font-mono">workspace</div>
+					<h1 class="rail-title font-display">Prompts</h1>
 				</div>
-				<p class="create-hint font-mono">{TYPE_META[newType].hint}</p>
-				<textarea
-					class="create-textarea"
-					placeholder="Write the template content…"
-					bind:value={newContent}
-					rows={6}
-				></textarea>
-				{#if createError}
-					<p class="create-error font-mono">{createError}</p>
-				{/if}
-				<div class="create-foot">
-					<button class="btn-save" onclick={submitCreate} disabled={!newName.trim() || createSaving}>
-						{#if createSaving}<span class="spinner"></span>saving…{:else}Create{/if}
-					</button>
-				</div>
-			</div>
-		{/if}
-
-		<!-- Type groups -->
-		{#each TYPES as type}
-			{@const group = templates.filter((t) => t.templateType === type)}
-			{#if group.length > 0}
-				<div class="type-group">
-					<div class="type-group-head">
-						<span class="type-badge type-badge--{type} font-mono">{type}</span>
-						<span class="type-group-hint font-mono">{TYPE_META[type].hint}</span>
-					</div>
-
-					{#each group as tpl (tpl.id)}
-						<div class="tpl-card" class:expanded={expandedId === tpl.id}>
-							<button class="tpl-header" onclick={() => toggleExpand(tpl)}>
-								<span class="tpl-name">{tpl.name}</span>
-								<span class="tpl-preview font-mono">
-									{tpl.content ? tpl.content.slice(0, 60).replace(/\n/g, ' ') + (tpl.content.length > 60 ? '…' : '') : '(empty)'}
-								</span>
-								<Icon
-									icon={expandedId === tpl.id ? 'tabler:chevron-up' : 'tabler:chevron-down'}
-									width={13} height={13}
-									class="tpl-chevron"
-								/>
-							</button>
-
-							{#if expandedId === tpl.id}
-								<div class="tpl-body">
-									<textarea
-										class="tpl-textarea"
-										value={editContent[tpl.id] ?? tpl.content}
-										oninput={(e) => {
-											editContent = { ...editContent, [tpl.id]: (e.currentTarget as HTMLTextAreaElement).value };
-										}}
-										rows={10}
-									></textarea>
-									{#if editError[tpl.id]}
-										<p class="tpl-error font-mono">{editError[tpl.id]}</p>
-									{/if}
-									<div class="tpl-foot">
-										<button
-											class="btn-save"
-											onclick={() => saveTemplate(tpl)}
-											disabled={!isDirty(tpl) || editSaving[tpl.id]}
-										>
-											{#if editSaving[tpl.id]}<span class="spinner"></span>saving…{:else}Save{/if}
-										</button>
-										<button class="btn-delete font-mono" onclick={() => deleteTemplate(tpl)}>
-											<Icon icon="tabler:trash" width={12} height={12} />
-											delete
-										</button>
-									</div>
-								</div>
-							{/if}
-						</div>
-					{/each}
-				</div>
-			{/if}
-		{/each}
-
-		{#if templates.length === 0 && !creating}
-			<div class="empty">
-				<p class="empty-title font-display">No templates yet</p>
-				<p class="empty-sub">Create a template to share base instructions across agents.</p>
-				<button class="btn-new" onclick={openCreate}>
+				<button
+					class="rail-new"
+					class:active={drafting}
+					onclick={() => openDraft()}
+					title="New template"
+					aria-label="New template"
+				>
 					<Icon icon="tabler:plus" width={13} height={13} />
-					New template
 				</button>
 			</div>
+			<p class="rail-sub">Typed instruction templates. Attach one per type in agent settings.</p>
+		</header>
+
+		<div class="rail-scroll">
+			{#each TYPES as type}
+				{@const group = templates.filter((t) => t.templateType === type)}
+				<section class="rail-group">
+					<header class="rail-group-head">
+						<span class="rail-group-label font-mono type-{type}">{type}</span>
+						<span class="rail-group-count font-mono">{group.length}</span>
+						<button
+							class="rail-group-add"
+							onclick={() => openDraft(type)}
+							title={`New ${type} template`}
+							aria-label={`New ${type} template`}
+						>
+							<Icon icon="tabler:plus" width={10} height={10} />
+						</button>
+					</header>
+
+					{#if group.length === 0}
+						<button class="rail-group-empty font-mono" onclick={() => openDraft(type)}>
+							{TYPE_META[type].hint}
+						</button>
+					{:else}
+						<ul class="rail-list">
+							{#each group as tpl (tpl.id)}
+								<li>
+									<button
+										class="rail-item type-{type}"
+										class:active={selectedId === tpl.id}
+										onclick={() => selectTemplate(tpl)}
+									>
+										<span class="rail-item-mark"></span>
+										<span class="rail-item-name">{tpl.name}</span>
+										{#if isDirty(tpl)}
+											<span class="rail-item-dirty" aria-label="unsaved"></span>
+										{/if}
+									</button>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</section>
+			{/each}
+		</div>
+	</aside>
+
+	<!-- ── Right pane: editor ────────────────────────────────── -->
+	<main class="pane">
+		{#if drafting}
+			<!-- ── Draft form ─────────────────────────────────── -->
+			<div class="editor draft" data-type={draftType}>
+				<header class="editor-head">
+					<div class="editor-head-left">
+						<div class="editor-eyebrow font-mono">new template</div>
+						<input
+							class="editor-name-input font-display"
+							placeholder="untitled prompt"
+							bind:value={draftName}
+							maxlength={80}
+							use:focusOnMount
+						/>
+					</div>
+					<div class="editor-head-right">
+						<div class="type-pills">
+							{#each TYPES as t}
+								<button
+									type="button"
+									class="type-pill type-pill-{t}"
+									class:active={draftType === t}
+									onclick={() => (draftType = t)}
+								>
+									{t}
+								</button>
+							{/each}
+						</div>
+					</div>
+				</header>
+				<p class="editor-hint font-mono">{TYPE_META[draftType].description}</p>
+
+				<textarea
+					class="editor-textarea"
+					placeholder="Write the template content. Markdown supported."
+					bind:value={draftContent}
+				></textarea>
+
+				{#if draftError}
+					<p class="editor-error font-mono"><Icon icon="oc:error" width={11} height={11} />{draftError}</p>
+				{/if}
+
+				<footer class="editor-foot">
+					<div class="editor-foot-left">
+						<button class="btn-cancel font-mono" onclick={closeDraft}>cancel</button>
+					</div>
+					<div class="editor-foot-right">
+						<button
+							class="btn-primary"
+							onclick={submitDraft}
+							disabled={!draftName.trim() || draftSaving}
+						>
+							{#if draftSaving}<span class="spinner"></span>creating…{:else}<Icon icon="tabler:check" width={13} height={13} />Create template{/if}
+						</button>
+					</div>
+				</footer>
+			</div>
+		{:else if selectedTemplate}
+			{@const t = selectedTemplate}
+			{@const ttype = t.templateType as TemplateType}
+			<div class="editor" data-type={ttype}>
+				<header class="editor-head">
+					<div class="editor-head-left">
+						<div class="editor-eyebrow font-mono">
+							<span class="type-tag type-tag-{ttype}">{ttype}</span>
+							<span class="sep">·</span>
+							<span class="dim">edited {fmtDate(t.updatedAt)}</span>
+						</div>
+						<input
+							class="editor-name-input font-display"
+							value={editName[t.id] ?? t.name}
+							oninput={(e) =>
+								(editName = {
+									...editName,
+									[t.id]: (e.currentTarget as HTMLInputElement).value
+								})}
+							maxlength={80}
+						/>
+					</div>
+				</header>
+				<p class="editor-hint font-mono">{TYPE_META[ttype]?.description ?? ''}</p>
+
+				<textarea
+					class="editor-textarea"
+					value={editContent[t.id] ?? t.content}
+					oninput={(e) =>
+						(editContent = {
+							...editContent,
+							[t.id]: (e.currentTarget as HTMLTextAreaElement).value
+						})}
+					placeholder="(empty)"
+				></textarea>
+
+				{#if editError[t.id]}
+					<p class="editor-error font-mono"><Icon icon="oc:error" width={11} height={11} />{editError[t.id]}</p>
+				{/if}
+
+				<footer class="editor-foot">
+					<div class="editor-foot-left">
+						<button class="btn-delete font-mono" onclick={() => deleteTemplate(t)}>
+							<Icon icon="tabler:trash" width={11} height={11} />
+							delete
+						</button>
+					</div>
+					<div class="editor-foot-right">
+						<span class="dirty-hint font-mono" class:visible={isDirty(t)}>unsaved changes</span>
+						<button
+							class="btn-primary"
+							onclick={() => saveTemplate(t)}
+							disabled={!isDirty(t) || editSaving[t.id]}
+						>
+							{#if editSaving[t.id]}<span class="spinner"></span>saving…{:else}<Icon icon="tabler:check" width={13} height={13} />Save{/if}
+						</button>
+					</div>
+				</footer>
+			</div>
+		{:else}
+			<!-- ── Empty state ────────────────────────────────── -->
+			<div class="empty">
+				<div class="empty-eyebrow font-mono">no template selected</div>
+				<h2 class="empty-title font-display">
+					Pick a slot. <em>Shape</em> your agents.
+				</h2>
+				<p class="empty-sub">
+					Templates plug into one of four slots on every agent. Pick a slot below to draft a new
+					prompt, or select an existing one from the rail.
+				</p>
+
+				<div class="slot-grid">
+					{#each TYPES as type}
+						{@const count = templates.filter((t) => t.templateType === type).length}
+						<button class="slot-card slot-{type}" onclick={() => openDraft(type)}>
+							<div class="slot-card-head">
+								<span class="slot-card-label font-mono">{type}</span>
+								<span class="slot-card-count font-mono">{count}</span>
+							</div>
+							<p class="slot-card-desc">{TYPE_META[type].description}</p>
+							<div class="slot-card-cta font-mono">
+								<Icon icon="tabler:plus" width={11} height={11} />
+								new {type}
+							</div>
+						</button>
+					{/each}
+				</div>
+			</div>
 		{/if}
-	</div>
+	</main>
 </div>
 
 <style>
-	.shell { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+	/* ── Shell: fill viewport, two columns ───────────────────── */
+	.shell {
+		flex: 1;
+		display: grid;
+		grid-template-columns: 304px 1fr;
+		min-height: 0;
+		height: 100%;
+		background: var(--background);
+	}
 
-	.page-head {
-		padding: 1.75rem 3rem 1.5rem;
-		border-bottom: 1px solid var(--border);
+	/* ── Rail ────────────────────────────────────────────────── */
+	.rail {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		border-right: 1px solid var(--border);
+		background: color-mix(in oklch, var(--card) 50%, var(--background));
+	}
+
+	.rail-head {
 		flex-shrink: 0;
+		padding: 1.4rem 1.1rem 1rem;
+		border-bottom: 1px solid var(--border);
 	}
 
-	.crumb {
-		font-size: 0.62rem;
-		letter-spacing: 0.16em;
-		text-transform: uppercase;
-		color: color-mix(in oklch, var(--foreground) 35%, transparent);
-		margin-bottom: 0.75rem;
-	}
-
-	.head-row {
+	.rail-head-row {
 		display: flex;
 		align-items: flex-end;
 		justify-content: space-between;
-		gap: 1rem;
+		gap: 0.5rem;
 	}
 
-	.page-title {
-		font-size: 2.5rem;
+	.rail-titles {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.crumb {
+		font-size: 0.58rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		color: color-mix(in oklch, var(--foreground) 35%, transparent);
+	}
+
+	.rail-title {
+		font-size: 1.5rem;
 		line-height: 1;
 		font-style: italic;
 		letter-spacing: -0.015em;
 	}
 
-	.page-sub {
-		margin-top: 0.65rem;
-		color: var(--muted-foreground);
-		font-size: 0.88rem;
-	}
-
-	.body {
-		flex: 1;
-		padding: 1.75rem 3rem;
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-		max-width: 60rem;
-	}
-
-	/* ── Create card ─────────────────────────────────────────── */
-	.create-card {
-		border: 1px solid color-mix(in oklch, var(--primary) 30%, var(--border));
-		border-radius: 0.5rem;
-		padding: 1rem 1.25rem;
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-		background: color-mix(in oklch, var(--primary) 4%, var(--background));
-		animation: slide-in 120ms ease;
-	}
-
-	@keyframes slide-in {
-		from { opacity: 0; transform: translateY(-6px); }
-		to   { opacity: 1; transform: translateY(0); }
-	}
-
-	.create-row {
-		display: flex;
-		gap: 0.5rem;
-		align-items: center;
-	}
-
-	.create-name {
-		flex: 1;
-		background: transparent;
-		border: none;
-		outline: none;
-		font-size: 0.85rem;
-		color: var(--foreground);
-	}
-
-	.create-name::placeholder { color: color-mix(in oklch, var(--foreground) 30%, transparent); }
-
-	.create-type {
-		background: color-mix(in oklch, var(--muted) 50%, transparent);
-		border: 1px solid var(--border);
-		border-radius: 0.3rem;
-		padding: 0.3rem 0.5rem;
+	.rail-sub {
+		margin-top: 0.55rem;
 		font-size: 0.72rem;
-		color: var(--foreground);
-		cursor: pointer;
+		line-height: 1.5;
+		color: color-mix(in oklch, var(--foreground) 45%, transparent);
 	}
 
-	.create-hint {
-		font-size: 0.65rem;
-		letter-spacing: 0.04em;
-		color: color-mix(in oklch, var(--foreground) 35%, transparent);
+	.rail-new {
+		width: 26px;
+		height: 26px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 0.3rem;
+		color: var(--primary);
+		background: color-mix(in oklch, var(--primary) 10%, transparent);
+		border: 1px solid color-mix(in oklch, var(--primary) 24%, transparent);
+		transition: background 150ms ease, transform 150ms ease;
 	}
-
-	.create-textarea, .tpl-textarea {
-		width: 100%;
-		background: color-mix(in oklch, var(--muted) 20%, transparent);
-		border: 1px solid var(--border);
-		border-radius: 0.35rem;
-		padding: 0.75rem 0.9rem;
-		font-size: 0.82rem;
-		font-family: var(--font-mono);
-		color: var(--foreground);
-		resize: vertical;
-		line-height: 1.6;
-		transition: border-color 150ms ease;
+	.rail-new:hover {
+		background: color-mix(in oklch, var(--primary) 18%, transparent);
+		transform: rotate(90deg);
 	}
-
-	.create-textarea:focus, .tpl-textarea:focus {
-		outline: none;
+	.rail-new.active {
+		background: var(--primary);
+		color: var(--primary-foreground);
 		border-color: var(--primary);
 	}
 
-	.create-textarea::placeholder { color: color-mix(in oklch, var(--foreground) 28%, transparent); }
+	.rail-scroll {
+		flex: 1;
+		overflow-y: auto;
+		padding: 0.6rem 0;
+	}
 
-	.create-error, .tpl-error {
-		font-size: 0.68rem;
-		color: var(--destructive);
+	.rail-group {
+		padding: 0.4rem 0 0.7rem;
+	}
+
+	.rail-group-head {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.3rem 1.1rem 0.45rem;
+	}
+
+	.rail-group-label {
+		font-size: 0.6rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		font-weight: 600;
+	}
+
+	.rail-group-count {
+		margin-left: auto;
+		font-size: 0.6rem;
+		color: color-mix(in oklch, var(--foreground) 35%, transparent);
+		letter-spacing: 0.06em;
+	}
+
+	.rail-group-add {
+		width: 18px;
+		height: 18px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		border-radius: 3px;
+		opacity: 0;
+		color: color-mix(in oklch, var(--foreground) 40%, transparent);
+		transition: opacity 120ms ease, color 120ms ease, background 120ms ease;
+	}
+	.rail-group:hover .rail-group-add {
+		opacity: 1;
+	}
+	.rail-group-add:hover {
+		color: var(--primary);
+		background: color-mix(in oklch, var(--primary) 14%, transparent);
+	}
+
+	.rail-group-empty {
+		display: block;
+		width: calc(100% - 1.1rem);
+		margin: 0 0.55rem;
+		padding: 0.5rem 0.7rem;
+		text-align: left;
+		font-size: 0.65rem;
+		line-height: 1.45;
+		color: color-mix(in oklch, var(--foreground) 38%, transparent);
+		border: 1px dashed color-mix(in oklch, var(--border) 80%, transparent);
+		border-radius: 0.35rem;
+		transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
+	}
+	.rail-group-empty:hover {
+		color: var(--primary);
+		border-color: color-mix(in oklch, var(--primary) 32%, transparent);
+		background: color-mix(in oklch, var(--primary) 5%, transparent);
+	}
+
+	.rail-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+	}
+
+	.rail-item {
+		position: relative;
+		width: calc(100% - 0.5rem);
+		margin: 0.05rem 0.25rem;
+		padding: 0.45rem 0.6rem 0.45rem 0.95rem;
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		text-align: left;
+		border-radius: 0.3rem;
+		font-size: 0.78rem;
+		color: var(--foreground);
+		background: transparent;
+		transition: background 150ms ease, color 150ms ease;
+	}
+	.rail-item:hover {
+		background: color-mix(in oklch, var(--muted) 50%, transparent);
+	}
+	.rail-item.active {
+		background: color-mix(in oklch, var(--primary) 8%, var(--muted));
+		color: var(--foreground);
+	}
+
+	.rail-item-mark {
+		position: absolute;
+		left: 0.3rem;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 4px;
+		height: 14px;
+		border-radius: 2px;
+		background: transparent;
+		transition: background 200ms ease;
+	}
+	.rail-item.active .rail-item-mark {
+		background: var(--type-color);
+	}
+
+	.rail-item-name {
+		flex: 1;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.rail-item-dirty {
+		flex-shrink: 0;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--primary);
+		box-shadow: 0 0 6px color-mix(in oklch, var(--primary) 50%, transparent);
+	}
+
+	/* ── Type accent colors ──────────────────────────────────── */
+	.type-soul,
+	.type-pill-soul,
+	.type-tag-soul,
+	.slot-soul {
+		--type-color: var(--primary);
+	}
+	.type-agents,
+	.type-pill-agents,
+	.type-tag-agents,
+	.slot-agents {
+		--type-color: oklch(0.72 0.14 250);
+	}
+	.type-heartbeat,
+	.type-pill-heartbeat,
+	.type-tag-heartbeat,
+	.slot-heartbeat {
+		--type-color: oklch(0.72 0.14 148);
+	}
+	.type-tools,
+	.type-pill-tools,
+	.type-tag-tools,
+	.slot-tools {
+		--type-color: oklch(0.72 0.04 75);
+	}
+
+	.rail-group-label,
+	.rail-item-name {
+		color: inherit;
+	}
+	.rail-group-label.type-soul,
+	.rail-group-label.type-agents,
+	.rail-group-label.type-heartbeat,
+	.rail-group-label.type-tools {
+		color: var(--type-color);
+	}
+
+	/* ── Pane ────────────────────────────────────────────────── */
+	.pane {
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		min-width: 0;
+		overflow: hidden;
+	}
+
+	/* ── Editor ──────────────────────────────────────────────── */
+	.editor {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		padding: 1.5rem 2.25rem 1.25rem;
+		gap: 0.85rem;
+
+		/* Subtle accent strip on the left edge of the editor */
+		background:
+			linear-gradient(to right, color-mix(in oklch, var(--type-color, var(--primary)) 5%, transparent) 0, transparent 12rem),
+			var(--background);
+	}
+
+	.editor[data-type='soul'] {
+		--type-color: var(--primary);
+	}
+	.editor[data-type='agents'] {
+		--type-color: oklch(0.72 0.14 250);
+	}
+	.editor[data-type='heartbeat'] {
+		--type-color: oklch(0.72 0.14 148);
+	}
+	.editor[data-type='tools'] {
+		--type-color: oklch(0.72 0.04 75);
+	}
+
+	.editor-head {
+		display: flex;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 1.5rem;
+		padding-bottom: 0.4rem;
+	}
+
+	.editor-head-left {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.4rem;
+	}
+
+	.editor-eyebrow {
+		font-size: 0.62rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: color-mix(in oklch, var(--foreground) 40%, transparent);
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+	}
+
+	.editor-eyebrow .sep {
+		opacity: 0.4;
+	}
+	.editor-eyebrow .dim {
+		color: color-mix(in oklch, var(--foreground) 35%, transparent);
+		text-transform: none;
 		letter-spacing: 0.02em;
 	}
 
-	.create-foot, .tpl-foot {
-		display: flex;
+	.type-tag {
+		display: inline-flex;
 		align-items: center;
-		gap: 0.75rem;
-	}
-
-	/* ── Type group ──────────────────────────────────────────── */
-	.type-group {
-		display: flex;
-		flex-direction: column;
-		gap: 0.5rem;
-	}
-
-	.type-group-head {
-		display: flex;
-		align-items: center;
-		gap: 0.6rem;
-		padding-bottom: 0.5rem;
-		border-bottom: 1px solid var(--border);
-	}
-
-	.type-group-hint {
-		font-size: 0.62rem;
-		letter-spacing: 0.04em;
-		color: color-mix(in oklch, var(--foreground) 30%, transparent);
-	}
-
-	.type-badge {
-		display: inline-block;
-		padding: 0.15rem 0.5rem;
-		border-radius: 0.25rem;
+		padding: 0.1rem 0.45rem;
+		border-radius: 0.2rem;
 		font-size: 0.6rem;
-		letter-spacing: 0.08em;
+		letter-spacing: 0.12em;
 		font-weight: 600;
-		text-transform: uppercase;
+		background: color-mix(in oklch, var(--type-color) 14%, transparent);
+		color: var(--type-color);
 	}
 
-	.type-badge--soul {
-		background: color-mix(in oklch, var(--primary) 16%, transparent);
-		color: var(--primary);
+	.editor-name-input {
+		width: 100%;
+		background: transparent;
+		border: none;
+		outline: none;
+		font-size: 2rem;
+		font-style: italic;
+		font-variation-settings:
+			'opsz' 36,
+			'wght' 680;
+		line-height: 1.05;
+		letter-spacing: -0.015em;
+		color: var(--foreground);
+		padding: 0;
+	}
+	.editor-name-input::placeholder {
+		color: color-mix(in oklch, var(--foreground) 28%, transparent);
+		font-style: italic;
+	}
+	.editor-name-input:focus {
+		outline: none;
 	}
 
-	.type-badge--agents {
-		background: color-mix(in oklch, oklch(0.65 0.15 250) 16%, transparent);
-		color: oklch(0.72 0.14 250);
+	.editor-head-right {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		flex-shrink: 0;
+		padding-top: 1.05rem;
 	}
 
-	.type-badge--heartbeat {
-		background: color-mix(in oklch, oklch(0.65 0.15 148) 16%, transparent);
-		color: oklch(0.72 0.14 148);
-	}
-
-	.type-badge--tools {
-		background: color-mix(in oklch, var(--muted-foreground) 16%, transparent);
-		color: var(--muted-foreground);
-	}
-
-	/* ── Template card ───────────────────────────────────────── */
-	.tpl-card {
+	.type-pills {
+		display: flex;
+		gap: 0.25rem;
+		padding: 0.25rem;
+		background: color-mix(in oklch, var(--muted) 50%, transparent);
 		border: 1px solid var(--border);
 		border-radius: 0.4rem;
-		overflow: hidden;
-		transition: border-color 150ms ease;
 	}
 
-	.tpl-card.expanded {
-		border-color: color-mix(in oklch, var(--primary) 35%, var(--border));
+	.type-pill {
+		padding: 0.32rem 0.65rem;
+		font-size: 0.65rem;
+		letter-spacing: 0.06em;
+		font-family: var(--font-mono);
+		text-transform: lowercase;
+		border-radius: 0.25rem;
+		color: color-mix(in oklch, var(--foreground) 45%, transparent);
+		background: transparent;
+		transition: background 150ms ease, color 150ms ease;
+	}
+	.type-pill:hover {
+		color: var(--type-color);
+	}
+	.type-pill.active {
+		background: color-mix(in oklch, var(--type-color) 18%, transparent);
+		color: var(--type-color);
 	}
 
-	.tpl-header {
-		width: 100%;
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		padding: 0.7rem 1rem;
-		text-align: left;
-		transition: background 150ms ease;
-	}
-
-	.tpl-header:hover { background: color-mix(in oklch, var(--muted) 30%, transparent); }
-
-	.tpl-name {
-		font-size: 0.85rem;
-		font-weight: 500;
-		color: var(--foreground);
-		min-width: 10rem;
-		flex-shrink: 0;
-	}
-
-	.tpl-preview {
-		flex: 1;
+	.editor-hint {
 		font-size: 0.7rem;
-		color: color-mix(in oklch, var(--foreground) 38%, transparent);
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		letter-spacing: 0.01em;
+		line-height: 1.5;
+		color: color-mix(in oklch, var(--foreground) 40%, transparent);
+		max-width: 60ch;
 	}
 
-	:global(.tpl-chevron) {
-		color: color-mix(in oklch, var(--foreground) 35%, transparent);
-		flex-shrink: 0;
+	/* ── Textarea: fills available height ────────────────────── */
+	.editor-textarea {
+		flex: 1;
+		min-height: 0;
+		width: 100%;
+		resize: none;
+		background: color-mix(in oklch, var(--card) 60%, transparent);
+		border: 1px solid var(--border);
+		border-radius: 0.5rem;
+		padding: 1.1rem 1.3rem;
+		font-family: var(--font-mono);
+		font-size: 0.82rem;
+		line-height: 1.65;
+		color: var(--foreground);
+		transition: border-color 150ms ease, box-shadow 150ms ease;
 	}
 
-	.tpl-body {
-		border-top: 1px solid var(--border);
-		padding: 1rem;
-		display: flex;
-		flex-direction: column;
-		gap: 0.75rem;
-		background: color-mix(in oklch, var(--muted) 10%, transparent);
-		animation: slide-in 100ms ease;
+	.editor-textarea:focus {
+		outline: none;
+		border-color: color-mix(in oklch, var(--type-color, var(--primary)) 50%, var(--border));
+		box-shadow: 0 0 0 3px color-mix(in oklch, var(--type-color, var(--primary)) 8%, transparent);
 	}
 
-	/* ── Buttons ─────────────────────────────────────────────── */
-	.btn-new {
+	.editor-textarea::placeholder {
+		color: color-mix(in oklch, var(--foreground) 28%, transparent);
+	}
+
+	.editor-error {
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;
-		padding: 0.45rem 0.9rem;
+		font-size: 0.7rem;
+		color: var(--destructive);
+		padding: 0.5rem 0.7rem;
+		background: color-mix(in oklch, var(--destructive) 8%, transparent);
+		border: 1px solid color-mix(in oklch, var(--destructive) 28%, transparent);
+		border-radius: 0.3rem;
+	}
+
+	/* ── Editor footer ───────────────────────────────────────── */
+	.editor-foot {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 0.85rem;
+		padding-top: 0.25rem;
+	}
+
+	.editor-foot-right {
+		display: flex;
+		align-items: center;
+		gap: 0.85rem;
+	}
+
+	.btn-primary {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+		padding: 0.5rem 1rem;
 		background: var(--primary);
 		color: var(--primary-foreground);
 		border-radius: 0.35rem;
 		font-size: 0.78rem;
 		font-weight: 500;
-		flex-shrink: 0;
-		transition: opacity 150ms ease;
+		letter-spacing: 0.01em;
+		box-shadow: 0 0 14px color-mix(in oklch, var(--primary) 22%, transparent);
+		transition: filter 150ms ease, transform 150ms ease, opacity 150ms ease;
 	}
-
-	.btn-new:hover { opacity: 0.88; }
-
-	.btn-save {
-		display: flex;
-		align-items: center;
-		gap: 0.4rem;
-		padding: 0.4rem 0.9rem;
-		background: var(--primary);
-		color: var(--primary-foreground);
-		border-radius: 0.3rem;
-		font-size: 0.75rem;
-		font-weight: 500;
-		transition: opacity 150ms ease;
+	.btn-primary:hover:not(:disabled) {
+		filter: brightness(1.07);
+		transform: translateY(-1px);
 	}
-
-	.btn-save:disabled { opacity: 0.35; cursor: not-allowed; }
+	.btn-primary:disabled {
+		opacity: 0.4;
+		cursor: not-allowed;
+		box-shadow: none;
+	}
 
 	.btn-cancel {
-		font-size: 0.68rem;
+		font-size: 0.7rem;
 		letter-spacing: 0.04em;
-		color: color-mix(in oklch, var(--foreground) 40%, transparent);
+		color: color-mix(in oklch, var(--foreground) 45%, transparent);
+		padding: 0.5rem 0.4rem;
 		transition: color 150ms ease;
 	}
-
-	.btn-cancel:hover { color: var(--foreground); }
+	.btn-cancel:hover {
+		color: var(--foreground);
+	}
 
 	.btn-delete {
 		display: flex;
 		align-items: center;
-		gap: 0.3rem;
-		font-size: 0.68rem;
+		gap: 0.35rem;
+		font-size: 0.7rem;
 		letter-spacing: 0.04em;
 		color: color-mix(in oklch, var(--destructive) 70%, transparent);
-		transition: color 150ms ease;
+		padding: 0.5rem 0.5rem;
+		border-radius: 0.3rem;
+		transition: color 150ms ease, background 150ms ease;
+	}
+	.btn-delete:hover {
+		color: var(--destructive);
+		background: color-mix(in oklch, var(--destructive) 8%, transparent);
 	}
 
-	.btn-delete:hover { color: var(--destructive); }
-
-	/* ── Empty state ─────────────────────────────────────────── */
-	.empty {
-		flex: 1;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 0.85rem;
-		text-align: center;
-		padding: 4rem;
+	.dirty-hint {
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		color: color-mix(in oklch, var(--primary) 80%, transparent);
+		opacity: 0;
+		transition: opacity 150ms ease;
 	}
-
-	.empty-title { font-size: 1.75rem; line-height: 1.1; font-style: italic; }
-	.empty-sub { font-size: 0.88rem; color: var(--muted-foreground); max-width: 28rem; }
+	.dirty-hint.visible {
+		opacity: 1;
+	}
 
 	/* ── Spinner ─────────────────────────────────────────────── */
 	.spinner {
 		display: inline-block;
-		width: 10px;
-		height: 10px;
+		width: 11px;
+		height: 11px;
 		border-radius: 9999px;
 		border: 1.5px solid currentColor;
 		border-right-color: transparent;
-		animation: spin 0.8s linear infinite;
+		animation: spin 0.75s linear infinite;
+	}
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
-	@keyframes spin { to { transform: rotate(360deg); } }
+	/* ── Empty state (no selection) ──────────────────────────── */
+	.empty {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		padding: 3rem 3.5rem;
+		max-width: 60rem;
+		margin: 0 auto;
+		width: 100%;
+	}
+
+	.empty-eyebrow {
+		font-size: 0.62rem;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		color: color-mix(in oklch, var(--foreground) 35%, transparent);
+		margin-bottom: 1rem;
+	}
+
+	.empty-title {
+		font-size: 2.6rem;
+		line-height: 1.05;
+		font-style: italic;
+		letter-spacing: -0.02em;
+		margin-bottom: 1rem;
+	}
+	.empty-title em {
+		color: var(--primary);
+		font-style: italic;
+	}
+
+	.empty-sub {
+		font-size: 0.95rem;
+		line-height: 1.6;
+		color: var(--muted-foreground);
+		max-width: 36rem;
+		margin-bottom: 2.5rem;
+	}
+
+	.slot-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: 0.85rem;
+	}
+
+	.slot-card {
+		--type-color: var(--primary);
+		position: relative;
+		display: flex;
+		flex-direction: column;
+		gap: 0.55rem;
+		padding: 1.1rem 1.2rem 1rem;
+		text-align: left;
+		border: 1px solid var(--border);
+		border-radius: 0.5rem;
+		background: color-mix(in oklch, var(--card) 60%, transparent);
+		overflow: hidden;
+		transition: border-color 150ms ease, transform 150ms ease, background 150ms ease;
+	}
+	.slot-card::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 0;
+		bottom: 0;
+		width: 3px;
+		background: var(--type-color);
+		opacity: 0.55;
+		transition: opacity 200ms ease, width 200ms ease;
+	}
+	.slot-card:hover {
+		border-color: color-mix(in oklch, var(--type-color) 35%, var(--border));
+		transform: translateY(-2px);
+	}
+	.slot-card:hover::before {
+		opacity: 1;
+		width: 4px;
+	}
+
+	.slot-card-head {
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
+	}
+
+	.slot-card-label {
+		font-size: 0.68rem;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		font-weight: 600;
+		color: var(--type-color);
+	}
+
+	.slot-card-count {
+		margin-left: auto;
+		font-size: 0.6rem;
+		padding: 0.1rem 0.4rem;
+		border-radius: 999px;
+		background: color-mix(in oklch, var(--type-color) 12%, transparent);
+		color: var(--type-color);
+	}
+
+	.slot-card-desc {
+		font-size: 0.78rem;
+		line-height: 1.55;
+		color: color-mix(in oklch, var(--foreground) 70%, transparent);
+	}
+
+	.slot-card-cta {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.62rem;
+		letter-spacing: 0.06em;
+		color: var(--type-color);
+		opacity: 0.75;
+		transition: opacity 150ms ease;
+	}
+	.slot-card:hover .slot-card-cta {
+		opacity: 1;
+	}
+
+	/* ── Responsive: collapse rail on narrow viewports ───────── */
+	@media (max-width: 880px) {
+		.shell {
+			grid-template-columns: 1fr;
+			grid-template-rows: auto 1fr;
+		}
+		.rail {
+			max-height: 220px;
+			border-right: none;
+			border-bottom: 1px solid var(--border);
+		}
+		.editor {
+			padding: 1.25rem 1.25rem 1rem;
+		}
+		.editor-name-input {
+			font-size: 1.5rem;
+		}
+		.empty {
+			padding: 1.75rem 1.5rem;
+		}
+		.slot-grid {
+			grid-template-columns: 1fr;
+		}
+	}
 </style>

@@ -166,6 +166,32 @@ async def attach_skill(context: Context, agent_id: str, skill_id: str) -> dict:
 
 
 @_pkg.admin_mcp.tool()
+async def detach_skill(context: Context, agent_id: str, skill_id: str) -> dict:
+    """Detach a skill from an agent. The skill itself stays in the workspace
+    library and remains attachable to other agents."""
+    await _pkg._require_workspace(context)
+    _pkg._assert_ready()
+    assert _pkg._integrations is not None
+    await _pkg._integrations.detach_skill(UUID(agent_id), UUID(skill_id))
+    return {"agent_id": agent_id, "skill_id": skill_id, "detached": True}
+
+
+@_pkg.admin_mcp.tool()
+async def delete_skill(context: Context, skill_id: str) -> dict:
+    """Permanently delete a skill from the workspace library.
+
+    This cascades to every agent: the skill becomes detached from all of
+    them, and its files are removed. Confirm with the user before calling —
+    the operation is irreversible.
+    """
+    await _pkg._require_workspace(context)
+    _pkg._assert_ready()
+    assert _pkg._library is not None
+    await _pkg._library.delete(UUID(skill_id))
+    return {"deleted": skill_id}
+
+
+@_pkg.admin_mcp.tool()
 async def import_skill_from_clawhub(context: Context, url: str) -> dict:
     """Import a skill from clawhub.ai into the workspace skill library.
 

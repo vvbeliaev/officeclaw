@@ -6,13 +6,17 @@ OfficeClaw MCP servers — two endpoints sharing the same app state.
 
 All tools are scoped to the authenticated workspace via OFFICECLAW_TOKEN bearer auth.
 
-Tool modules (admin):
-  agents      — fleet overview, create agent
-  skills      — skill library + attach to agent
-  envs        — env configs + attach to agent
-  channels    — channel integrations + attach to agent
-  mcp_servers — user MCP server configs + attach to agent
-  templates   — user templates + attach to agent
+Tool modules (admin), grouped by the agent triad:
+
+  Identity        — agents (CRUD, files), templates (workspace-shared SOUL/AGENTS/etc.)
+  Capabilities    — skills, envs, mcp_servers
+  Triggers        — crons, channels, agent.heartbeat (via update_agent)
+
+Each resource follows the same workspace-resource → attach pattern:
+  list_*  — read all in workspace
+  get_*   — read one
+  create_*/update_*/delete_*  — mutate workspace resource
+  attach_*/detach_*  — link/unlink to a specific agent
 
 Tool modules (knowledge):
   knowledge   — ingest_knowledge, query_knowledge
@@ -82,4 +86,4 @@ async def _require_workspace(context: Context) -> UUID:
 
 
 # Import tool modules last to trigger @admin_mcp.tool() / @knowledge_mcp.tool() registration
-from . import agents, channels, envs, knowledge, mcp_servers, skills, templates  # noqa: E402, F401
+from . import agents, channels, crons, envs, knowledge, mcp_servers, skills, templates  # noqa: E402, F401

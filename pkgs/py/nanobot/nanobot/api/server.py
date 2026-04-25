@@ -158,8 +158,6 @@ async def handle_chat_completions(request: web.Request) -> web.StreamResponse | 
     agent_loop = request.app["agent_loop"]
     timeout_s: float = request.app.get("request_timeout", 120.0)
     model_name: str = request.app.get("model_name", "nanobot")
-    if (requested_model := body.get("model")) and requested_model != model_name:
-        return _error_json(400, f"Only configured model '{model_name}' is available")
 
     session_key = f"api:{body['session_id']}" if body.get("session_id") else API_SESSION_KEY
     session_locks: dict[str, asyncio.Lock] = request.app["session_locks"]

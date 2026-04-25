@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
-	import { invalidate, invalidateAll } from '$app/navigation';
+	import { invalidate } from '$app/navigation';
 	import { Chat, type UIMessage } from '@ai-sdk/svelte';
 	import { DefaultChatTransport } from 'ai';
 	import AgentAvatar from '$lib/components/agent-avatar.svelte';
 	import Markdown from '$lib/components/markdown.svelte';
 	import ToolPart from '$lib/components/tool-part.svelte';
 	import { Icon } from '$lib/icons';
+	import { agentLifecycle } from '$lib/stores/agent-lifecycle.svelte';
 
 	type Part = NonNullable<UIMessage['parts']>[number];
 
@@ -24,18 +25,13 @@
 
 	type LifecyclePhase = 'idle' | 'starting' | 'running' | 'stopping' | 'error';
 
-	let phaseOverride: LifecyclePhase | null = $state(null);
-	let lifecycleError: string | null = $state(null);
+	const transitional = $derived(agentLifecycle.get(data.agent.id));
 
-	const phase: LifecyclePhase = $derived(phaseOverride ?? (data.agent.status as LifecyclePhase));
+	const phase: LifecyclePhase = $derived(
+		transitional ? (transitional.phase as LifecyclePhase) : (data.agent.status as LifecyclePhase)
+	);
 
-	// Once the server catches up with our optimistic override, drop it.
-	$effect(() => {
-		const serverStatus = data.agent.status as LifecyclePhase;
-		if (phaseOverride === serverStatus) {
-			phaseOverride = null;
-		}
-	});
+	const lifecycleError = $derived(transitional?.error ?? null);
 
 	// Stabilize the Chat instance against unrelated `data` updates.
 	// `$derived(new Chat(...))` would recreate the instance any time `data`
@@ -119,43 +115,16 @@
 			.join('');
 	}
 
-	async function startAgent() {
-		phaseOverride = 'starting';
-		lifecycleError = null;
-		try {
-			const res = await fetch(`/api/agents/${data.agent.id}/start`, { method: 'POST' });
-			if (!res.ok) {
-				const text = await res.text();
-				throw new Error(text || `HTTP ${res.status}`);
-			}
-			await invalidateAll();
-			phaseOverride = null;
-		} catch (err) {
-			phaseOverride = 'error';
-			lifecycleError = err instanceof Error ? err.message : 'Failed to start sandbox';
-		}
+	function startAgent() {
+		agentLifecycle.start(data.agent.id);
 	}
 
-	async function stopAgent() {
-		phaseOverride = 'stopping';
-		lifecycleError = null;
-		try {
-			const res = await fetch(`/api/agents/${data.agent.id}/stop`, { method: 'POST' });
-			if (!res.ok) {
-				const text = await res.text();
-				throw new Error(text || `HTTP ${res.status}`);
-			}
-			await invalidateAll();
-			phaseOverride = null;
-		} catch (err) {
-			phaseOverride = 'error';
-			lifecycleError = err instanceof Error ? err.message : 'Failed to stop sandbox';
-		}
+	function stopAgent() {
+		agentLifecycle.stop(data.agent.id);
 	}
 
 	function dismissLifecycleError() {
-		lifecycleError = null;
-		phaseOverride = null;
+		agentLifecycle.dismissError(data.agent.id);
 	}
 
 	const isStreaming = $derived(chat.status === 'streaming' || chat.status === 'submitted');
